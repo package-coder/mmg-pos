@@ -77,6 +77,56 @@ Flask 3.0 REST API backed by MongoDB (PyMongo).
 
 ---
 
+## Deployment Strategy
+
+### Two-Tier: Internal LAN + Staging/Cloud
+
+```
+┌─────────────────────────────────────────┐        ┌──────────────────────────────┐
+│  INTERNAL (LAN)                         │        │  STAGING / CLOUD             │
+│                                         │        │                              │
+│  Cashier (browser)                      │        │  Admin / Reports (browser)   │
+│       │                                 │        │       │                      │
+│       ▼                                 │        │       ▼                      │
+│  Local Flask API ──► Local MongoDB      │──sync──►  Cloud MongoDB (read-only)  │
+│                           │             │        │                              │
+│                      [_sync field       │        │  Staging mmg-app             │
+│                       on each doc]      │        │  (no cashier/write access)   │
+└─────────────────────────────────────────┘        └──────────────────────────────┘
+```
+
+**Internal (LAN)** is the production environment where all sales happen. The Flask API and MongoDB run on a single LAN server. Cashiers access the POS through the browser over the local network — this works fully offline if internet goes down.
+
+**Staging/Cloud** is a read-only view of the same data hosted remotely. Its purpose is reporting and cloud backup. It never generates transactions.
+
+### Sync Strategy — Embedded `_sync` Field (Outbox Pattern)
+
+Every write operation (transaction create/update, etc.) embeds a `_sync` field directly on the document:
+
+```json
+{
+  "_id": "...",
+  "invoiceNumber": 1234,
+  "...",
+  "_sync": { "status": "pending", "synced_at": null, "attempts": 0 }
+}
+```
+
+The sync service polls `{ "_sync.status": "pending" }`, pushes the document to the cloud MongoDB (stripping `_sync` before insert), then marks it `synced` locally.
+
+**Why this approach over a separate `sync_queue` collection:**
+A separate queue requires two MongoDB writes per transaction (the document + the queue entry). On a standalone MongoDB (no replica set), these two writes cannot be wrapped in a transaction — a crash between them leaves the document unqueued and it silently never reaches staging. Embedding `_sync` on the document makes it a single atomic write, eliminating the split-brain risk entirely.
+
+**Known limitations to be aware of:**
+- **Stale staging window**: Staging data lags behind internal by up to the sync interval (~20s). Reports on staging may not reflect the last few minutes of transactions. This is acceptable for end-of-day reporting but not for real-time views.
+- **Deletes are not propagated**: If a transaction is hard-deleted locally (not just status-changed to `cancelled`), the delete does not reach staging. The system should prefer status changes over hard deletes for any document that participates in sync.
+- **Downstream sync must not overwrite `_sync`**: The existing downstream sync (cloud → local for lookup tables like users, branches, products) must explicitly exclude the `_sync` field when upserting to avoid clobbering the local sync state.
+
+### Staging mmg-app
+A separate instance of the mmg-app (or a dedicated `APP_ENV=staging` mode) pointing to the cloud MongoDB. Write endpoints on the API are either disabled or the staging app never exposes cashier/POS routes — only dashboard/reports routes are accessible.
+
+---
+
 ## Commands
 
 ### Docker (full stack — run from monorepo root)
