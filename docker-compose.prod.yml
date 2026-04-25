@@ -1,0 +1,62 @@
+# Cloud / production deployment — connects to remote MongoDB, no local Mongo needed
+# Run:  docker-compose -f docker-compose.prod.yml up --build
+# Copy .env.example → pos-api/.env and fill in REMOTE_DATABASE_URL and secrets
+
+services:
+
+  app:
+    build: ./mmg-app
+    image: chrisn0tdev/pos-client
+    ports:
+      - "3000:5173"
+    depends_on:
+      - proxy
+    environment:
+      - VITE_APP_ENV=internal-production
+      - VITE_APP_BASE_NAME=/
+      - VITE_APP_SERVER_PORT=6001
+    restart: always
+
+  server:
+    build: ./pos-api
+    image: chrisn0tdev/pos-app
+    ports:
+      - "6000:5100"
+    networks:
+      - pos-network
+    env_file:
+      - pos-api/.env
+    environment:
+      - APP_ENV=production
+    restart: always
+
+  proxy:
+    build: ./pos-api/proxy
+    image: chrisn0tdev/pos-proxy
+    volumes:
+      - /dev:/dev
+    ports:
+      - "6001:5001"
+    depends_on:
+      - server
+    networks:
+      - pos-network
+    env_file:
+      - pos-api/.env
+    privileged: true
+    environment:
+      - LOCAL_SERVER_URL=http://server:5100
+    restart: always
+
+  sync:
+    build: ./pos-api/sync
+    image: chrisn0tdev/pos-sync
+    networks:
+      - pos-network
+    env_file:
+      - pos-api/.env
+    restart: always
+
+networks:
+  pos-network:
+    driver: bridge

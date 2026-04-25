@@ -79,30 +79,54 @@ Flask 3.0 REST API backed by MongoDB (PyMongo).
 
 ## Commands
 
-### mmg-app
+### Docker (full stack — run from monorepo root)
+```bash
+# First-time setup: copy the example env and fill in secrets
+cp .env.example pos-api/.env
+
+# Internal LAN deployment (local MongoDB, all services)
+docker-compose up --build
+
+# Production / cloud deployment (remote MongoDB)
+docker-compose -f docker-compose.prod.yml up --build
+
+# Rebuild a single service
+docker-compose up --build server
+
+# View logs
+docker-compose logs -f server
+docker-compose logs -f proxy
+```
+
+Port map when using `docker-compose.yml`:
+| Service | Host port | Purpose |
+|---|---|---|
+| app (frontend) | 8000 | Browser entry point |
+| proxy | 8002 | API entry point for browser |
+| server (Flask) | 8001 | Direct API (debug) |
+| mongo | 8003 | MongoDB (debug) |
+
+### mmg-app (local dev)
 ```bash
 cd mmg-app
 npm install
-npm start            # dev server (env-cmd + vite)
+npm start            # dev server (env-cmd + vite) on :5173
 npm run build
 npm run lint
 npm run lint:fix
 npm run prettier
 ```
 
-### pos-api
+### pos-api (local dev)
 ```bash
 cd pos-api
 python -m venv .venv
 source .venv/Scripts/activate   # Windows; use .venv/bin/activate on Linux
 pip install -r requirements.txt
 python app.py                   # Flask dev server on :5100
-
-# Docker (internal-production)
-docker-compose up --build
 ```
 
-### pos-helper-app
+### pos-helper-app (always runs locally — not in Docker)
 ```bash
 cd pos-helper-app/helper
 python -m venv ../.venv
@@ -110,8 +134,7 @@ source ../.venv/Scripts/activate
 pip install -r requirements.txt
 python app.py                   # WebSocket server on ws://localhost:9876
 
-# Tests
-cd ..
+# Tests (from pos-helper-app/)
 python test_fix.py
 python test_async.py
 python test_journaling.py
