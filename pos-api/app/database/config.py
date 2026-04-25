@@ -5,15 +5,10 @@ from app.config import IS_INTERNAL_PRODUCTION, IS_PRODUCTION
 
 from .database import (get_current_database, internal_prod_database,
                        remote_database)
+from .indexes import ensure_indexes
 
-# MONGO_PORT = os.getenv('MONGO_PORT')
-# MONGO_HOST_PY = os.getenv('MONGO_HOST_PY')
-# MONGO_USER = os.getenv('MONGO_USER')
-# MONGO_PASS = os.getenv('MONGO_PASS')
-# LOCAL = os.getenv('LOCAL')
-
-# if IS_DEVELOPMENT:
 database = get_current_database().connect()
+ensure_indexes(database)
 users = database.users
 products = database.products
 doctors = database.doctors
