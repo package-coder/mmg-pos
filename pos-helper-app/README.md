@@ -1,55 +1,132 @@
-# POS Helper App
+# pos-helper-app
 
-This service acts as a bridge between the POS frontend and hardware peripherals (receipt printer, line display). It handles websocket requests to print receipts, reports, and update the customer display.
+Standalone Python WebSocket server that bridges the POS browser (mmg-app) to physical hardware on each cashier workstation. Runs locally on every cashier PC — not in Docker.
 
-## Recent Updates & Refactoring
+## Architecture
 
-A significant refactoring was completed to improve performance, reliability, and robustness.
-
-### Key Changes
-
-1.  **Decoupled Electronic Journaling**
-    *   **Behavior**: Transactions are now consistently recorded in `ejournal.txt` even if the physical printer is offline, out of paper, or disconnected.
-    *   **Benefit**: Ensures zero data loss for transaction logs.
-
-2.  **Performance Optimization (ReceiptWriter)**
-    *   **Change**: Introduced a `ReceiptWriter` class that maintains a single open file handle for the duration of a transaction.
-    *   **Impact**: Reduced file I/O operations from ~80 opens/closes per receipt to just 1. This eliminated a 2-3 second delay during printing.
-
-3.  **Non-Blocking I/O**
-    *   **Change**: All printer and display operations are now executed in separate threads using `asyncio.to_thread`.
-    *   **Impact**: The main Websocket event loop remains unblocked, ensuring the app stays responsive to heartbeats and new connections even during long print jobs.
-
-4.  **Debouncing (Duplicate Prevention)**
-    *   **Logic**: If a print request for the exact same transaction (same invoice number) is received within 2 seconds of the previous one, it is ignored.
-    *   **Benefit**: Prevent accidental double-printing due to double-clicks or network retries.
-
-5.  **Error Propagation**
-    *   **Feature**: Detailed error messages are now returned to the caller.
-    *   **Response**:
-        *   Success: `{ "message": "Printed successfully" }`
-        *   Printer Error: `{ "message": "Journaled successfully (printer unavailable)", "error": "Printer connection error..." }`
-
-6.  **Connection Logic Fixes**
-    *   **Fix**: The printer printer connection logic was updated to correctly use the IP address provided in the client settings, rather than a hardcoded default.
-
-## Usage
-
-Run the helper application:
-```bash
-python helper/app.py
+```
+Browser (mmg-app)
+    └──[WebSocket ws://localhost:9876]──► helper/app.py
+                                              ├── ESC/POS Printer (TCP/IP)
+                                              └── VFD Customer Display (serial COM3)
 ```
 
-The websocket server listens on `localhost:9876`.
+- `ReceiptWriter` — context manager that opens `ejournal.txt` once per transaction and writes to both the file and the printer simultaneously. Journals even when the printer is offline.
+- All blocking hardware calls use `asyncio.to_thread` — the WebSocket event loop stays responsive during long print jobs.
+- `ejournal.txt` is written next to the running executable (or next to `app.py` in dev).
 
-### API Example (JSON over Websocket)
+---
 
-**Print Receipt:**
+## WebSocket API
+
+All messages are JSON. Send to `ws://localhost:9876`, receive a JSON response.
+
+### Printer
+
+```json
+{ "device": "printer", "device_type": "receipt", "transaction": { ... }, "settings": { "url": "192.168.192.168" } }
+{ "device": "printer", "device_type": "report",  "type": "X_REPORT"|"Z_REPORT", ... }
+{ "device": "printer", "device_type": "test",    "message": "TEST PRINT", "settings": { "url": "..." } }
+```
+
+### Display
+
+```json
+{ "device": "display", "device_type": "message" }
+{ "device": "display", "device_type": "item",    "name": "...", "price": 0.00 }
+{ "device": "display", "device_type": "total",   "total": 0.00 }
+{ "device": "display", "device_type": "next" }
+```
+
+### Terminal info (BIR credentials for this workstation)
+
+```json
+{ "device": "terminal", "device_type": "info" }
+// returns: { "MIN": "123-456789-0", "SN": "S/N0000012345", "PTU_NO": "PTU-000000000001" }
+```
+
+### Responses
+
+| Outcome | Response |
+|---|---|
+| Success | `{ "message": "Printed successfully" }` |
+| Printer offline, journaled | `{ "message": "Journaled successfully (printer unavailable)", "error": "..." }` |
+| Error | `{ "error": "..." }` |
+
+---
+
+## BIR Terminal Credentials
+
+BIR issues a **MIN**, **SN**, and **PTU No** per cashier terminal. These are stored in `terminal.json` in the same folder as the executable — one file per workstation, never in the database.
+
+**`terminal.json` format:**
 ```json
 {
-  "device": "printer",
-  "type": "receipt",
-  "settings": { "url": "192.168.1.100" },
-  "transaction": { ... }
+  "MIN": "123-456789-0",
+  "SN": "S/N0000012345",
+  "PTU_NO": "PTU-000000000001"
 }
 ```
+
+The helper reads this at startup and prints these values on every receipt and report. Edit the file and restart the helper to update credentials — no redeployment needed.
+
+`terminal.json.example` is included as a template.
+
+---
+
+## Development Setup
+
+```bash
+cd pos-helper-app/helper
+python -m venv ../.venv
+source ../.venv/Scripts/activate    # Windows; use ../.venv/bin/activate on Linux
+pip install -r requirements.txt
+python app.py                        # WebSocket server on ws://localhost:9876
+```
+
+Tests (from `pos-helper-app/`):
+```bash
+python test_fix.py
+python test_async.py
+python test_journaling.py
+python test_refactor.py
+```
+
+---
+
+## Workstation Distribution (Production)
+
+pos-helper-app is distributed to cashier workstations as a single Windows executable built with PyInstaller. No Python required on the workstation.
+
+### Build (run once, on any Windows machine with Python)
+
+```bash
+cd pos-helper-app/helper
+pip install pyinstaller
+pyinstaller mmg-helper.spec
+# Output: dist/mmg-helper.exe
+```
+
+### Install on a cashier workstation
+
+Copy to a USB drive or network share:
+```
+mmg-helper.exe
+install.bat
+```
+
+Double-click `install.bat` on the workstation. It will:
+1. Copy `mmg-helper.exe` → `C:\MMG-POS\`
+2. Prompt for BIR terminal credentials (MIN, SN, PTU No) and write `terminal.json`
+3. Create a Windows Startup shortcut so the helper auto-starts on every login
+4. Launch the helper immediately
+
+To update credentials later, edit `C:\MMG-POS\terminal.json` directly and restart the helper.
+
+---
+
+## Hardware
+
+- **Receipt Printer**: Epson TM-series ESC/POS over TCP/IP. Default IP `192.168.192.168`; override via `settings.url` in the WebSocket message.
+- **VFD Customer Display**: RS-232 serial, hardcoded to `COM3` on Windows. Uses `\x0C` (form feed) to clear the 2×20 character display.
+- Printer failure is non-fatal — `ReceiptWriter` catches errors and completes the journal write.

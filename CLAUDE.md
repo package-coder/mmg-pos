@@ -33,14 +33,17 @@ Browser (mmg-app)
 
 ### pos-helper-app/helper — `helper/app.py`
 
-A standalone Python `asyncio` WebSocket server that bridges the browser to physical hardware.
+A standalone Python `asyncio` WebSocket server that bridges the browser to physical hardware. Runs on every cashier workstation — not in Docker.
 
 - Listens on `ws://localhost:9876`
-- Routes JSON messages by `{ "device": "printer"|"display", "device_type": "..." }`
+- Routes JSON messages by `{ "device": "printer"|"display"|"terminal", "device_type": "..." }`
   - Printer types: `receipt`, `report`, `test`
   - Display types: `message`, `item`, `total`, `next`
+  - Terminal types: `info` — returns `{ MIN, SN, PTU_NO }` for the current workstation
 - All blocking hardware calls use `asyncio.to_thread` to keep the event loop responsive
 - `ReceiptWriter` is a context manager that opens `ejournal.txt` once per transaction and writes to both the file and ESC/POS printer simultaneously — journals to file even when the physical printer is offline
+- `ejournal.txt` is written next to the running executable (resolved via `sys.executable` when frozen by PyInstaller, `__file__` in dev)
+- **BIR terminal credentials** (`MIN`, `SN`, `PTU_NO`) are loaded at startup from `terminal.json` in the same directory as the executable. Not stored in the database — each workstation has its own file. Printed on every receipt and report header.
 
 ### mmg-app — `src/`
 
@@ -72,8 +75,90 @@ Flask 3.0 REST API backed by MongoDB (PyMongo).
 - `app/middlewares/token_validator.py` — JWT validation as `@app.before_request`; excluded paths include `/login`, `/booking/create`, `/branches`
 - `app/config.py` — reads `APP_ENV`; valid values: `local-development`, `development`, `internal-production`, `production`
 - `proxy/app.py` — Flask reverse proxy (port 5001) that forwards requests to the local server; also has legacy HTTP print/display endpoints
-- `sync/app.py` — scheduled background process syncing MongoDB between local and remote (every 20s upstream, every 3 min downstream)
+- `sync/app.py` — scheduled background process syncing MongoDB between local and remote (every 20s upstream, every 3 min downstream). **Will crash-loop on a fresh install if `REMOTE_DATABASE_URL` is a placeholder** — this is harmless and only affects cloud sync; the core POS stack works without it.
+- `seed.py` — idempotent seeder: inserts default branch, admin role, and admin user; safe to re-run
 - `docker-compose.yml` — five services: `app` (React, :8000), `server` (Flask, :8001), `proxy` (:8002), `sync`, `mongo` (:8003)
+
+---
+
+## Performance (pos-api server)
+
+### Fix 1 — Gunicorn (replaces Flask dev server)
+`pos-api/Dockerfile` runs Gunicorn with 4 workers instead of `python app.py`. This allows the server to handle concurrent requests from multiple cashier terminals in parallel. Set workers to `(2 × CPU cores) + 1` for the branch server machine.
+
+### Fix 2 — MongoDB indexes (`app/database/indexes.py`)
+`ensure_indexes()` is called at startup from `app/database/config.py`. It creates compound indexes on the collections that heavy report queries hit:
+- `sales`: `(branch, date)` and `(cashierId, date)` — used by cashier sales reports and branch report generation
+- `cashier_reports`: `(branchId, date)` — used by `generate_branch_report` aggregation
+- `transactions`: `(status, cashierId, date)` and `(branchId, date)` — used by active transaction lookup and general queries
+- `branch_reports`: `(branchId, date)` — used to check for existing daily report
+- `audit_logs`: `userId` and `datetime` — used by audit log queries
+
+`create_index` is idempotent — safe to call on every startup.
+
+### Fix 3 — Pre-aggregation on write (Option C, already partially implemented)
+The `sales` collection is the pre-aggregated write layer — one document is inserted per completed transaction in `app/routes/transaction/update.py`. Report queries (`generate_branch_report`, cashier sales reports) read from `sales` instead of re-aggregating raw `transactions`. This pattern must be maintained: **any new report that can be computed from `sales` should never touch the `transactions` collection directly.**
+
+---
+
+## Backend Code Architecture (pos-api)
+
+### Rule: All new features use the feature-folder / CSR pattern
+
+New features go under `app/features/<feature_name>/` with four files:
+
+```
+app/features/
+  transaction/
+    routes.py       ← Blueprint + HTTP handlers only (thin)
+    service.py      ← all business logic; zero Flask imports
+    repository.py   ← all MongoDB calls; zero Flask imports
+    models.py       ← Pydantic models for request/response validation
+```
+
+**Layer rules — what belongs where:**
+
+| Layer | Responsibility | Must NOT contain |
+|---|---|---|
+| `routes.py` | Parse request, call service, return response | Business logic, DB calls |
+| `service.py` | Business rules, orchestration, calculations | Flask imports, direct DB calls |
+| `repository.py` | MongoDB queries, aggregations, data mapping | Business logic, Flask imports |
+| `models.py` | Pydantic `BaseModel` shapes for I/O validation | Side effects |
+
+**Concrete example:**
+
+```python
+# routes.py — only HTTP concerns
+@bp.post('/transaction/complete')
+def complete_transaction():
+    data = CompleteTransactionRequest(**request.get_json())
+    result = service.complete(data, user_id=g.user_id)
+    return jsonify(result), 200
+
+# service.py — business logic, no Flask
+def complete(data: CompleteTransactionRequest, user_id: str) -> dict:
+    invoice_number = repo.get_next_invoice_number()
+    transaction = repo.find_one(data.transaction_id)
+    # ... discount calculation, sale record creation, etc.
+    repo.update(transaction)
+    audit_repo.log(AuditCode.TRANSACTION_CREATE, user_id)
+    return transaction.to_dict()
+
+# repository.py — DB only, no business logic
+def get_next_invoice_number(self) -> int:
+    result = db.counters.find_one_and_update(
+        {'_id': 'invoiceNumber'},
+        {'$inc': {'seq': 1}},
+        upsert=True, return_document=True
+    )
+    return result['seq']
+```
+
+**Models:** Use Pydantic `BaseModel` (see `app/new_models/AuditLog.py` as reference). Do not use the old plain-class models in `app/models/`.
+
+**Repository base class:** Extend `app/repositories/base.py` (`BackupRepository`) for collections that need `_sync` support.
+
+**Existing code:** The old pattern (`app/routes/<domain>/<action>.py`) is legacy. Do not extend it for new features — only bugfix in place when needed. Repositories in `app/repositories/` can be reused directly if they already cover your domain.
 
 ---
 
@@ -142,6 +227,35 @@ Standalone MongoDB has no multi-collection transactions. A separate queue requir
 ### Staging mmg-app
 Same codebase as internal, deployed as a second instance with `VITE_APP_ENV=staging`. This flag disables POS/cashier routes and all write operations — only dashboard and report routes are accessible. Points to the cloud MongoDB via its own `pos-api` instance.
 
+### Cashier Workstation Deployment (pos-helper-app)
+
+pos-helper-app is distributed as a single Windows executable built with PyInstaller. Each cashier PC needs it for receipt printing and VFD display.
+
+**Files distributed per workstation:**
+```
+mmg-helper.exe      ← built from pos-helper-app/helper/mmg-helper.spec
+install.bat         ← one-time installer (pos-helper-app/install.bat)
+```
+
+**What `install.bat` does:**
+1. Copies `mmg-helper.exe` → `C:\MMG-POS\`
+2. Prompts for BIR terminal credentials (MIN, SN, PTU No) and writes `C:\MMG-POS\terminal.json`
+3. Creates a Windows Startup shortcut — helper auto-starts on every login
+4. Launches the helper immediately
+
+**BIR terminal credentials** are per-workstation, stored only in `C:\MMG-POS\terminal.json`. They are never stored in MongoDB. Edit the file and restart the helper to update credentials after BIR approval.
+
+```json
+{ "MIN": "123-456789-0", "SN": "S/N0000012345", "PTU_NO": "PTU-000000000001" }
+```
+
+**Receipt fields and their source:**
+
+| Field | Source |
+|---|---|
+| MIN, SN, PTU No (header) | `terminal.json` on workstation |
+| Accred No, Supplier PTU (footer) | `dvoteDetails` from DB |
+
 ---
 
 ## Commands
@@ -153,6 +267,9 @@ cp .env.example pos-api/.env
 
 # Internal LAN deployment (local MongoDB, all services)
 docker-compose up --build
+
+# Seed the database (run once after first-time startup)
+docker-compose exec server python seed.py
 
 # Production / cloud deployment (remote MongoDB)
 docker-compose -f docker-compose.prod.yml up --build
@@ -191,6 +308,10 @@ python -m venv .venv
 source .venv/Scripts/activate   # Windows; use .venv/bin/activate on Linux
 pip install -r requirements.txt
 python app.py                   # Flask dev server on :5100
+
+# Seed default branch + admin role + admin user (fresh DB only)
+python seed.py
+# Override default password: SEED_PASSWORD=mypassword python seed.py
 ```
 
 ### pos-helper-app (always runs locally — not in Docker)
@@ -208,6 +329,16 @@ python test_journaling.py
 python test_refactor.py
 ```
 
+### pos-helper-app (build Windows executable for cashier workstations)
+```bash
+cd pos-helper-app/helper
+pip install pyinstaller
+pyinstaller mmg-helper.spec     # output: dist/mmg-helper.exe
+
+# Then distribute: copy dist/mmg-helper.exe + pos-helper-app/install.bat to USB / network share
+# Run install.bat once on each cashier workstation
+```
+
 ---
 
 ## Environment Variables
@@ -221,7 +352,7 @@ REMOTE_DATABASE_URL=mongodb+srv://...
 DATABASE=pos
 PORT=5100
 HOST=0.0.0.0
-LOCAL_SERVER_URL=http://server:5000    # used by proxy container
+LOCAL_SERVER_URL=http://server:5100    # used by proxy container (injected by docker-compose, not needed in .env)
 CLOUD_SERVER_URL=...                   # used by proxy (currently unused)
 ```
 
@@ -244,6 +375,7 @@ VITE_APP_BASE_NAME=/
 - **Electronic Journal** (`ejournal.txt`) — append-only flat-file log of every non-reprint receipt; written by the helper app even when printer is offline
 - **Member Discounts** — tied to `memberType` (`senior_citizen`, `pwd`, `naac`, `solo_parent`); triggers the ID/Signature block on receipts
 - **Branch** — selected per user session in `localStorage`; scopes data throughout the frontend
+- **Role names** — must match the constants in `mmg-app/src/utils/Role.js` (case-insensitive): `admin`, `cashier`, `manager`. A user with any other role name will be bounced to /404 by `AuthorizeRoute`.
 - **CAS** — Cooperative Accounting System within `pos-api`; separate concern from POS (inventory, suppliers, purchase orders, accounting)
 
 ---
