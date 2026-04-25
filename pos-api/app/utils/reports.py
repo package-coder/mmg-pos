@@ -37,7 +37,7 @@ def append_base_header(worksheet, user_id, data):
 
     worksheet.cell(1, 1, "MMG-ALBAY")
     worksheet.cell(2, 1, upper_case(branch['streetAddress']))
-    worksheet.cell(3, 1, 'NON-VAT REG TIN ' + branch['tin'])
+    worksheet.cell(3, 1, 'VAT REG TIN ' + branch['tin'])
     worksheet.cell(9, 1, datetime.now().isoformat())
     worksheet.cell(5, 1, os.getenv('APP_VERSION'))
 
@@ -77,7 +77,7 @@ def append_discount_reports(worksheet, reports):
         worksheet.cell(column=default_col + 2, row=default_row + index, value=report['customer'].get('customer_type_id'))
         worksheet.cell(column=default_col + 3, row=default_row + index, value=report['customer']['tin_number'])
         worksheet.cell(column=default_col + 4, row=default_row + index, value=report['transaction']['invoiceNumber'])
-        worksheet.cell(column=default_col + 5, row=default_row + index, value=report['transaction']['totalSalesWithoutMemberDiscount'])
+        worksheet.cell(column=default_col + 7, row=default_row + index, value=report['transaction']['totalSalesWithoutMemberDiscount'])
         worksheet.cell(column=default_col + 9, row=default_row + index, value=report['transaction']['totalMemberDiscount'])
         worksheet.cell(column=default_col + 10, row=default_row + index, value=report['transaction']['totalNetSales'])
 
@@ -133,6 +133,8 @@ def append_sales_reports(worksheet, sales):
         worksheet.cell(row, col + 5, clip(get(sale, 'openingFundd.total', 0)))
         worksheet.cell(row, col + 7, clip(sale['totalSalesWithoutMemberDiscount']))
         
+        worksheet.cell(row, col + 10, clip(sale['totalSalesWithoutMemberDiscount']))
+
         discountSummary = sale['discountSummary']
         worksheet.cell(row, col + 12, clip(discountSummary.get(MemberType.SENIOR_CITIZEN.value, 0)))
         worksheet.cell(row, col + 13, clip(discountSummary.get(MemberType.PWD.value, 0)))

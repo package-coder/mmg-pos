@@ -1,0 +1,106 @@
+[
+    {
+        "name": "USER_LOGIN",
+        "code": 1001
+    },
+    {
+        "name": "USER_LOGOUT",
+        "code": 1002
+    },
+    {
+        "name": "USER_CREATE",
+        "code": 1003
+    },
+    {
+        "name": "USER_UPDATE",
+        "code": 1004
+    },
+    {
+        "name": "USER_UPDATE_ERR",
+        "code": 1104
+    },
+    {
+        "name": "USER_LOGIN_ERR_NOT_EXIST",
+        "code": 1101
+    },
+    {
+        "name": "USER_LOGIN_ERR_INCORRECT_CRED",
+        "code": 1201
+    },
+    {
+        "name": "ROLE_CREATE",
+        "code": 2001
+    },
+    {
+        "name": "ROLE_CREATE_ERR",
+        "code": 2101
+    },
+    {
+        "name": "ROLE_UPDATE",
+        "code": 2002
+    },
+    {
+        "name": "ROLE_UPDATE_ERR",
+        "code": 2102
+    },
+    {
+        "name": "TRANSACTION_CREATE",
+        "code": 3001
+    },
+    {
+        "name": "TRANSACTION_CREATE_ERR",
+        "code": 3101
+    },
+    {
+        "name": "TRANSACTION_CREATE_ERR_SALES",
+        "code": 3201
+    },
+    {
+        "name": "CASHIER_REPORT_TIME_IN",
+        "code": 4001
+    },
+    {
+        "name": "CASHIER_REPORT_TIME_IN_ERR",
+        "code": 4101
+    },
+    {
+        "name": "CASHIER_REPORT_TIME_OUT",
+        "code": 5001
+    },
+    {
+        "name": "CASHIER_REPORT_TIME_OUT_ERR",
+        "code": 5101
+    },
+    {
+        "name": "CUSTOMER_CREATE",
+        "code": 6001
+    },
+    {
+        "name": "CUSTOMER_UPDATE",
+        "code": 6002
+    },
+    {
+        "name": "PACKAGE_UPDATE",
+        "code": 7002
+    },
+    {
+        "name": "LABTEST_UPDATE",
+        "code": 8002
+    },
+    {
+        "name": "DISCOUNT_UPDATE",
+        "code": 9002
+    },
+    {
+        "name": "BRANCH_UPDATE",
+        "code": 10002
+    },
+    {
+        "name": "DOCTOR_UPDATE",
+        "code": 11002
+    },
+    {
+        "name": "CORPORATE_UPDATE",
+        "code": 12002
+    }
+]

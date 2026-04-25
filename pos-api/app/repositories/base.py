@@ -68,6 +68,10 @@ class Repository(abc.ABC):
         try:
             data = { '$set': data }
             return_document = self._db[self._collection].find_one_and_update(query, data, *args, **kwargs, return_document=pymongo.ReturnDocument.AFTER)
+            return self.find_one({ '_id': return_document['_id'] })
+        except Exception as e:
+            raise Exception(f"MongoDB update_one error: {e}")
+
             if(return_document is None or not refetch):
                 return None
             return self.find_one({ '_id': ObjectId(return_document['_id']) })

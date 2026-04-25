@@ -70,7 +70,7 @@ services:
   mongo:
     image: mongo
     ports:
-      - "27018:27017" 
+      - "8003:27017" 
     volumes:
       - mongo-data:/data/db
     networks:
