@@ -1,0 +1,12 @@
+
+services:
+  app:
+    build: ./
+    image: chrisn0tdev/pos-client
+    ports:
+      - "4000:5173"
+    env_file: 
+      - .env
+    environment:
+      - VITE_APP_ENV=internal-production
+    restart: always

@@ -1,0 +1,85 @@
+
+services:
+  app:
+    image: chrisn0tdev/pos-client
+    ports:
+      - "8000:5173"
+    depends_on:
+      - proxy
+    env_file: 
+      - .env
+    environment:
+      - VITE_APP_SERVER_URL=http://proxy:5001
+      - VITE_APP_SERVER_PORT=5000
+      - VITE_APP_ENV=internal-production
+    restart: always
+    
+  server:
+    build: ./
+    image: chrisn0tdev/pos-app
+    ports:
+      - "8001:5000"
+    depends_on:
+      - mongo
+    networks:
+      - pos-network
+    env_file: 
+      - .env
+    environment:
+      - LOCAL_DATABASE_URL=mongodb://mongo:27017
+      - APP_ENV=internal-production
+    restart: always
+  proxy:
+    build: ./proxy
+    image: chrisn0tdev/pos-proxy
+    # device_cgroup_rules:
+    #   - c *:* rmw
+    volumes:
+      - /dev:/dev
+    # devices:
+    #   - /dev/ttyS3
+    ports:
+      - "8002:5001" 
+    depends_on:
+      - mongo
+      - server
+    networks:
+      - pos-network
+    env_file: 
+      - .env
+    privileged: true
+    environment:
+      - LOCAL_DATABASE_URL=mongodb://mongo:27017
+      - LOCAL_SERVER_URL=http://server:5000
+    restart: always
+
+  sync:
+    build: ./sync
+    image: chrisn0tdev/pos-sync
+    depends_on:
+      - mongo
+    networks:
+      - pos-network
+    env_file: 
+      - .env
+    environment:
+      - LOCAL_DATABASE_URL=mongodb://mongo:27017
+    restart: always
+
+
+  mongo:
+    image: mongo
+    ports:
+      - "27018:27017" 
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - pos-network
+    restart: always
+
+networks:
+  pos-network:
+    driver: bridge
+volumes:
+  mongo-data:
+    driver: local

@@ -1,0 +1,12 @@
+
+.field-required:before {
+    content: "* ";
+    position: absolute;
+    left: -12px;
+    color: red;
+}
+
+.required:before {
+    content: "* ";
+    color: red;
+}

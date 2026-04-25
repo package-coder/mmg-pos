@@ -1,0 +1,43 @@
+           MMG-ALBAY            
+
+          Operated By:          
+  MEDICAL MISSION GROUP MULTIPURPOSE   
+           COOPERATIVE-ALBAY          
+      VAT REG TIN 000-111-222-000     
+        LEGAZPI CITY, ALBAY       
+
+           SERVICE INVOICE          
+----------------------------------------
+MIN:                           123456789
+SN:                              ABC-123
+Date & Time:          2026-01-04 10:15AM
+Cashier:                  Juan Dela Cruz
+Invoice #:                        000456
+----------------------------------------
+           SOLD TO            
+Name:                        Maria Clara
+Address:                    Legazpi City
+TIN:                                 ---
+----------------------------------------
+ITEM                   |QTY|PRICE|AMOUNT
+----------------------------------------
+CONSULTATION FEES       (1) 500.00500.00
+LABORATORY TEST A       (2) 250.00500.00
+----------------------------------------
+Total Sales:                     1000.00
+Less MEMBER DISCOUNT:           (200.00)
+TOTAL AMOUNT DUE:                 800.00
+----------------------------------------
+Tender Amount:                   1000.00
+Tender Type:                        CASH
+Change:                           200.00
+----------------------------------------
+ *THIS DOCUMENT IS NOT VALID FOR CLAIM* 
+             *OF INPUT TAX*             
+----------------------------------------
+
+           Supplier:           
+             DVOTE              
+      VAT REG TIN 111-222-333     
+Accred No: 123-456-789-000
+PTU No: 987-654-321-000

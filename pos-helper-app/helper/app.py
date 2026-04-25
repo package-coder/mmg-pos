@@ -1,0 +1,607 @@
+import asyncio
+import datetime
+import time
+from itertools import groupby
+import json
+import numbers
+import escpos
+from pydash import get, start_case, to_lower, upper_case
+import pytz
+import serial
+from websockets.asyncio.server import serve
+import escpos.exceptions
+from escpos.printer import Usb, Network
+
+# Debouncing state
+last_processed_transaction = {
+    "id": None,
+    "time": 0
+}
+
+# Patch for missing DeviceNotFoundError in some python-escpos versions
+if not hasattr(escpos.exceptions, 'DeviceNotFoundError'):
+    class DeviceNotFoundError(Exception):
+        pass
+    escpos.exceptions.DeviceNotFoundError = DeviceNotFoundError
+
+
+MAX_CHAR_PER_ROW = 40
+
+def get_local_time():
+    return datetime.datetime.now(pytz.timezone('Asia/Manila'))
+
+def clip(value):
+    return "{:.2f}".format(value)
+
+def get_printer_device(setting: dict = {}):
+    p = None
+    error = None
+    try:
+        url = setting.get('url', '192.168.192.168')
+        print(f"Connecting to printer: {url}")
+        p = Network(url)
+        if p is None:
+            raise Exception("Printer network object is None")
+    except Exception as e:
+        print(f"Printer connection error: {e}")
+        error = str(e)
+    print(p)
+    return p, error
+
+def get_display_device():
+    return serial.Serial(port='COM3', baudrate=9600)
+
+class ReceiptWriter:
+    def __init__(self, settings: dict, journal: bool = True):
+        self.printer, self.error = get_printer_device(settings)
+        self.file = None
+        self.journal = journal
+
+    def __enter__(self):
+        if self.journal:
+            try:
+                self.file = open("ejournal.txt", "a", encoding="utf-8")
+            except Exception as e:
+                print(f"Error opening journal: {e}")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.file:
+            try:
+                self.file.close()
+            except Exception as e:
+                print(f"Error closing journal: {e}")
+        
+        if self.printer:
+            try:
+                self.printer.cut()
+                self.printer.close()
+            except Exception as e:
+                print(f"Error closing printer: {e}")
+
+    def set(self, **kwargs):
+        if self.printer:
+            try:
+                self.printer.set(**kwargs)
+            except Exception as e:
+                print(f"Printer set error: {e}")
+
+    def write(self, text: str):
+        if text is None: return
+        if not isinstance(text, str): text = str(text)
+
+        if self.file:
+            try:
+                self.file.write(text)
+                self.file.flush()
+            except Exception as e:
+                print(f"Journal write error: {e}")
+
+        if self.printer and hasattr(self.printer, 'text'):
+            try:
+                self.printer.text(text)
+            except Exception as e:
+                print(f"Printer write error: {e}")
+
+    def writeln(self, text: str = ""):
+        self.write(text)
+        self.write('\n')
+
+    def row(self, label: str, value, transform=True):
+        if(transform and isinstance(value, numbers.Number) and not isinstance(value, bool)):
+            value = clip(value)
+        if(not isinstance(value, str)):
+            value = str(value)
+        self.writeln(label + value.rjust(MAX_CHAR_PER_ROW - len(label)))
+
+    def line(self):
+        self.writeln('-' * MAX_CHAR_PER_ROW)
+
+    def title(self, name):
+        self.set(align='center')
+        self.writeln(name)
+        self.set(align='left')
+
+
+def print_test(data: dict = {}):
+    try:
+        with ReceiptWriter(data.get('settings', {}), journal=False) as w:
+            w.set(align='center', bold=True)
+            w.write(f'Test Print: {data.get("message", "TEST PRINT")}\n\n')
+    except Exception as e:
+        return {'message': 'Error during test print', 'error': repr(e)}
+        
+    if w.error:
+        return {'message': 'Printer unavailable', 'error': w.error}
+
+    return { 'message': 'Printed successfully' }
+
+def print_receipt(request_data: dict = {}):
+    transaction = request_data['transaction']
+    
+    # Debouncing Logic
+    # global last_processed_transaction
+    # current_time = time.time()
+    # current_id = str(transaction.get('invoiceNumber')) + str(request_data.get('reprint', False))
+    
+    # if last_processed_transaction['id'] == current_id and (current_time - last_processed_transaction['time']) < 2.0:
+    #     print(f"Skipping duplicate print request for ID: {current_id}")
+    #     return { 'message': 'Duplicate print request skipped' }
+    
+    # last_processed_transaction['id'] = current_id
+    # last_processed_transaction['time'] = current_time
+
+    branch = transaction['branch']
+    cashier = transaction['cashier']
+    dvote = request_data['dvoteDetails'][0]
+    customer = transaction['customer']
+    reprint = request_data.get('reprint') 
+    reprintLabel = '(RE-PRINT)' if reprint else ''
+
+    companyCopy = request_data.get('companyCopy')
+    companyLabel = '(COMPANY\'S COPY)' if companyCopy else ''
+
+    discounts = list(filter(lambda i: i.get('memberType') is not None, transaction['discounts']))
+    memberDiscount = discounts[0] if len(discounts) > 0 else None
+
+    memberDiscountName = f'({start_case(memberDiscount["memberType"])})' if memberDiscount is not None else ""
+
+    dt = datetime.datetime.fromisoformat(transaction['transactionDate'])
+    dateNow = get_local_time()
+
+    try:
+        with ReceiptWriter(request_data.get('settings', {}), journal=not reprint) as p:
+            p.set(align='center', bold=True)
+            p.write(f'MMG-ALBAY {companyLabel}\n\n')
+            p.set(align='center', bold=False)
+            p.write('Operated By:\n')
+            p.set(align='center', bold=True)
+            p.write('MEDICAL MISSION GROUP MULTIPURPOSE COOPERATIVE-ALBAY\n')
+            p.set(align='center', bold=False)
+            p.write('VAT REG TIN ' + branch['tin'] + '\n')
+            p.write(upper_case(branch['streetAddress']) + '\n\n')
+
+            p.set(align='center', bold=True)
+            if(transaction['status'] == 'completed'):
+                p.write(f'SERVICE INVOICE\n')
+            else:
+                p.write(f'{transaction["status"].upper()} DOCUMENT\n')
+            
+            if(reprint):
+                p.write(f'{reprintLabel}\n')
+
+            p.set(align='left', bold=False)
+            p.line()
+
+            if(reprint):
+                p.row("Reprint Date: ", dateNow.strftime("%Y-%m-%d %I:%M%p"))
+
+            
+            p.row("MIN: ", "---")
+            p.row("SN: ", "---")
+            p.row("Date & Time: ", dt.strftime("%Y-%m-%d %I:%M%p"))
+            p.row("Cashier: ", start_case(cashier["first_name"] + " " + cashier["last_name"]))
+            if(transaction['status'] == 'completed'):
+                p.row("Invoice #: ", str(transaction["invoiceNumber"]).zfill(6))
+            else:
+                p.row("Serial #: ", str(transaction["serialNumber"]).zfill(6))
+                p.row("Reference #: ", str(transaction["invoiceNumber"]).zfill(6))
+
+            p.line()
+            p.set(align='center', bold=True)
+            p.write('SOLD TO\n')
+            p.set(align='left', bold=False)
+
+            p.row("Name: ", start_case(to_lower(customer["name"])))
+            p.row("Address: ", start_case(to_lower(customer["address"])))
+            p.row("TIN: ", customer.get("tin_number") or "---")
+
+            if(companyCopy):
+                p.row("Age: ", customer["age"], transform=False)
+                p.row("Birth Date: ", str(customer["birthDate"]).split("T")[0])
+            else:
+                p.row("Age: ", "---")
+                p.row("Birth Date: ", "---")
+                
+            p.row("Requested By: ", transaction.get("requestedByName", "---"))
+
+            p.line()
+            p.set(align='center', bold=True)
+            p.row("ITEM ", "|QTY|PRICE|AMOUNT")
+            p.set(align='left', bold=False)
+            p.line()
+
+            for key, items in groupby(transaction['transactionItems'], lambda i: i.get('package')):
+                package = key
+
+                indented = ''
+                if(package is not None):
+                    indented = '  '
+                    p.write(f'> {package["name"]} \n')
+
+                for item in list(items):
+                    amount = item['price'] if transaction['status'] != 'refunded' else item['price'] * -1
+                    p.writeln(str((indented + item["name"])[:22]).ljust(23) + f'({item["quantity"]})'.center(5) + str(amount).center(6) + str(amount).rjust(6))
+                
+                if(package is not None):
+                    discounts = list(filter(lambda i: i.get('packageId') == package['id'] and i['memberType'] is None, transaction['discounts']))
+                    if(len(discounts) > 0):
+                        discount = discounts[0]
+                        totalDiscount = discount['value'] if discount['type'] == 'fixed' else (transaction['totalGrossSales'] * (discount['value'] / 100))
+                        p.row(f'  - Less: {discount["name"]}', f'- {"{:.2f}".format(totalDiscount)}')
+
+            p.line()
+            p.set(align='left', bold=True)
+            
+            totalSales = transaction['totalSalesWithoutMemberDiscount']
+            totalMemberDiscount = transaction['totalMemberDiscount']
+            totalNetSales = transaction['totalNetSales']
+            
+            # Calculate VAT components
+            vatableAmount = transaction.get('vatableAmount', 0.00)
+            vatExemptAmount = transaction.get('vatExemptAmount', totalNetSales if vatableAmount == 0 else 0.00)
+            vatAmount = transaction.get('vatAmount', 0.00)
+
+            p.row("Total Sales: ", totalSales)
+            p.set(bold=False)
+            
+            memberDiscountVal = f'{memberDiscount["value"]}%' if memberDiscount is not None else '0%'
+
+            if memberDiscount is not None: 
+                p.writeln(f"Less Discount: ")
+                p.row(f'  - {memberDiscountVal} {memberDiscountName}:', f'{totalMemberDiscount}')
+            else: 
+                p.row(f"Less Discount: ", "0.00")
+            
+            p.set(bold=True)
+            p.row("Net Sales: ", totalNetSales)
+            p.set(bold=False)
+            p.line()
+            
+            p.row("Vatable Amount: ", vatableAmount)
+            p.row("Vat Exempt Amount: ", vatExemptAmount)
+            p.row("12% Vat: ", vatAmount)
+            
+            p.set(bold=True)
+            p.row("Total Amount Due: ", totalNetSales)
+            
+            p.set(bold=False)
+            p.line()
+            
+            p.row("Tender Amount: ", get(transaction, 'tender.amount'))
+            p.row("Tender Type: ", upper_case(get(transaction, 'tender.type')))
+            p.row("Change: ", transaction["change"])
+
+            # This block only needed for dry run
+            # p.line()
+            # p.set(align='center', bold=True)
+            # p.write('*THIS DOCUMENT IS NOT VALID FOR CLAIM OF INPUT TAX*\n')
+
+            if(memberDiscount is not None):
+                p.line()
+                p.writeln()
+                p.set(align='left', bold=False)
+
+                customerTypeId = customer.get('customer_type_id') or ('_' * 10) 
+                p.row(f'ID Member: ', f'{customerTypeId}\n')
+                p.row("Signature: ", f'{("_" * 12)}\n')
+
+            p.set(align="center")
+            p.writeln('Supplier:')
+            p.set(align="center", bold=True)
+            p.write(dvote['name'].upper() + '\n')
+            p.set(align="center", bold=False)
+            p.writeln('VAT REG TIN ' + dvote['tin'])
+            p.writeln(upper_case(dvote['address']))
+            p.write('Accred No: ' + dvote['accredNo'] + '\n')
+            p.write('Date Issued: ' + dvote['accredDateIssued'] + '\n')
+            p.write('Valid Until: ' + '---' + '\n')
+            p.write('PTU No: ' + dvote.get('PTUno', '---') + '\n')
+            p.write('Date Issued: ' + dvote['ptuDateIssued'] + '\n\n')
+            p.writeln()
+            
+    except Exception as e: 
+        return {
+            'message': 'Journaled (printer unavailable)',
+            'error': repr(e)
+        }
+
+    if p.error:
+        return {
+            'message': 'Journaled successfully (printer unavailable)',
+            'error': p.error
+        }
+    return { 'message': 'Printed successfully' }
+
+def print_report(data: dict = {}):
+    branch = data['branch']
+    dvote = data['dvoteDetails'][0]
+    type = data['type']
+
+    timeInDate = None
+    timeOutDate = None
+    if(type == 'X_REPORT'):
+        timeInDate = datetime.datetime.fromisoformat(data['timeIn'])
+        if(data.get('timeOut') is not None):
+            timeOutDate = datetime.datetime.fromisoformat(data['timeOut'])
+
+    cashierReport = data if type == 'X_REPORT' else data['cashierReport']
+    withdraw = get(cashierReport, 'withdraw', 0)
+    sales = data if type == 'Z_REPORT' else data['sales']
+    
+    salesAdjustment = data['salesAdjustment']
+    discountSummary = data['discountSummary']
+    transactionSummary = data['transactionSummary']
+
+    reprint = data.get('reprint') 
+    reprintLabel = '(RE-PRINT)' if reprint else ''
+    dateNow = get_local_time()
+
+    try:
+        with ReceiptWriter(data.get('settings', {}), journal=False) as p:
+            p.set(align='center', bold=True)
+            p.write(f'MMG-ALBAY\n\n')
+            p.set(align='center', bold=False)
+            p.write(f'Operated By: \n')
+            p.set(align='center', bold=True)
+            p.write(f'MEDICAL MISSION GROUP MULTIPURPOSE COOPERATIVE-ALBAY\n')
+            p.set(align='center', bold=False)
+            p.write('VAT REG TIN ' + branch['tin'] + '\n')
+            p.write(upper_case(branch['streetAddress']) + '\n\n')
+
+            p.set(align='center', bold=True)
+
+            if(type == 'X_REPORT'):
+                p.writeln(f'X-READING REPORT {reprintLabel}')
+            else:
+                p.writeln(f'Z-READING REPORT {reprintLabel}')
+
+            p.set(align='left', bold=False)
+            p.line()
+
+            if(reprint):
+                p.row("Reprint: ", dateNow.strftime("%Y-%m-%d %I:%M%p"))
+
+            p.row("MIN: ", "---")
+            p.row("SN: ", "---")
+
+            
+            if(type == 'X_REPORT'):
+                cashier = data['cashier']
+                p.row("Cashier: ", start_case(cashier["first_name"] + " " + cashier["last_name"]))
+                
+            p.row("Report Date: ", data["date"])
+            if(type == 'X_REPORT'):
+                timeOutDate = timeOutDate.strftime("%I:%M%p") if timeOutDate is not None else ''
+                p.row("Time In: ", timeInDate.strftime("%I:%M%p"))
+                p.row("Time Out: ", timeOutDate)
+                
+            p.row("Beg. Invoice #: ", str(sales["invoiceStartNumber"]).zfill(6))
+            p.row("End. Invoice #: ", str(sales["invoiceEndNumber"]).zfill(6))
+            if(type == 'Z_REPORT'):
+                refund = sales.get('refundedNumber', {})
+                cancel = sales.get('cancelledNumber', {})
+                p.row("Beg. Cancel #: ", str(cancel.get('beginning', 0)).zfill(6))
+                p.row("End. Cancel #: ", str(cancel.get('ending', 0)).zfill(6))
+                p.row("Beg. Refund #: ", str(refund.get('beginning', 0)).zfill(6))
+                p.row("End. Refund #: ", str(refund.get('ending', 0)).zfill(6))
+                p.row("Z-Counter #: ", str(1))
+                p.row("Reset Counter: ", "0")
+
+                p.line()
+                p.row("Present Accumulated Sales: ", sales['presentAccumulatedSales'])
+                p.row("Previous Accumulated Sales: ", sales['previousAccumulatedSales'])
+                p.row("Sales for the Day: ", sales['totalSalesWithoutMemberDiscount'])
+                
+            p.line()
+            p.row("VATable Sales: ", "0")
+            p.row("VAT-Exempt Sales: ", sales['totalSalesWithoutMemberDiscount'])
+            p.row("Zero-Rated Sales: ", "0")
+            p.row("Gross Sales: ", sales['totalSalesWithoutMemberDiscount'])
+            p.row("Less Discount: ", sales["totalMemberDiscount"])
+            p.row("Less Cancelled: ", salesAdjustment.get('cancelled', 0))
+            p.row("Less Refunded: ", salesAdjustment.get('refunded', 0))
+            # p.row("Less VAT Adjustment: ", 0)
+            p.row("Net Sales: ", sales["totalNetSales"])
+
+            if(type == 'Z_REPORT'):
+                p.line()
+                p.title("DISCOUNT SUMMARY")
+                p.row("SC Discount: ", discountSummary.get('senior_citizen', 0))
+                p.row("PWD Discount: ", discountSummary.get('pwd', 0))
+                p.row("NAAC Discount: ", discountSummary.get('naac', 0))
+                p.row("Solo Parent Discount: ", discountSummary.get('solo_parent', 0))
+                
+            p.line()
+            p.title("SALES ADJUSTMENT")
+            p.row("Cancel: ", salesAdjustment.get('cancelled', 0))
+            p.row("Refund: ", salesAdjustment.get('refunded', 0))
+
+            endingCashCount = data.get('endingCashCount')
+
+            p.line()
+            p.title("CASH IN DRAWER COUNT")
+            if(endingCashCount is not None):
+
+                def toFloat(i):
+                    val = str(i).split('M')
+                    if(len(val) >= 1):
+                        val = val[1].replace('P', '.')
+                        return float(val)
+                    return 0.00
+                    
+
+                keys = list(endingCashCount.keys())
+                keys = list(filter(lambda i: i.startswith('M'), keys))
+                keys = list(map(toFloat, keys))
+                keys = list(sorted(keys, reverse=True))
+
+                for key in keys:
+                    formattedKey = f'M{int(key)}' if key >= 1 else f'M{key}'.replace('.', 'P')
+                    value = endingCashCount[formattedKey]
+                    result = clip(value * key)
+                    key = f'{clip(key)}:'
+                    length = MAX_CHAR_PER_ROW - len(key) - len(result)
+                    p.writeln(key + str(value).center(length) + result)
+
+            p.line()
+            p.title("TRANSACTION SUMMARY")
+            p.row("Cash In Drawer: ", get(data, 'endingCashCount.total', 0))
+            p.row("Cheque: ", transactionSummary.get('cheque', 0))
+            p.row("Credit Card: ", 0)
+            p.row("Gift Certificate: ", 0)
+            p.row("Opening Fund: ", get(data, 'openingFund.total', 0))
+            p.row("Less Withdrawal: ", withdraw)
+            p.row("Payments Received: ", data.get('totalPayments', 0))
+            p.row("Short/Over: ", sales.get('cashDifference', 0))
+
+            p.writeln()
+            p.set(align="center")
+            p.writeln('Supplier:')
+            p.set(align="center", bold=True)
+            p.write(dvote['name'].upper() + '\n')
+            p.set(align="center", bold=False)
+            p.writeln('VAT REG TIN ' + dvote['tin'])
+            p.write('Accred No: ' + dvote['accredNo'] + '\n')
+            p.write('Date Issued: ' + dvote['accredDateIssued'] + '\n')
+            p.write('Valid Until: ' + '---' + '\n')
+            p.write('PTU No: ' + dvote.get('PTUno', '---') + '\n')
+            p.write('Date Issued: ' + dvote['ptuDateIssued'] + '\n\n')
+            
+    except Exception as e: 
+        return {
+            'message': 'Journaled (printer unavailable)',
+            'error': repr(e)
+        }
+
+    if p.error:
+        return {
+            'message': 'Journaled successfully (printer unavailable)',
+            'error': p.error
+        }
+    return { 'message': 'Printed successfully' }
+
+def display_welcome():
+    vfd = None
+    try:
+        vfd = get_display_device()
+    except:
+        pass
+    
+    if(vfd is None):
+        return
+
+    vfd.write("\x0C".encode())
+    vfd.write('WELCOME TO'.center(20).encode())
+    vfd.write("MMG-ALBAY!!".center(20).encode())
+    
+def display_message():
+    vfd = get_display_device()
+    vfd.write("\x0C".encode())
+    vfd.write('WELCOME TO'.center(20).encode())
+    vfd.write("MMG-ALBAY!!".center(20).encode())
+
+    return { 'message': 'Displayed successfully' }
+
+def display_item(data):
+    item = data
+    
+    vfd = get_display_device()
+    vfd.write("\x0C".encode())
+    vfd.write('MMG-ALBAY'.ljust(20).encode())
+    vfd.write(f'{item["name"][:11]:<12}{"{:.2f}".format(item["price"])[:8]:>8}'.encode())
+
+    return { 'message': 'Displayed successfully' }
+
+def display_total(data):
+    total = data['total']
+        
+    vfd = get_display_device()
+    vfd.write("\x0C".encode())
+    vfd.write('TOTAL'.ljust(20).encode())
+    vfd.write("{:.2f}".format(total).rjust(20).encode())
+
+    return { 'message': 'Displayed successfully' }
+
+def display_next():
+    vfd = get_display_device()
+    vfd.write("\x0C".encode())
+    vfd.write('THANK YOU!'.center(20).encode())
+    vfd.write('COME AGAIN!'.center(20).encode())
+    time.sleep(5)
+
+    vfd.write('WELCOME TO'.center(20).encode())
+    vfd.write("MMG-ALBAY!!".center(20).encode())
+
+    return { 'message': 'Displayed successfully' }
+
+
+async def handler(websocket):
+    client_address = websocket.remote_address
+    display_welcome()
+    print(f"Client connected from: {client_address}")
+
+    async for message in websocket:
+        try:
+            data = json.loads(message)
+            print(data)
+
+            device = data.get("device")
+            dtype = data.get("device_type")
+
+            ret = {}
+            if device == "printer" and dtype == "test":
+                ret = await asyncio.to_thread(print_test, data)
+            if device == "printer" and dtype == "receipt":
+                ret = await asyncio.to_thread(print_receipt, data)
+            if device == "printer" and dtype == "report":
+                ret = await asyncio.to_thread(print_report, data)
+            if device == "display" and dtype == "message":
+                ret = await asyncio.to_thread(display_message, data)
+            if device == "display" and dtype == "item":
+                ret = await asyncio.to_thread(display_item, data)
+            if device == "display" and dtype == "total":
+                ret = await asyncio.to_thread(display_total, data)
+            if device == "display" and dtype == "next":
+                ret = await asyncio.to_thread(display_next, data)
+
+            if(ret == {}):
+                raise Exception("Invalid data") 
+
+            await websocket.send(json.dumps(ret))                
+        except Exception as e:
+            print("error ", e)
+            try:
+                await websocket.send(json.dumps({'error': str(e)}))
+            except:
+                pass
+            return None
+
+async def main():
+    async with serve(handler, "localhost", 9876) as server:
+        await server.serve_forever()
+
+
+if __name__ == "__main__":
+    print('Printer websocket running...')
+    asyncio.run(main())
