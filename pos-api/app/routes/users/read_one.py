@@ -58,8 +58,8 @@ def _get_user():
                 "branches": branch_list,
                 "lastName": user["last_name"],
                 "isActive": user["is_active"],
-                "createdBy": user["created_by"],
-                "createdAt": user["created_at"],
+                "createdBy": user.get("created_by"),
+                "createdAt": user.get("created_at"),
             },
         }, 200
     else:

@@ -1,5 +1,5 @@
 """
-Seed script — inserts default branch, roles, and users.
+Seed script — inserts default branch, roles, users, and discounts.
 Idempotent: skips any record that already exists.
 
 Usage (inside Docker):
@@ -13,6 +13,7 @@ Override default passwords:
     SEED_ADMIN_PASSWORD=mypassword SEED_CASHIER_PASSWORD=mypassword python seed.py
 """
 
+import datetime
 import os
 import sys
 
@@ -20,6 +21,7 @@ import bcrypt
 from bson import ObjectId
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from pydantic import ValidationError
 
 load_dotenv()
 
@@ -116,6 +118,13 @@ CASHIER_ROLE = {
     "authorizations": {r: ["read", "create", "update"] for r in CASHIER_RESOURCES},
 }
 
+DEFAULT_DISCOUNTS = [
+    {"name": "Senior Citizen Member 20%", "type": "percentage", "value": 20, "memberType": "senior_citizen"},
+    {"name": "PWD Member 20%",            "type": "percentage", "value": 20, "memberType": "pwd"},
+    {"name": "Solo Parent Member 20%",    "type": "percentage", "value": 20, "memberType": "solo_parent"},
+    {"name": "NAAC Member 20%",           "type": "percentage", "value": 20, "memberType": "naac"},
+]
+
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", os.getenv("SEED_PASSWORD", "admin123"))
 
@@ -170,6 +179,7 @@ def seed():
             "branches": [str(branch_id)],
             "is_active": True,
             "created_by": None,
+            "created_at": datetime.datetime.utcnow(),
         })
         log(f"Created user: {ADMIN_USERNAME} (password: {ADMIN_PASSWORD})")
 
@@ -186,10 +196,47 @@ def seed():
             "branches": [str(branch_id)],
             "is_active": True,
             "created_by": None,
+            "created_at": datetime.datetime.utcnow(),
         })
         log(f"Created user: {CASHIER_USERNAME} (password: {CASHIER_PASSWORD})")
 
+    # Discounts
+    seed_discounts()
+
     print("\nDone.\n")
+
+
+def seed_discounts():
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from app.new_models.Discount import Discount
+
+    now = datetime.datetime.utcnow()
+
+    for raw in DEFAULT_DISCOUNTS:
+        # Validate via Pydantic model before touching the DB
+        try:
+            discount = Discount(**raw)
+        except ValidationError as e:
+            log(f"Invalid discount data for '{raw.get('name')}' — skipping: {e}")
+            continue
+
+        member_type = discount.memberType.value if discount.memberType else None
+
+        existing = db.discounts.find_one({"memberType": member_type}) if member_type else \
+                   db.discounts.find_one({"name": discount.name})
+
+        if existing:
+            log(f"Discount '{discount.name}' already exists — skipping ({existing['_id']})")
+        else:
+            doc = {
+                **discount.model_dump(exclude={"id"}, exclude_none=True),
+                "memberType": member_type,
+                "type": discount.type.value,
+                "created_by": None,
+                "created_at": now,
+            }
+            result = db.discounts.insert_one(doc)
+            log(f"Created discount: {discount.name} ({result.inserted_id})")
 
 
 if __name__ == "__main__":
