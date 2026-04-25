@@ -79,51 +79,68 @@ Flask 3.0 REST API backed by MongoDB (PyMongo).
 
 ## Deployment Strategy
 
-### Two-Tier: Internal LAN + Staging/Cloud
+### Multi-Branch: One LAN Server Per Branch + One Shared Staging
 
 ```
-┌─────────────────────────────────────────┐        ┌──────────────────────────────┐
-│  INTERNAL (LAN)                         │        │  STAGING / CLOUD             │
-│                                         │        │                              │
-│  Cashier (browser)                      │        │  Admin / Reports (browser)   │
-│       │                                 │        │       │                      │
-│       ▼                                 │        │       ▼                      │
-│  Local Flask API ──► Local MongoDB      │──sync──►  Cloud MongoDB (read-only)  │
-│                           │             │        │                              │
-│                      [_sync field       │        │  Staging mmg-app             │
-│                       on each doc]      │        │  (no cashier/write access)   │
-└─────────────────────────────────────────┘        └──────────────────────────────┘
+┌─────────────────────────┐     ┌─────────────────────────┐
+│  BRANCH A (LAN)         │     │  BRANCH B (LAN)         │
+│  Server + Local MongoDB │     │  Server + Local MongoDB │
+│  Cashiers on LAN        │     │  Cashiers on LAN        │
+└──────────┬──────────────┘     └──────────┬──────────────┘
+           │ upstream sync                  │ upstream sync
+           │ (_sync: pending → synced)      │
+           ▼                                ▼
+┌──────────────────────────────────────────────────────────┐
+│  STAGING / CLOUD                                         │
+│  Cloud MongoDB  ◄── aggregate of all branches            │
+│  Staging Flask API (read-only enforcement)               │
+│  Staging mmg-app (same codebase, VITE_APP_ENV=staging)   │
+│  — reports and backup only, no POS/cashier routes        │
+└──────────────────────────────────────────────────────────┘
+           │ downstream sync
+           │ (lookup tables only — branches, users, products, etc.)
+           ▼
+    Each branch server
 ```
 
-**Internal (LAN)** is the production environment where all sales happen. The Flask API and MongoDB run on a single LAN server. Cashiers access the POS through the browser over the local network — this works fully offline if internet goes down.
+**Internal (LAN)** — each branch runs its own server (Flask API + MongoDB + sync service + proxy + helper app). Works fully offline. All sales/write operations happen here only.
 
-**Staging/Cloud** is a read-only view of the same data hosted remotely. Its purpose is reporting and cloud backup. It never generates transactions.
+**Staging/Cloud** — one shared cloud instance that aggregates data from all branch servers. Read-only for reporting and cloud backup. Never generates transactions.
+
+**CAS (Computerized Accounting System)** is a separate project and is not in scope for this sync.
+
+**Deployments:** Currently manual (SSH + `docker-compose up --build`). CI/CD via GitHub Actions is planned.
 
 ### Sync Strategy — Embedded `_sync` Field (Outbox Pattern)
 
-Every write operation (transaction create/update, etc.) embeds a `_sync` field directly on the document:
+Every write operation (create AND update) on upstream collections embeds a `_sync` field directly on the document:
 
 ```json
 {
   "_id": "...",
   "invoiceNumber": 1234,
-  "...",
   "_sync": { "status": "pending", "synced_at": null, "attempts": 0 }
 }
 ```
 
-The sync service polls `{ "_sync.status": "pending" }`, pushes the document to the cloud MongoDB (stripping `_sync` before insert), then marks it `synced` locally.
+The sync service polls `{ "_sync.status": "pending" }`, pushes to cloud MongoDB (stripping `_sync` before upsert), then marks `synced` locally.
 
-**Why this approach over a separate `sync_queue` collection:**
-A separate queue requires two MongoDB writes per transaction (the document + the queue entry). On a standalone MongoDB (no replica set), these two writes cannot be wrapped in a transaction — a crash between them leaves the document unqueued and it silently never reaches staging. Embedding `_sync` on the document makes it a single atomic write, eliminating the split-brain risk entirely.
+**Upstream collections** (branch → staging): `transactions`, `cashier_reports`, `branch_reports`, `sales`, `sales_deposits`, `audit_logs`, `bookings`
 
-**Known limitations to be aware of:**
-- **Stale staging window**: Staging data lags behind internal by up to the sync interval (~20s). Reports on staging may not reflect the last few minutes of transactions. This is acceptable for end-of-day reporting but not for real-time views.
-- **Deletes are not propagated**: If a transaction is hard-deleted locally (not just status-changed to `cancelled`), the delete does not reach staging. The system should prefer status changes over hard deletes for any document that participates in sync.
-- **Downstream sync must not overwrite `_sync`**: The existing downstream sync (cloud → local for lookup tables like users, branches, products) must explicitly exclude the `_sync` field when upserting to avoid clobbering the local sync state.
+**Downstream collections** (staging → branch, lookup/config only): `branches`, `users`, `customers`, `discounts`, `packages`, `products`, `product_categories`, `doctors`, `roles`, `corporates`
+
+**Multi-branch safety:** Each document has a globally unique MongoDB `ObjectId`. Multiple branch servers upserting by `_id` on staging is safe and idempotent — no ID collisions, no conflict resolution needed.
+
+**Why embedded `_sync` over a separate `sync_queue` collection:**
+Standalone MongoDB has no multi-collection transactions. A separate queue requires two writes (document + queue entry) — a crash between them silently drops the record from sync. Embedding `_sync` is a single atomic write.
+
+**Known limitations:**
+- **Stale staging window** — staging lags by up to the sync interval (~20s). Acceptable for end-of-day reports, not for real-time views.
+- **Deletes are not propagated** — hard deletes on internal are invisible to staging. Always use status changes (`cancelled`, `refunded`) instead of deletes on upstream collections.
+- **Downstream sync must preserve `_sync`** — when the sync service pulls lookup tables from staging → local, it must never overwrite the `_sync` field on existing local documents to avoid resetting pending sync state.
 
 ### Staging mmg-app
-A separate instance of the mmg-app (or a dedicated `APP_ENV=staging` mode) pointing to the cloud MongoDB. Write endpoints on the API are either disabled or the staging app never exposes cashier/POS routes — only dashboard/reports routes are accessible.
+Same codebase as internal, deployed as a second instance with `VITE_APP_ENV=staging`. This flag disables POS/cashier routes and all write operations — only dashboard and report routes are accessible. Points to the cloud MongoDB via its own `pos-api` instance.
 
 ---
 
