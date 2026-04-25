@@ -1,5 +1,7 @@
 import asyncio
 import datetime
+import os
+import sys
 import time
 from itertools import groupby
 import json
@@ -11,6 +13,30 @@ import serial
 from websockets.asyncio.server import serve
 import escpos.exceptions
 from escpos.printer import Usb, Network
+
+# Write ejournal next to the .exe when frozen, or next to app.py in dev
+_BASE_DIR = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+EJOURNAL_PATH = os.path.join(_BASE_DIR, "ejournal.txt")
+
+# BIR terminal credentials — stored in terminal.json on each workstation
+_TERMINAL_CONFIG_PATH = os.path.join(_BASE_DIR, "terminal.json")
+
+def _load_terminal_config() -> dict:
+    if os.path.exists(_TERMINAL_CONFIG_PATH):
+        try:
+            with open(_TERMINAL_CONFIG_PATH, "r", encoding="utf-8") as f:
+                import json as _json
+                return _json.load(f)
+        except Exception as e:
+            print(f"Warning: could not read terminal.json: {e}")
+    return {}
+
+TERMINAL = _load_terminal_config()
+TERMINAL_MIN    = TERMINAL.get("MIN",    "---")
+TERMINAL_SN     = TERMINAL.get("SN",     "---")
+TERMINAL_PTU_NO = TERMINAL.get("PTU_NO", "---")
+
+print(f"Terminal config loaded — MIN: {TERMINAL_MIN}, SN: {TERMINAL_SN}, PTU: {TERMINAL_PTU_NO}")
 
 # Debouncing state
 last_processed_transaction = {
@@ -60,7 +86,7 @@ class ReceiptWriter:
     def __enter__(self):
         if self.journal:
             try:
-                self.file = open("ejournal.txt", "a", encoding="utf-8")
+                self.file = open(EJOURNAL_PATH, "a", encoding="utf-8")
             except Exception as e:
                 print(f"Error opening journal: {e}")
         return self
@@ -197,8 +223,9 @@ def print_receipt(request_data: dict = {}):
                 p.row("Reprint Date: ", dateNow.strftime("%Y-%m-%d %I:%M%p"))
 
             
-            p.row("MIN: ", "---")
-            p.row("SN: ", "---")
+            p.row("MIN: ", TERMINAL_MIN)
+            p.row("SN: ", TERMINAL_SN)
+            p.row("PTU No: ", TERMINAL_PTU_NO)
             p.row("Date & Time: ", dt.strftime("%Y-%m-%d %I:%M%p"))
             p.row("Cashier: ", start_case(cashier["first_name"] + " " + cashier["last_name"]))
             if(transaction['status'] == 'completed'):
@@ -382,10 +409,10 @@ def print_report(data: dict = {}):
             if(reprint):
                 p.row("Reprint: ", dateNow.strftime("%Y-%m-%d %I:%M%p"))
 
-            p.row("MIN: ", "---")
-            p.row("SN: ", "---")
+            p.row("MIN: ", TERMINAL_MIN)
+            p.row("SN: ", TERMINAL_SN)
+            p.row("PTU No: ", TERMINAL_PTU_NO)
 
-            
             if(type == 'X_REPORT'):
                 cashier = data['cashier']
                 p.row("Cashier: ", start_case(cashier["first_name"] + " " + cashier["last_name"]))
@@ -570,6 +597,8 @@ async def handler(websocket):
             dtype = data.get("device_type")
 
             ret = {}
+            if device == "terminal" and dtype == "info":
+                ret = {"MIN": TERMINAL_MIN, "SN": TERMINAL_SN, "PTU_NO": TERMINAL_PTU_NO}
             if device == "printer" and dtype == "test":
                 ret = await asyncio.to_thread(print_test, data)
             if device == "printer" and dtype == "receipt":
