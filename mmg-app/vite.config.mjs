@@ -13,14 +13,15 @@ export default defineConfig({
   preview: {
     port: 6000,
     strictPort: true,
-   },
-   server: {
+  },
+  server: {
     watch: {
       usePolling: true,
     },
+    allowedHosts: ['c9c36e9ca2cd.ngrok-free.app'],
     // port: 6000,
     strictPort: true,
     host: "0.0.0.0",
     // origin: "http://0.0.0.0:6000",
-   },
+  },
 });

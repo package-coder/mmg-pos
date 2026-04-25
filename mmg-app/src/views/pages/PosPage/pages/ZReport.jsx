@@ -12,36 +12,37 @@ import moment from 'moment';
 import { useAuth } from 'providers/AuthProvider';
 import branch_reports from 'api/branch_reports';
 import ZReadingReport from 'views/pages/cashier-reports/components/ZReadingReport';
+import { PrinterWrapper, usePrinter } from 'providers/PrinterProvider';
 
-export default function () {
+function ZReportPage() {
     const navigate = useNavigate();
     const { branch } = useAuth()
 
     const { data, isLoading: loading } = useQuery({
-        queryKey: ['today-branch-report', branch], 
-        queryFn: () => branch_reports.GetAllBranchReport({ 
-            date:  moment().format('YYYY-MM-DD'), 
+        queryKey: ['today-branch-report', branch],
+        queryFn: () => branch_reports.GetAllBranchReport({
+            date: moment().format('YYYY-MM-DD'),
             branchIds: branch.id,
         }),
         enabled: !!branch
     })
     const report = data?.[0]
-    const { mutateAsync: printAsync } = useMutation(print.PrintReport)
+    const { print } = usePrinter()
 
-    async function onPrint() {
-        await printAsync({ ...report, dvoteDetails, type: 'Z_REPORT' })
+    function onPrint() {
+        print("printer", "report", { ...report, dvoteDetails, type: 'Z_REPORT' })
     }
 
     if (loading) return <PageLoader />;
 
-    if(!report) {
+    if (!report) {
         return (
             <Stack p={6} py={8} bgcolor="primary.light" alignItems="center" sx={{ p: 5, minHeight: '100dvh' }}>
                 <Stack maxWidth="sm" width='100%'>
                     <Card sx={{ px: 5, py: 4 }}>
                         <Stack direction="row" justifyContent="space-between" alignItems="center">
                             <Typography variant="h3" gutterBottom>
-                               No sales has been made to generate Z-Reading Report.
+                                No sales has been made to generate Z-Reading Report.
                             </Typography>
                         </Stack>
                         <Stack ml={-1} mt={1} direction="row" alignItems="center" justifyContent='space-between' spacing={2}>
@@ -68,10 +69,10 @@ export default function () {
                             Z-Reading Report
                         </Typography>
                         <Button onClick={onPrint} startIcon={<IoMdPrint />} sx={{ bgcolor: 'grey.50' }} color="primary">
-                            Print 
+                            Print
                         </Button>
                     </Stack>
-                    
+
                     <ZReadingReport report={report} />
                     <Stack mt={5} direction="row" alignItems="center" justifyContent="end" spacing={2}>
                         <Button color="primary" size="large" onClick={() => navigate('/dashboard/cashier-reports')}>
@@ -83,3 +84,6 @@ export default function () {
         </Stack>
     );
 };
+
+
+export default PrinterWrapper(ZReportPage)
