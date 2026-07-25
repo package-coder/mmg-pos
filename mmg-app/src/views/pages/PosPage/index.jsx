@@ -14,7 +14,6 @@ import { useAuth } from 'providers/AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import PageLoader from 'ui-component/PageLoader';
 import { DateFilterEnum } from 'ui-component/filter/DateFilter';
-import PrinterProvider from 'providers/PrinterProvider';
 
 const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' && prop !== 'theme' })(({ theme, open }) => ({
     ...theme.typography.mainContent,
@@ -85,17 +84,15 @@ const PosPage = () => {
     }
 
     return (
-        <PrinterProvider>
-            <CashierReportContext.Provider value={{ report, loading: isLoading, getDrawerBalance, isRefetching, refetch }}>
-                {reportIsEmptyOrNotActive ? (
-                    <CashRegister initialValues={previousReport?.endingCashOnHand?.count} />
-                ) : reportIsActive ? (
-                    <PosComponent />
-                ) : (
-                    <LogoutMessage report={report} />
-                )}
-            </CashierReportContext.Provider>
-        </PrinterProvider>
+        <CashierReportContext.Provider value={{ report, loading: isLoading, getDrawerBalance, isRefetching, refetch }}>
+            {reportIsEmptyOrNotActive ? (
+                <CashRegister initialValues={previousReport?.endingCashOnHand?.count} />
+            ) : reportIsActive ? (
+                <PosComponent />
+            ) : (
+                <LogoutMessage report={report} />
+            )}
+        </CashierReportContext.Provider>
     );
 };
 

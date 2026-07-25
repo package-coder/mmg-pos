@@ -15,6 +15,7 @@ import themes from 'themes';
 import NavigationScroll from 'layout/NavigationScroll';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import AuthProvider from 'providers/AuthProvider';
+import PrinterProvider from 'providers/PrinterProvider';
 
 // ==============================|| APP ||============================== //
 
@@ -29,9 +30,11 @@ const App = () => {
                 <CssBaseline />
                 <QueryClientProvider client={queryClient}>
                     <AuthProvider>
-                        <NavigationScroll>
-                            <RouterProvider router={router} />
-                        </NavigationScroll>
+                        <PrinterProvider>
+                            <NavigationScroll>
+                                <RouterProvider router={router} />
+                            </NavigationScroll>
+                        </PrinterProvider>
                     </AuthProvider>
                 </QueryClientProvider>
             </ThemeProvider>

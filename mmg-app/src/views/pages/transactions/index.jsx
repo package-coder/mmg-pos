@@ -36,7 +36,6 @@ import { DateFilterEnum, DateFilterOptions } from 'ui-component/filter/DateFilte
 import generateReportFilename from 'utils/generateReportFilename';
 import { CSVLink } from 'react-csv';
 import TransactionModal from './components/TransactionModal';
-import PrinterProvider from 'providers/PrinterProvider';
 
 const DEFAULT_FILTER = 'all';
 
@@ -133,8 +132,7 @@ function TransactionsPage() {
     };
 
     const renderTable = (children) => (
-        <PrinterProvider>
-            <MainCard title="Transactions">
+        <MainCard title="Transactions">
             <LocalizationProvider dateAdapter={AdapterMoment}>
                 <Stack mb={1} spacing={1} direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }}>
                     <TextField value={searchFilter} onChange={(e) => setSearchFilter(e.target?.value)} size="small" label="Search" />
@@ -332,7 +330,6 @@ function TransactionsPage() {
                 </div>
             </Card>
         </MainCard>
-        </PrinterProvider>
     );
 
     const renderMessage = (children) => (

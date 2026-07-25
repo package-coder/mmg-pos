@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Typography, FormControlLabel, Switch, Stack, Grid, Divider, TextField, Alert } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
-import PrinterProvider, { PrinterWrapper, usePrinter } from 'providers/PrinterProvider';
+import { usePrinter } from 'providers/PrinterProvider';
 import MainCard from 'ui-component/cards/MainCard';
 
 const PrinterSettings = () => {
@@ -181,4 +181,4 @@ const PrinterSettings = () => {
     );
 };
 
-export default PrinterWrapper(PrinterSettings);
+export default PrinterSettings;
