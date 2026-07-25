@@ -74,22 +74,58 @@ The helper reads this at startup and prints these values on every receipt and re
 
 ---
 
-## Development Setup
+## Setup & Installation
+
+**See [SETUP.md](SETUP.md) for complete setup guide with troubleshooting.**
+
+### Quick Start (Windows PowerShell)
 
 ```bash
-cd pos-helper-app/helper
-python -m venv ../.venv
-source ../.venv/Scripts/activate    # Windows; use ../.venv/bin/activate on Linux
-pip install -r requirements.txt
+powershell -ExecutionPolicy Bypass -File setup.ps1
+```
+
+### Quick Start (Git Bash / POSIX)
+
+```bash
+bash setup.sh
+```
+
+### Manual Setup
+
+```bash
+cd pos-helper-app
+python -m venv .venv
+.venv\Scripts\activate               # Windows
+# source .venv/bin/activate          # Linux/Mac
+
+pip install --upgrade pip
+pip install -r helper/requirements.txt
+
+cd helper
 python app.py                        # WebSocket server on ws://localhost:9876
 ```
 
-Tests (from `pos-helper-app/`):
+### Automated Setup Options
+
 ```bash
-python test_fix.py
-python test_async.py
-python test_journaling.py
-python test_refactor.py
+# Clean old setup and reinstall
+powershell -File setup.ps1 -Clean
+
+# Build Windows executable
+powershell -File setup.ps1 -Build
+
+# Run server immediately after setup
+powershell -File setup.ps1 -Run
+```
+
+### Tests
+
+From `pos-helper-app/`:
+```bash
+python helper/test_fix.py
+python helper/test_async.py
+python helper/test_journaling.py
+python helper/test_refactor.py
 ```
 
 ---
