@@ -28,15 +28,9 @@ const PrinterSettings = () => {
     }, []);
 
     const handlePrintTest = () => {
-        print('printer', 'test', { settings: 'network', message: testMessage })
-        // try {
-        //     const response = await axios.post(`http://localhost:3001/print`, {
-        //         message: testMessage
-        //     });
-        //     setStatusMessage(response.data.status);
-        // } catch (error) {
-        //     setStatusMessage('Error printing: ' + error.message);
-        // }
+        print('printer', 'test', { settings: { url: printerIP || '192.168.192.168' }, message: testMessage })
+        setStatusMessage('Test print sent...');
+        setTimeout(() => setStatusMessage(''), 3000);
     };
 
     const handlePrinterIPChange = (e) => {

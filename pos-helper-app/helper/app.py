@@ -63,6 +63,9 @@ def get_printer_device(setting: dict = {}):
     p = None
     error = None
     try:
+        # Handle case where setting is not a dict (e.g., string "network")
+        if not isinstance(setting, dict):
+            setting = {}
         url = setting.get('url', '192.168.192.168')
         print(f"Attempting printer connection to: {url}")
         p = Network(url)
