@@ -38,3 +38,10 @@ ejournal_test.txt
 # Compiled
 *.rar
 *.zip
+*.exe
+!pos-helper-app/releases/*.exe
+
+# PyInstaller builds
+pos-helper-app/helper/build/
+pos-helper-app/helper/dist/
+pos-helper-app/mmg-helper.exe
