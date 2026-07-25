@@ -64,14 +64,13 @@ def get_printer_device(setting: dict = {}):
     error = None
     try:
         url = setting.get('url', '192.168.192.168')
-        print(f"Connecting to printer: {url}")
+        print(f"Attempting printer connection to: {url}")
         p = Network(url)
         if p is None:
             raise Exception("Printer network object is None")
     except Exception as e:
         print(f"Printer connection error: {e}")
         error = str(e)
-    print(p)
     return p, error
 
 def get_display_device():
@@ -155,11 +154,14 @@ def print_test(data: dict = {}):
             w.set(align='center', bold=True)
             w.write(f'Test Print: {data.get("message", "TEST PRINT")}\n\n')
     except Exception as e:
+        print(f"[{get_local_time()}] [ERR] Test print error: {repr(e)}")
         return {'message': 'Error during test print', 'error': repr(e)}
 
     if w.error:
+        print(f"[{get_local_time()}] [WARN] Test print - Printer unavailable: {w.error}")
         return {'message': 'Printer unavailable', 'error': w.error}
 
+    print(f"[{get_local_time()}] [OK] Test print successful")
     return { 'message': 'Printed successfully' }
 
 def print_ejournal(data: dict = {}):
@@ -384,10 +386,12 @@ def print_receipt(request_data: dict = {}):
         }
 
     if p.error:
+        print(f"[{get_local_time()}] [WARN] Printer error (receipt): {p.error}")
         return {
             'message': 'Journaled successfully (printer unavailable)',
             'error': p.error
         }
+    print(f"[{get_local_time()}] [OK] Receipt printed successfully")
     return { 'message': 'Printed successfully' }
 
 def print_report(data: dict = {}):
@@ -545,17 +549,20 @@ def print_report(data: dict = {}):
             p.write('PTU No: ' + dvote.get('PTUno', '---') + '\n')
             p.write('Date Issued: ' + dvote['ptuDateIssued'] + '\n\n')
             
-    except Exception as e: 
+    except Exception as e:
+        print(f"[{get_local_time()}] [ERR] Report print error: {repr(e)}")
         return {
             'message': 'Journaled (printer unavailable)',
             'error': repr(e)
         }
 
     if p.error:
+        print(f"[{get_local_time()}] [WARN] Printer error (report): {p.error}")
         return {
             'message': 'Journaled successfully (printer unavailable)',
             'error': p.error
         }
+    print(f"[{get_local_time()}] [OK] Report printed successfully")
     return { 'message': 'Printed successfully' }
 
 def display_welcome():
@@ -616,15 +623,15 @@ def display_next():
 async def handler(websocket):
     client_address = websocket.remote_address
     display_welcome()
-    print(f"Client connected from: {client_address}")
+    print(f"[{get_local_time()}] [OK] Client connected from: {client_address}")
 
     async for message in websocket:
         try:
             data = json.loads(message)
-            print(data)
-
             device = data.get("device")
             dtype = data.get("device_type")
+
+            print(f"[{get_local_time()}] [REQ] Request received: device={device}, type={dtype}")
 
             ret = {}
             if device == "terminal" and dtype == "info":
@@ -647,19 +654,42 @@ async def handler(websocket):
                 ret = await asyncio.to_thread(display_next, data)
 
             if(ret == {}):
-                raise Exception("Invalid data") 
+                raise Exception("Invalid data")
 
-            await websocket.send(json.dumps(ret))                
+            if "error" not in ret:
+                print(f"[{get_local_time()}] [OK] Success: {device}/{dtype}")
+
+            await websocket.send(json.dumps(ret))
         except Exception as e:
-            print("error ", e)
+            print(f"[{get_local_time()}] [ERR] Error: {device}/{dtype} - {e}")
             try:
                 await websocket.send(json.dumps({'error': str(e)}))
             except:
                 pass
             return None
 
+def kill_existing_process(port=9999):
+    import subprocess
+    import platform
+    try:
+        if platform.system() == "Windows":
+            result = subprocess.run(f'netstat -ano | findstr :{port}', shell=True, capture_output=True, text=True)
+            if result.stdout:
+                pid = result.stdout.strip().split()[-1]
+                print(f"[{get_local_time()}] [INFO] Killing existing process on port {port} (PID: {pid})")
+                subprocess.run(f'taskkill /PID {pid} /F', shell=True, capture_output=True)
+                time.sleep(1)
+                print(f"[{get_local_time()}] [OK] Process killed successfully")
+        else:
+            subprocess.run(f'lsof -ti:{port} | xargs kill -9 2>/dev/null', shell=True)
+            time.sleep(1)
+    except Exception as e:
+        print(f"Could not kill existing process: {e}")
+
 async def main():
+    kill_existing_process(9999)
     async with serve(handler, "127.0.0.1", 9999) as server:
+        print(f"[{get_local_time()}] [OK] WebSocket server listening on ws://127.0.0.1:9999")
         await server.serve_forever()
 
 
