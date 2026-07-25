@@ -156,11 +156,41 @@ def print_test(data: dict = {}):
             w.write(f'Test Print: {data.get("message", "TEST PRINT")}\n\n')
     except Exception as e:
         return {'message': 'Error during test print', 'error': repr(e)}
-        
+
     if w.error:
         return {'message': 'Printer unavailable', 'error': w.error}
 
     return { 'message': 'Printed successfully' }
+
+def print_ejournal(data: dict = {}):
+    try:
+        if not os.path.exists(EJOURNAL_PATH):
+            return {'message': 'Electronic journal not found', 'error': 'ejournal.txt does not exist'}
+
+        with open(EJOURNAL_PATH, 'r', encoding='utf-8') as f:
+            journal_content = f.read()
+
+        if not journal_content.strip():
+            return {'message': 'Electronic journal is empty'}
+
+        with ReceiptWriter(data.get('settings', {}), journal=False) as w:
+            w.set(align='center', bold=True)
+            w.write('ELECTRONIC JOURNAL REPORT\n\n')
+            w.set(align='center', bold=False)
+            w.write(f'Printed: {get_local_time().strftime("%Y-%m-%d %H:%M:%S")}\n')
+            w.write('=' * MAX_CHAR_PER_ROW + '\n\n')
+            w.set(align='left', bold=False)
+            w.write(journal_content)
+            w.write('\n' + '=' * MAX_CHAR_PER_ROW + '\n')
+            w.set(align='center', bold=True)
+            w.write('END OF JOURNAL\n')
+    except Exception as e:
+        return {'message': 'Error printing electronic journal', 'error': repr(e)}
+
+    if w.error:
+        return {'message': 'Journal content ready but printer unavailable', 'error': w.error}
+
+    return {'message': 'Electronic journal printed successfully'}
 
 def print_receipt(request_data: dict = {}):
     transaction = request_data['transaction']
@@ -605,6 +635,8 @@ async def handler(websocket):
                 ret = await asyncio.to_thread(print_receipt, data)
             if device == "printer" and dtype == "report":
                 ret = await asyncio.to_thread(print_report, data)
+            if device == "printer" and dtype == "ejournal":
+                ret = await asyncio.to_thread(print_ejournal, data)
             if device == "display" and dtype == "message":
                 ret = await asyncio.to_thread(display_message, data)
             if device == "display" and dtype == "item":

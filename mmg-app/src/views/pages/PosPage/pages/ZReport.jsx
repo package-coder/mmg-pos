@@ -12,15 +12,17 @@ import moment from 'moment';
 import { useAuth } from 'providers/AuthProvider';
 import branch_reports from 'api/branch_reports';
 import ZReadingReport from 'views/pages/cashier-reports/components/ZReadingReport';
+import { usePrinter } from 'providers/PrinterProvider';
 
 export default function () {
     const navigate = useNavigate();
     const { branch } = useAuth()
+    const { print: printToDevice } = usePrinter()
 
     const { data, isLoading: loading } = useQuery({
-        queryKey: ['today-branch-report', branch], 
-        queryFn: () => branch_reports.GetAllBranchReport({ 
-            date:  moment().format('YYYY-MM-DD'), 
+        queryKey: ['today-branch-report', branch],
+        queryFn: () => branch_reports.GetAllBranchReport({
+            date:  moment().format('YYYY-MM-DD'),
             branchIds: branch.id,
         }),
         enabled: !!branch
@@ -30,6 +32,14 @@ export default function () {
 
     async function onPrint() {
         await printAsync({ ...report, dvoteDetails, type: 'Z_REPORT' })
+    }
+
+    async function onPrintEjournal() {
+        try {
+            printToDevice('printer', 'ejournal', {})
+        } catch (error) {
+            console.error('Error printing electronic journal:', error)
+        }
     }
 
     if (loading) return <PageLoader />;
@@ -73,10 +83,26 @@ export default function () {
                     </Stack>
                     
                     <ZReadingReport report={report} />
-                    <Stack mt={5} direction="row" alignItems="center" justifyContent="end" spacing={2}>
-                        <Button color="primary" size="large" onClick={() => navigate('/dashboard/cashier-reports')}>
-                            Go to dashboard
-                        </Button>
+                    <Stack mt={5} direction="column" spacing={2}>
+                        <Box sx={{ p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
+                            <Typography variant="body2" color="textSecondary" mb={1}>
+                                Audit & Maintenance
+                            </Typography>
+                            <Button
+                                variant="outlined"
+                                color="warning"
+                                onClick={onPrintEjournal}
+                                fullWidth
+                                size="small"
+                            >
+                                Print Electronic Journal
+                            </Button>
+                        </Box>
+                        <Stack direction="row" alignItems="center" justifyContent="end" spacing={2}>
+                            <Button color="primary" size="large" onClick={() => navigate('/dashboard/cashier-reports')}>
+                                Go to dashboard
+                            </Button>
+                        </Stack>
                     </Stack>
                 </Card>
             </Stack>

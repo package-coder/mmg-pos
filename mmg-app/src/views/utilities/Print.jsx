@@ -76,7 +76,14 @@ const WithPrintMutation = ({ children }) => {
        
     const onPrint = async(data) => {
         try {
-            await print("printer", "receipt", data)
+            const trialMode = JSON.parse(localStorage.getItem('printerTrialMode') || 'false')
+
+            // Print once in trial mode, 3 times in normal mode
+            const printCount = trialMode ? 1 : 3
+
+            for (let i = 0; i < printCount; i++) {
+                await print("printer", "receipt", data)
+            }
         } catch (e) {
             throw e
         }
