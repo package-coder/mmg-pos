@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 a = Analysis(
     ['app.py'],
@@ -29,11 +30,11 @@ a = Analysis(
         'qrcode.image.pure',
         'barcode',
         'barcode.writer',
-    ],
+    ] + collect_submodules('websockets'),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['setuptools'],
+    excludes=['setuptools', 'pip', 'wheel', 'pkg_resources'],
     noarchive=False,
 )
 
