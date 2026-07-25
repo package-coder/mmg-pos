@@ -2,7 +2,7 @@
 import datetime
 import bcrypt
 import os
-from app.database.config import db
+from app.database.config import users as users_collection
 
 
 def hash_password(plain: str) -> str:
@@ -22,10 +22,10 @@ CASHIER_PASSWORD = os.getenv("SEED_CASHIER_PASSWORD", "cashier123")
 def seed(log_fn, branch_id, admin_role_id, cashier_role_id):
     """Seed default users."""
     # Admin user
-    if db.users.find_one({"username": ADMIN_USERNAME}):
+    if users_collection.find_one({"username": ADMIN_USERNAME}):
         log_fn(f"User '{ADMIN_USERNAME}' already exists — skipping")
     else:
-        db.users.insert_one({
+        users_collection.insert_one({
             "username": ADMIN_USERNAME,
             "password": hash_password(ADMIN_PASSWORD),
             "first_name": "Admin",
@@ -39,10 +39,10 @@ def seed(log_fn, branch_id, admin_role_id, cashier_role_id):
         log_fn(f"Created user: {ADMIN_USERNAME} (password: {ADMIN_PASSWORD})")
 
     # Cashier user
-    if db.users.find_one({"username": CASHIER_USERNAME}):
+    if users_collection.find_one({"username": CASHIER_USERNAME}):
         log_fn(f"User '{CASHIER_USERNAME}' already exists — skipping")
     else:
-        db.users.insert_one({
+        users_collection.insert_one({
             "username": CASHIER_USERNAME,
             "password": hash_password(CASHIER_PASSWORD),
             "first_name": "Cashier",

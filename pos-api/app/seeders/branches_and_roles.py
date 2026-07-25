@@ -1,6 +1,8 @@
 """Seed branches and roles."""
 import datetime
-from app.database.config import db
+from app.database.config import (
+    database, branches, roles
+)
 
 BRANCH = {
     "name": "MMG Albay Main",
@@ -72,32 +74,32 @@ CASHIER_ROLE = {
 def seed(log_fn):
     """Seed branches and roles."""
     # Branch
-    existing_branch = db.branches.find_one({"name": BRANCH["name"]})
+    existing_branch = branches.find_one({"name": BRANCH["name"]})
     if existing_branch:
         branch_id = existing_branch["_id"]
         log_fn(f"Branch already exists — skipping ({branch_id})")
     else:
-        result = db.branches.insert_one(BRANCH)
+        result = branches.insert_one(BRANCH)
         branch_id = result.inserted_id
         log_fn(f"Created branch: {BRANCH['name']} ({branch_id})")
 
     # Admin role
-    existing_admin_role = db.roles.find_one({"name": ADMIN_ROLE["name"]})
+    existing_admin_role = roles.find_one({"name": ADMIN_ROLE["name"]})
     if existing_admin_role:
         admin_role_id = existing_admin_role["_id"]
         log_fn(f"Role 'admin' already exists — skipping ({admin_role_id})")
     else:
-        result = db.roles.insert_one(ADMIN_ROLE)
+        result = roles.insert_one(ADMIN_ROLE)
         admin_role_id = result.inserted_id
         log_fn(f"Created role: admin ({admin_role_id})")
 
     # Cashier role
-    existing_cashier_role = db.roles.find_one({"name": CASHIER_ROLE["name"]})
+    existing_cashier_role = roles.find_one({"name": CASHIER_ROLE["name"]})
     if existing_cashier_role:
         cashier_role_id = existing_cashier_role["_id"]
         log_fn(f"Role 'cashier' already exists — skipping ({cashier_role_id})")
     else:
-        result = db.roles.insert_one(CASHIER_ROLE)
+        result = roles.insert_one(CASHIER_ROLE)
         cashier_role_id = result.inserted_id
         log_fn(f"Created role: cashier ({cashier_role_id})")
 

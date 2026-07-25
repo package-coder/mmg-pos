@@ -1,6 +1,6 @@
 """Seed product categories."""
 import datetime
-from app.database.config import db
+from app.database.config import product_categories as categories_collection
 
 
 PRODUCT_CATEGORIES = [
@@ -16,7 +16,7 @@ def seed(log_fn):
     now = datetime.datetime.utcnow()
 
     for raw in PRODUCT_CATEGORIES:
-        existing = db.product_categories.find_one({"name": raw["name"]})
+        existing = categories_collection.find_one({"name": raw["name"]})
 
         if existing:
             log_fn(f"Product category '{raw['name']}' already exists — skipping ({existing['_id']})")
@@ -26,5 +26,5 @@ def seed(log_fn):
                 "created_by": None,
                 "created_at": now,
             }
-            result = db.product_categories.insert_one(doc)
+            result = categories_collection.insert_one(doc)
             log_fn(f"Created product category: {raw['name']} ({result.inserted_id})")

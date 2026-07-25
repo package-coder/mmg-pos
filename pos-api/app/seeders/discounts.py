@@ -1,7 +1,7 @@
 """Seed default discounts."""
 import datetime
 from pydantic import ValidationError
-from app.database.config import db
+from app.database.config import discounts as discounts_collection
 from app.new_models.Discount import Discount
 
 
@@ -26,8 +26,8 @@ def seed(log_fn):
 
         member_type = discount.memberType.value if discount.memberType else None
 
-        existing = db.discounts.find_one({"memberType": member_type}) if member_type else \
-                   db.discounts.find_one({"name": discount.name})
+        existing = discounts_collection.find_one({"memberType": member_type}) if member_type else \
+                   discounts_collection.find_one({"name": discount.name})
 
         if existing:
             log_fn(f"Discount '{discount.name}' already exists — skipping ({existing['_id']})")
@@ -39,5 +39,5 @@ def seed(log_fn):
                 "created_by": None,
                 "created_at": now,
             }
-            result = db.discounts.insert_one(doc)
+            result = discounts_collection.insert_one(doc)
             log_fn(f"Created discount: {discount.name} ({result.inserted_id})")

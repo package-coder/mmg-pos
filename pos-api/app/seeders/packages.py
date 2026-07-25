@@ -1,6 +1,6 @@
 """Seed packages."""
 import datetime
-from app.database.config import db
+from app.database.config import packages as packages_collection
 
 
 PACKAGES = [
@@ -15,7 +15,7 @@ def seed(log_fn):
     now = datetime.datetime.utcnow()
 
     for raw in PACKAGES:
-        existing = db.packages.find_one({"name": raw["name"]})
+        existing = packages_collection.find_one({"name": raw["name"]})
 
         if existing:
             log_fn(f"Package '{raw['name']}' already exists — skipping ({existing['_id']})")
@@ -25,5 +25,5 @@ def seed(log_fn):
                 "created_by": None,
                 "created_at": now,
             }
-            result = db.packages.insert_one(doc)
+            result = packages_collection.insert_one(doc)
             log_fn(f"Created package: {raw['name']} ({result.inserted_id})")

@@ -1,7 +1,7 @@
 """Seed products from backup data."""
 import datetime
 from bson import ObjectId
-from app.database.config import db
+from app.database.config import products as products_collection
 
 
 # Extracted from mongodump backup (197 products)
@@ -1591,7 +1591,7 @@ def seed(log_fn):
     for product in DEFAULT_PRODUCTS:
         try:
             product_id = ObjectId(product["_id"])
-            existing = db.products.find_one({"_id": product_id})
+            existing = products_collection.find_one({"_id": product_id})
 
             if existing:
                 log_fn(f"Product '{product.get('name')}' already exists — skipping")
@@ -1609,7 +1609,7 @@ def seed(log_fn):
                     "created_by": product.get("created_by"),
                     "created_at": datetime.datetime.utcnow(),
                 }
-                db.products.insert_one(doc)
+                products_collection.insert_one(doc)
                 count += 1
                 if count % 50 == 0:
                     log_fn(f"  ... imported {count} products")
