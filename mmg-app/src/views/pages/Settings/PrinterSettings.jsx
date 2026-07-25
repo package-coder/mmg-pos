@@ -4,7 +4,7 @@ import axios from 'axios';
 import PrinterProvider, { PrinterWrapper, usePrinter } from 'providers/PrinterProvider';
 
 const PrinterSettings = () => {
-    const [printerIP, setPrinterIP] = useState('');
+    const [printerIP, setPrinterIP] = useState('192.168.192.168');
     const [printerPort, setPrinterPort] = useState('');
     const [testMessage, setTestMessage] = useState('Test print message');
     const [statusMessage, setStatusMessage] = useState('');
@@ -12,13 +12,11 @@ const PrinterSettings = () => {
     const { print, status } = usePrinter()
 
     useEffect(() => {
-        const savedPrinterIP = localStorage.getItem('printerIP');
+        const savedPrinterIP = localStorage.getItem('printerIP') || '192.168.192.168';
         const savedPrinterPort = localStorage.getItem('printerPort');
         const savedTrialMode = localStorage.getItem('printerTrialMode');
 
-        if (savedPrinterIP) {
-            setPrinterIP(savedPrinterIP);
-        }
+        setPrinterIP(savedPrinterIP);
         if (savedPrinterPort) {
             setPrinterPort(savedPrinterPort);
         }
