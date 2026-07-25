@@ -41,6 +41,9 @@ ejournal_test.txt
 *.exe
 !pos-helper-app/releases/*.exe
 
+# Release package (allow terminal.json template)
+!pos-helper-app/releases/terminal.json
+
 # PyInstaller builds
 pos-helper-app/helper/build/
 pos-helper-app/helper/dist/
