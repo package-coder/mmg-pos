@@ -125,14 +125,11 @@ echo.
 echo 3. In a new terminal, seed the database (first-time only):
 echo    docker-compose exec server python seed.py
 echo.
-echo 4. Start the helper app (local, not Docker):
-echo    cd pos-helper-app\helper
-echo    python -m venv ..\venv
-echo    ..\venv\Scripts\activate
-echo    pip install -r requirements.txt
-echo    python app.py
-echo.
-echo 5. Open the app:
+echo 4. Open the app in your browser:
 echo    http://localhost:8000
+echo.
+echo Helper app deployment:
+echo   The pos-helper-app is distributed separately to cashier workstations
+echo   via install.bat (handles printer config, BIR terminal credentials, etc.)
 echo.
 pause
