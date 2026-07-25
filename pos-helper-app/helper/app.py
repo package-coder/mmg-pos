@@ -659,7 +659,7 @@ async def handler(websocket):
             return None
 
 async def main():
-    async with serve(handler, "localhost", 9876) as server:
+    async with serve(handler, "127.0.0.1", 9999) as server:
         await server.serve_forever()
 
 

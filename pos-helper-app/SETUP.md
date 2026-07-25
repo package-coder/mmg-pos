@@ -122,7 +122,7 @@ python app.py
 Output should show:
 ```
 Terminal config loaded — MIN: ---, SN: ---, PTU: ---
-...server listening on ws://localhost:9876
+...server listening on ws://localhost:9999
 ```
 
 The WebSocket server is now listening and ready for connections from the browser.
@@ -274,7 +274,7 @@ deactivate
 ```
 Browser (mmg-app)
     │
-    └──[WebSocket ws://localhost:9876]──► pos-helper-app (this server)
+    └──[WebSocket ws://localhost:9999]──► pos-helper-app (this server)
                                              ├── Receipt Printer (TCP/IP 192.168.192.168)
                                              └── VFD Display (Serial COM3)
 ```

@@ -26,7 +26,7 @@ Browser (mmg-app)
     ├──[HTTP/Axios]──► pos-api (Flask, :5100)
     │                      └── MongoDB (local or remote)
     │
-    └──[WebSocket ws://localhost:9876]──► pos-helper-app (this repo)
+    └──[WebSocket ws://localhost:9999]──► pos-helper-app (this repo)
                                               ├── ESC/POS Printer (TCP/IP, default 192.168.192.168)
                                               └── VFD Customer Display (serial COM3)
 ```
@@ -35,7 +35,7 @@ Browser (mmg-app)
 
 A standalone Python `asyncio` WebSocket server that bridges the browser to physical hardware.
 
-- Listens on `ws://localhost:9876`
+- Listens on `ws://localhost:9999`
 - Receives JSON messages routed by `{ "device": "printer"|"display", "device_type": "..." }`
 - Printer device types: `receipt`, `report`, `test`
 - Display device types: `message`, `item`, `total`, `next`
@@ -50,7 +50,7 @@ React 18 + Vite SPA. Key structural layers:
 - **`src/api/`** — one Axios module per domain (`transaction.js`, `auth.js`, `print.js`, etc.) using a shared `server` axios instance from `api/index.js` that injects the JWT from `TokenStorage`
 - **`src/providers/`** — three React Context providers:
   - `AuthProvider` — JWT auth, user object, selected branch (persisted in `localStorage`)
-  - `PrinterProvider` — manages the WebSocket connection to `ws://localhost:9876`; exposes `usePrinter()` hook
+  - `PrinterProvider` — manages the WebSocket connection to `ws://localhost:9999`; exposes `usePrinter()` hook
   - `CashierReportProvider` — cashier shift state
 - **`src/routes/`** — React Router v6; four route groups: `MainRoutes` (dashboard/admin), `PosRoutes` (cashier POS screen), `AuthRoutes` (login), `DefaultRoutes` (root redirect). All protected routes use `<AuthorizeRoute roles={[...]}>`.
 - **`src/views/pages/PosPage/`** — the active transaction/cashier screen; most hardware interaction happens here via `usePrinter()`
@@ -116,7 +116,7 @@ source ../.venv/Scripts/activate      # Windows Git Bash
 pip install -r requirements.txt
 
 # Run WebSocket server
-python app.py                         # listens on ws://localhost:9876
+python app.py                         # listens on ws://localhost:9999
 
 # Tests
 python test_fix.py

@@ -22,7 +22,7 @@ const PrinterProvider = ({ children }) => {
     }, [])
 
     function connect() {
-        const ws = new WebSocket('ws://localhost:9876');
+        const ws = new WebSocket('ws://localhost:9999');
 
         ws.onopen = () => {
             setSocket(ws)

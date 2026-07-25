@@ -6,7 +6,7 @@ Standalone Python WebSocket server that bridges the POS browser (mmg-app) to phy
 
 ```
 Browser (mmg-app)
-    └──[WebSocket ws://localhost:9876]──► helper/app.py
+    └──[WebSocket ws://localhost:9999]──► helper/app.py
                                               ├── ESC/POS Printer (TCP/IP)
                                               └── VFD Customer Display (serial COM3)
 ```
@@ -19,7 +19,7 @@ Browser (mmg-app)
 
 ## WebSocket API
 
-All messages are JSON. Send to `ws://localhost:9876`, receive a JSON response.
+All messages are JSON. Send to `ws://localhost:9999`, receive a JSON response.
 
 ### Printer
 
@@ -102,7 +102,7 @@ pip install --upgrade pip
 pip install -r helper/requirements.txt
 
 cd helper
-python app.py                        # WebSocket server on ws://localhost:9876
+python app.py                        # WebSocket server on ws://localhost:9999
 ```
 
 ### Automated Setup Options

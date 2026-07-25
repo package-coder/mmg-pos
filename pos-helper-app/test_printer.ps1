@@ -21,14 +21,14 @@ if ($process) {
 
 Write-Host ""
 
-# Check if port 9876 is listening
-Write-Host "Checking if port 9876 is listening..."
-$listening = netstat -ano | Select-String "9876" | Select-String "LISTENING"
+# Check if port 9999 is listening
+Write-Host "Checking if port 9999 is listening..."
+$listening = netstat -ano | Select-String "9999" | Select-String "LISTENING"
 if ($listening) {
-    Write-Host "[OK] Port 9876 is listening"
+    Write-Host "[OK] Port 9999 is listening"
     Write-Host "      $listening"
 } else {
-    Write-Host "[ERROR] Port 9876 is not listening"
+    Write-Host "[ERROR] Port 9999 is not listening"
     Write-Host ""
     Write-Host "The helper may not have started correctly"
     exit 1

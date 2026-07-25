@@ -26,7 +26,7 @@ Browser (mmg-app)
     ├──[HTTP/Axios]──► pos-api (Flask, :5100)
     │                      └── MongoDB (local or remote)
     │
-    └──[WebSocket ws://localhost:9876]──► pos-helper-app/helper/app.py
+    └──[WebSocket ws://localhost:9999]──► pos-helper-app/helper/app.py
                                               ├── ESC/POS Printer (TCP/IP, default 192.168.192.168)
                                               └── VFD Customer Display (serial COM3)
 ```
@@ -35,7 +35,7 @@ Browser (mmg-app)
 
 A standalone Python `asyncio` WebSocket server that bridges the browser to physical hardware. Runs on every cashier workstation — not in Docker.
 
-- Listens on `ws://localhost:9876`
+- Listens on `ws://localhost:9999`
 - Routes JSON messages by `{ "device": "printer"|"display"|"terminal", "device_type": "..." }`
   - Printer types: `receipt`, `report`, `test`
   - Display types: `message`, `item`, `total`, `next`
@@ -52,7 +52,7 @@ React 18 + Vite SPA. Key structural layers:
 - **`src/api/`** — one Axios module per domain (`transaction.js`, `auth.js`, `print.js`, etc.) using a shared `server` axios instance from `api/index.js` that injects the JWT from `TokenStorage`
 - **`src/providers/`** — three React Context providers:
   - `AuthProvider` — JWT auth, user object, selected branch (persisted in `localStorage`)
-  - `PrinterProvider` — manages the WebSocket connection to `ws://localhost:9876`; exposes `usePrinter()` hook
+  - `PrinterProvider` — manages the WebSocket connection to `ws://localhost:9999`; exposes `usePrinter()` hook
   - `CashierReportProvider` — cashier shift state
 - **`src/routes/`** — React Router v6; four route groups: `MainRoutes` (dashboard/admin), `PosRoutes` (cashier POS screen), `AuthRoutes` (login), `DefaultRoutes` (root redirect). All protected routes use `<AuthorizeRoute roles={[...]}>`.
 - **`src/views/pages/PosPage/`** — the active transaction/cashier screen; most hardware interaction happens here via `usePrinter()`
@@ -320,7 +320,7 @@ cd pos-helper-app/helper
 python -m venv ../.venv
 source ../.venv/Scripts/activate
 pip install -r requirements.txt
-python app.py                   # WebSocket server on ws://localhost:9876
+python app.py                   # WebSocket server on ws://localhost:9999
 
 # Tests (from pos-helper-app/)
 python test_fix.py

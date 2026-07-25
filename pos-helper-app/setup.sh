@@ -188,7 +188,7 @@ fi
 # Step 9: Run server (if requested)
 if [ "$RUN" = true ]; then
     print_header "Starting WebSocket Server"
-    status_info "Starting helper app on ws://localhost:9876..."
+    status_info "Starting helper app on ws://localhost:9999..."
     cd helper
     python app.py
 else

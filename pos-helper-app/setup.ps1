@@ -165,7 +165,7 @@ if ($Build) {
 # Step 9: Run server (if requested)
 if ($Run) {
     Write-Header "Starting WebSocket Server"
-    Write-Status "Starting helper app on ws://localhost:9876..." "Info"
+    Write-Status "Starting helper app on ws://localhost:9999..." "Info"
     Set-Location helper
     python app.py
 } else {

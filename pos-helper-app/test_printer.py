@@ -12,7 +12,7 @@ import sys
 async def test_printer():
     """Send a test print job to the helper"""
 
-    uri = "ws://localhost:9876"
+    uri = "ws://localhost:9999"
 
     print("Testing MMG POS Printer Connection")
     print("=" * 50)

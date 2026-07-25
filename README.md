@@ -7,7 +7,7 @@ This guide walks through setting up the complete MMG Albay Point-of-Sale system 
 The system has three main components:
 - **mmg-app** (React frontend) — runs on port 8000
 - **pos-api** (Flask backend + MongoDB) — API on port 5100, proxy on 8002
-- **pos-helper-app** (Hardware bridge) — WebSocket server on port 9876 for printer/display control
+- **pos-helper-app** (Hardware bridge) — WebSocket server on port 9999 for printer/display control
 
 All run locally on the same machine for demo purposes.
 
@@ -17,7 +17,7 @@ All run locally on the same machine for demo purposes.
 - **Python 3.9+** — for the hardware bridge app
 - **Git** — to clone the repository
 - **Disk space** — ~2GB for Docker images + MongoDB
-- **Ports available** — 8000, 8001, 8002, 8003, 5100, 9876 (check `netstat` if issues)
+- **Ports available** — 8000, 8001, 8002, 8003, 5100, 9999 (check `netstat` if issues)
 
 ## Quick Start
 
@@ -106,7 +106,7 @@ python app.py
 
 You should see:
 ```
-WebSocket server running on ws://localhost:9876
+WebSocket server running on ws://localhost:9999
 ```
 
 ### 6. Open the App
@@ -132,7 +132,7 @@ You're in! The dashboard should load.
 - [ ] Login succeeds → redirects to dashboard
 - [ ] Docker logs show no errors (`docker-compose logs`)
 - [ ] pos-helper-app terminal shows "WebSocket server running"
-- [ ] Browser DevTools (F12) → Network tab shows WebSocket connection (ws://localhost:9876) with status 101
+- [ ] Browser DevTools (F12) → Network tab shows WebSocket connection (ws://localhost:9999) with status 101
 
 ### 🔍 Check Individual Services
 
@@ -261,7 +261,7 @@ python app.py
 
 Should show:
 ```
-WebSocket server running on ws://localhost:9876
+WebSocket server running on ws://localhost:9999
 ```
 
 If not, check:
