@@ -78,5 +78,6 @@ Write-Host "Starting helper for testing..." -ForegroundColor Cyan
 Write-Host ""
 
 # Test run
-Push-Location "$InstallDir\helper" 2>$null
-& python app.py
+$helperPath = Join-Path $InstallDir "helper"
+Push-Location $helperPath
+python app.py
