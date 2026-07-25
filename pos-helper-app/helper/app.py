@@ -630,9 +630,9 @@ async def handler(websocket):
             try:
                 data = json.loads(message)
                 device = data.get("device")
-                dtype = data.get("device_type")
+                dtype = data.get("type")
 
-                print(f"[{get_local_time()}] [REQ] Request received: device={device}, type={dtype}")
+                print(f"[{get_local_time()}] [REQ] Request received: device={device}, type={dtype}, params={data}")
 
                 ret = {}
                 if device == "terminal" and dtype == "info":
