@@ -5,14 +5,12 @@ import XReadingReport from 'views/pages/cashier-reports/components/XReadingRepor
 import { Margin, Resolution, usePDF } from 'react-to-pdf';
 import DownloadIcon from '@mui/icons-material/Download';
 import { usePrinter } from 'providers/PrinterProvider';
+import { dvoteDetails } from 'utils/mockData';
 import moment from 'moment';
-import dvote from 'api/dvote';
-import { useQuery } from 'react-query';
 
 export default ({ open, report, onClose, disableActions }) => {
     const navigate = useNavigate();
     const { print } = usePrinter();
-    const { data: dvoteDetails = [] } = useQuery('dvote', dvote.GetAllDvote);
     const { toPDF, targetRef } = usePDF({filename: 'x-report.pdf'});
 
     if (!open) return null;

@@ -5,15 +5,13 @@ import { Margin, Resolution, usePDF } from 'react-to-pdf';
 import ZReadingReport from 'views/pages/cashier-reports/components/ZReadingReport';
 import DownloadIcon from '@mui/icons-material/Download';
 import { usePrinter } from 'providers/PrinterProvider';
+import { dvoteDetails } from 'utils/mockData';
 import moment from 'moment';
-import dvote from 'api/dvote';
-import { useQuery } from 'react-query';
 
 
 export default ({ open, report, onClose }) => {
     const navigate = useNavigate();
     const { print } = usePrinter();
-    const { data: dvoteDetails = [] } = useQuery('dvote', dvote.GetAllDvote);
     const { toPDF, targetRef } = usePDF({filename: 'z-report.pdf'});
 
     if (!open) return null;
