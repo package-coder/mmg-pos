@@ -16,6 +16,8 @@ services:
       - "8000:5173"
     depends_on:
       - proxy
+    volumes:
+      - ./mmg-app:/app
     environment:
       - VITE_APP_ENV=internal-production
       - VITE_APP_BASE_NAME=/
