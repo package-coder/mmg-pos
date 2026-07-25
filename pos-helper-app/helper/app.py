@@ -633,7 +633,7 @@ async def handler(websocket):
             try:
                 data = json.loads(message)
                 device = data.get("device")
-                dtype = data.get("type")
+                dtype = data.get("device_type")
 
                 print(f"[{get_local_time()}] [REQ] Request received: device={device}, type={dtype}, params={data}")
 

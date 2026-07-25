@@ -43,16 +43,16 @@ const PrinterProvider = ({ children }) => {
         return ws
     }
 
-    function print(device, type, data) {
+    function print(device, deviceType, data) {
         let newSocket = socket
         if (newSocket == null || newSocket?.readyState != WebSocket.OPEN) {
             newSocket = connect()
-        } 
+        }
 
         if (newSocket && newSocket.readyState === WebSocket.OPEN) {
             setPrinting(true)
-            newSocket.send(JSON.stringify({ device, type, ...data }));
-        } 
+            newSocket.send(JSON.stringify({ device, device_type: deviceType, ...data }));
+        }
     }
 
     function display(type, data) {
