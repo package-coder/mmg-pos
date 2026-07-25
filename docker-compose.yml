@@ -18,6 +18,7 @@ services:
       - proxy
     volumes:
       - ./mmg-app:/app
+      - /app/node_modules
     environment:
       - VITE_APP_ENV=internal-production
       - VITE_APP_BASE_NAME=/
