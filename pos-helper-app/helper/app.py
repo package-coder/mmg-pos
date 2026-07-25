@@ -623,50 +623,63 @@ def display_next():
 async def handler(websocket):
     client_address = websocket.remote_address
     display_welcome()
-    print(f"[{get_local_time()}] [OK] Client connected from: {client_address}")
+    print(f"[{get_local_time()}] [CONN] Client connected from: {client_address}")
 
-    async for message in websocket:
-        try:
-            data = json.loads(message)
-            device = data.get("device")
-            dtype = data.get("device_type")
-
-            print(f"[{get_local_time()}] [REQ] Request received: device={device}, type={dtype}")
-
-            ret = {}
-            if device == "terminal" and dtype == "info":
-                ret = {"MIN": TERMINAL_MIN, "SN": TERMINAL_SN, "PTU_NO": TERMINAL_PTU_NO}
-            if device == "printer" and dtype == "test":
-                ret = await asyncio.to_thread(print_test, data)
-            if device == "printer" and dtype == "receipt":
-                ret = await asyncio.to_thread(print_receipt, data)
-            if device == "printer" and dtype == "report":
-                ret = await asyncio.to_thread(print_report, data)
-            if device == "printer" and dtype == "ejournal":
-                ret = await asyncio.to_thread(print_ejournal, data)
-            if device == "display" and dtype == "message":
-                ret = await asyncio.to_thread(display_message, data)
-            if device == "display" and dtype == "item":
-                ret = await asyncio.to_thread(display_item, data)
-            if device == "display" and dtype == "total":
-                ret = await asyncio.to_thread(display_total, data)
-            if device == "display" and dtype == "next":
-                ret = await asyncio.to_thread(display_next, data)
-
-            if(ret == {}):
-                raise Exception("Invalid data")
-
-            if "error" not in ret:
-                print(f"[{get_local_time()}] [OK] Success: {device}/{dtype}")
-
-            await websocket.send(json.dumps(ret))
-        except Exception as e:
-            print(f"[{get_local_time()}] [ERR] Error: {device}/{dtype} - {e}")
+    try:
+        async for message in websocket:
             try:
-                await websocket.send(json.dumps({'error': str(e)}))
-            except:
-                pass
-            return None
+                data = json.loads(message)
+                device = data.get("device")
+                dtype = data.get("device_type")
+
+                print(f"[{get_local_time()}] [REQ] Request received: device={device}, type={dtype}")
+
+                ret = {}
+                if device == "terminal" and dtype == "info":
+                    ret = {"MIN": TERMINAL_MIN, "SN": TERMINAL_SN, "PTU_NO": TERMINAL_PTU_NO}
+                if device == "printer" and dtype == "test":
+                    ret = await asyncio.to_thread(print_test, data)
+                if device == "printer" and dtype == "receipt":
+                    ret = await asyncio.to_thread(print_receipt, data)
+                if device == "printer" and dtype == "report":
+                    ret = await asyncio.to_thread(print_report, data)
+                if device == "printer" and dtype == "ejournal":
+                    ret = await asyncio.to_thread(print_ejournal, data)
+                if device == "display" and dtype == "message":
+                    ret = await asyncio.to_thread(display_message, data)
+                if device == "display" and dtype == "item":
+                    ret = await asyncio.to_thread(display_item, data)
+                if device == "display" and dtype == "total":
+                    ret = await asyncio.to_thread(display_total, data)
+                if device == "display" and dtype == "next":
+                    ret = await asyncio.to_thread(display_next, data)
+
+                if(ret == {}):
+                    raise Exception("Invalid data")
+
+                if "error" not in ret:
+                    print(f"[{get_local_time()}] [OK] Success: {device}/{dtype}")
+
+                await websocket.send(json.dumps(ret))
+            except json.JSONDecodeError as e:
+                print(f"[{get_local_time()}] [ERR] JSON parse error: {e}")
+                try:
+                    await websocket.send(json.dumps({'error': 'Invalid JSON format'}))
+                except:
+                    pass
+            except Exception as e:
+                device = data.get("device", "unknown") if 'data' in locals() else "unknown"
+                dtype = data.get("device_type", "unknown") if 'data' in locals() else "unknown"
+                print(f"[{get_local_time()}] [ERR] Error: {device}/{dtype} - {e}")
+                try:
+                    await websocket.send(json.dumps({'error': str(e)}))
+                except:
+                    pass
+                return None
+    except Exception as e:
+        print(f"[{get_local_time()}] [DISC] Connection error from {client_address}: {e}")
+    finally:
+        print(f"[{get_local_time()}] [DISC] Client disconnected from: {client_address}")
 
 def kill_existing_process(port=9999):
     import subprocess
