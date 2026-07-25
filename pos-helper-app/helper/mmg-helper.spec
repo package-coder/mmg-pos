@@ -5,7 +5,9 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('../.venv/Lib/site-packages/escpos/capabilities.json', 'escpos'),
+    ],
     hiddenimports=[
         'escpos',
         'escpos.printer',

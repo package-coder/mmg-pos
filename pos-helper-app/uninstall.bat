@@ -1,7 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set INSTALL_DIR=C:\MMG-POS
+REM MMG POS Helper - Uninstaller
+REM Removes startup shortcut (files stay in extracted folder)
+
 set EXE_NAME=mmg-helper.exe
 set STARTUP_LNK=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\MMG POS Helper.lnk
 
@@ -10,7 +12,7 @@ echo  MMG POS Helper - Uninstaller
 echo ============================================
 echo.
 
-:: Check for admin privileges
+REM Check for admin privileges
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 if %ERRORLEVEL% neq 0 (
     echo.
@@ -21,7 +23,7 @@ if %ERRORLEVEL% neq 0 (
     powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs" 2>nul
     if %ERRORLEVEL% equ 0 exit /b 0
 
-    echo ERROR: Could not elevate to administrator. Please run this script as administrator.
+    echo ERROR: Could not elevate to administrator. Please run as administrator.
     pause
     exit /b 1
 )
@@ -29,42 +31,27 @@ if %ERRORLEVEL% neq 0 (
 echo Uninstalling MMG POS Helper...
 echo.
 
-:: Close running process
-echo Stopping mmg-helper.exe if running...
+REM Close running process
+echo Stopping %EXE_NAME% if running...
 taskkill /IM %EXE_NAME% /F 2>nul
 if %ERRORLEVEL% equ 0 (
-    echo   - Process stopped
+    echo   [OK] Process stopped
 ) else (
-    echo   - Process not running (OK)
+    echo   [OK] Process not running
 )
 echo.
 
-:: Delete installation directory
-echo Removing installation directory...
-if exist "%INSTALL_DIR%" (
-    rmdir /S /Q "%INSTALL_DIR%" 2>nul
-    if %ERRORLEVEL% equ 0 (
-        echo   - Deleted %INSTALL_DIR%
-    ) else (
-        echo   - WARNING: Could not delete %INSTALL_DIR%
-        echo   - Try manually: delete C:\MMG-POS folder
-    )
-) else (
-    echo   - %INSTALL_DIR% not found (already removed)
-)
-echo.
-
-:: Delete startup shortcut
+REM Delete startup shortcut
 echo Removing startup shortcut...
 if exist "%STARTUP_LNK%" (
     del /F /Q "%STARTUP_LNK%" 2>nul
     if %ERRORLEVEL% equ 0 (
-        echo   - Deleted startup shortcut
+        echo   [OK] Startup shortcut removed
     ) else (
-        echo   - WARNING: Could not delete startup shortcut
+        echo   [WARNING] Could not delete startup shortcut
     )
 ) else (
-    echo   - Startup shortcut not found (already removed)
+    echo   [OK] Shortcut not found
 )
 echo.
 
@@ -72,11 +59,14 @@ echo ============================================
 echo  Uninstallation Complete!
 echo ============================================
 echo.
-echo The following were removed:
-echo   - %INSTALL_DIR%\
-echo   - Startup shortcut
+echo The helper will not auto-start on next login.
 echo.
-echo The helper will not start on next login.
+echo Note: Application files are still in this folder:
+echo   - mmg-helper.exe
+echo   - terminal.json
+echo   - ejournal.txt
+echo.
+echo To fully remove: Delete this entire folder.
 echo.
 echo Done. You can close this window.
 pause
