@@ -3,6 +3,7 @@ import datetime
 import os
 import sys
 import time
+import traceback
 from itertools import groupby
 import json
 import numbers
@@ -409,7 +410,7 @@ def print_report(data: dict = {}):
         if(data.get('timeOut') is not None):
             timeOutDate = datetime.datetime.fromisoformat(data['timeOut'])
 
-    cashierReport = data if type == 'X_REPORT' else data['cashierReport']
+    cashierReport = data if type == 'X_REPORT' else (data.get('cashierReport') or {})
     withdraw = get(cashierReport, 'withdraw', 0)
     sales = data if type == 'Z_REPORT' else data['sales']
     
@@ -658,7 +659,7 @@ async def handler(websocket):
                     ret = await asyncio.to_thread(display_next, data)
 
                 if(ret == {}):
-                    raise Exception("Invalid data")
+                    raise Exception(f"Unrecognized device/device_type combination: device={device!r}, device_type={dtype!r}")
 
                 if "error" not in ret:
                     print(f"[{get_local_time()}] [OK] Success: {device}/{dtype}")
@@ -673,9 +674,11 @@ async def handler(websocket):
             except Exception as e:
                 device = data.get("device", "unknown") if 'data' in locals() else "unknown"
                 dtype = data.get("device_type", "unknown") if 'data' in locals() else "unknown"
-                print(f"[{get_local_time()}] [ERR] Error: {device}/{dtype} - {e}")
+                error_detail = f"{type(e).__name__}: {e}"
+                print(f"[{get_local_time()}] [ERR] Error: {device}/{dtype} - {error_detail}")
+                print(traceback.format_exc())
                 try:
-                    await websocket.send(json.dumps({'error': str(e)}))
+                    await websocket.send(json.dumps({'error': error_detail}))
                 except:
                     pass
                 return None
