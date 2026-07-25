@@ -4,6 +4,8 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from enum import IntEnum
 
+from app.utils.utils import getTimeZone
+
 
 class DateFilter(IntEnum):
     ALL = 0    
@@ -22,7 +24,7 @@ class DateFilter(IntEnum):
 
 def compare_date_today(dateFilter, date):
      date = datetime.fromisoformat(date)
-     today = datetime.now()
+     today = datetime.now(getTimeZone())
 
      match dateFilter:
           case DateFilter.TODAY:
