@@ -36,31 +36,37 @@ def seed_all():
     """Run all seeders in order."""
     print("\nSeeding database...\n")
 
-    # 1. Branches and Roles (required by users)
-    print("━━ Branches & Roles ━━")
-    branch_id, admin_role_id, cashier_role_id = branches_and_roles.seed(log)
+    try:
+        # 1. Branches and Roles (required by users)
+        print("━━ Branches & Roles ━━")
+        branch_id, admin_role_id, cashier_role_id = branches_and_roles.seed(log)
 
-    # 2. Users (depends on branch and role IDs)
-    print("\n━━ Users ━━")
-    users.seed(log, branch_id, admin_role_id, cashier_role_id)
+        # 2. Users (depends on branch and role IDs)
+        print("\n━━ Users ━━")
+        users.seed(log, branch_id, admin_role_id, cashier_role_id)
 
-    # 3. Discounts
-    print("\n━━ Discounts ━━")
-    discounts.seed(log)
+        # 3. Discounts
+        print("\n━━ Discounts ━━")
+        discounts.seed(log)
 
-    # 4. Product Categories
-    print("\n━━ Product Categories ━━")
-    product_categories.seed(log)
+        # 4. Product Categories
+        print("\n━━ Product Categories ━━")
+        product_categories.seed(log)
 
-    # 5. Packages
-    print("\n━━ Packages ━━")
-    packages.seed(log)
+        # 5. Packages
+        print("\n━━ Packages ━━")
+        packages.seed(log)
 
-    # 6. Products (depends on categories existing)
-    print("\n━━ Products ━━")
-    products.seed(log)
+        # 6. Products (depends on categories existing)
+        print("\n━━ Products ━━")
+        products.seed(log)
 
-    print("\n✓ All seeding complete.\n")
+        print("\n✓ All seeding complete.\n")
+    except Exception as e:
+        print(f"\n✗ Seeding failed at this step: {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 if __name__ == "__main__":
