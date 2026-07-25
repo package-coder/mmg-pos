@@ -10,13 +10,36 @@ echo  MMG POS Helper - Workstation Installer
 echo ============================================
 echo.
 
-:: Check if exe exists next to this script
-if not exist "%~dp0%EXE_NAME%" (
-    echo ERROR: %EXE_NAME% not found next to this installer.
-    echo Make sure install.bat and mmg-helper.exe are in the same folder.
+:: Search for mmg-helper.exe dynamically
+set EXE_PATH=
+if exist "%~dp0%EXE_NAME%" (
+    set EXE_PATH=%~dp0%EXE_NAME%
+) else if exist "%USERPROFILE%\Downloads\%EXE_NAME%" (
+    set EXE_PATH=%USERPROFILE%\Downloads\%EXE_NAME%
+) else if exist "%USERPROFILE%\Desktop\%EXE_NAME%" (
+    set EXE_PATH=%USERPROFILE%\Desktop\%EXE_NAME%
+) else (
+    for /r "%USERPROFILE%" %%F in (%EXE_NAME%) do (
+        set EXE_PATH=%%F
+        goto found_exe
+    )
+)
+
+:found_exe
+if not defined EXE_PATH (
+    echo ERROR: %EXE_NAME% not found.
+    echo Searched in:
+    echo   - Current directory
+    echo   - Downloads folder
+    echo   - Desktop
+    echo   - User home directory
+    echo.
+    echo Please ensure mmg-helper.exe is accessible or place it in one of the above locations.
     pause
     exit /b 1
 )
+
+echo Found %EXE_NAME% at: %EXE_PATH%
 
 :: Create install directory
 if not exist "%INSTALL_DIR%" (
@@ -26,7 +49,12 @@ if not exist "%INSTALL_DIR%" (
 
 :: Copy exe
 echo Installing %EXE_NAME% to %INSTALL_DIR%...
-copy /Y "%~dp0%EXE_NAME%" "%INSTALL_DIR%\%EXE_NAME%" >nul
+copy /Y "%EXE_PATH%" "%INSTALL_DIR%\%EXE_NAME%" >nul
+if errorlevel 1 (
+    echo ERROR: Failed to copy %EXE_NAME% to %INSTALL_DIR%.
+    pause
+    exit /b 1
+)
 
 :: BIR terminal credentials
 set TERMINAL_JSON=%INSTALL_DIR%\terminal.json
