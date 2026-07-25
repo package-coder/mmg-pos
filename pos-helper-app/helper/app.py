@@ -85,13 +85,15 @@ class ReceiptWriter:
         self.printer, self.error = get_printer_device(settings)
         self.file = None
         self.journal = journal
+        self.journal_error = None
 
     def __enter__(self):
         if self.journal:
             try:
                 self.file = open(EJOURNAL_PATH, "a", encoding="utf-8")
             except Exception as e:
-                print(f"Error opening journal: {e}")
+                self.journal_error = f"Could not open ejournal at {EJOURNAL_PATH}: {e}"
+                print(f"[{get_local_time()}] [ERR] {self.journal_error}")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -124,7 +126,8 @@ class ReceiptWriter:
                 self.file.write(text)
                 self.file.flush()
             except Exception as e:
-                print(f"Journal write error: {e}")
+                self.journal_error = f"Could not write to ejournal at {EJOURNAL_PATH}: {e}"
+                print(f"[{get_local_time()}] [ERR] {self.journal_error}")
 
         if self.printer and hasattr(self.printer, 'text'):
             try:
@@ -171,13 +174,13 @@ def print_test(data: dict = {}):
 def print_ejournal(data: dict = {}):
     try:
         if not os.path.exists(EJOURNAL_PATH):
-            return {'message': 'Electronic journal not found', 'error': 'ejournal.txt does not exist'}
+            return {'message': 'Electronic journal not found', 'error': f'{EJOURNAL_PATH} does not exist yet — no receipts have been journaled here'}
 
         with open(EJOURNAL_PATH, 'r', encoding='utf-8') as f:
             journal_content = f.read()
 
         if not journal_content.strip():
-            return {'message': 'Electronic journal is empty'}
+            return {'message': 'Electronic journal is empty', 'error': f'{EJOURNAL_PATH} exists but has no content'}
 
         with ReceiptWriter(data.get('settings', {}), journal=False) as w:
             w.set(align='center', bold=True)
@@ -389,11 +392,19 @@ def print_receipt(request_data: dict = {}):
             'error': repr(e)
         }
 
+    if p.journal_error:
+        print(f"[{get_local_time()}] [WARN] Ejournal error (receipt): {p.journal_error}")
+
     if p.error:
         print(f"[{get_local_time()}] [WARN] Printer error (receipt): {p.error}")
         return {
-            'message': 'Journaled successfully (printer unavailable)',
-            'error': p.error
+            'message': 'Journaled successfully (printer unavailable)' if not p.journal_error else 'Printed to printer, but ejournal write failed',
+            'error': p.error if not p.journal_error else p.journal_error
+        }
+    if p.journal_error:
+        return {
+            'message': 'Printed successfully, but ejournal write failed',
+            'error': p.journal_error
         }
     print(f"[{get_local_time()}] [OK] Receipt printed successfully")
     return { 'message': 'Printed successfully' }
@@ -739,4 +750,5 @@ async def main():
 
 if __name__ == "__main__":
     print('Printer websocket running...')
+    print(f"[{get_local_time()}] [INFO] Ejournal path: {EJOURNAL_PATH}")
     asyncio.run(main())
