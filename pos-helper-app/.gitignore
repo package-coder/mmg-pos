@@ -1,1 +1,11 @@
-.venv
+.venv/
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+*.spec
+!mmg-helper-simple.spec
+.DS_Store
+ejournal.txt
+terminal.json

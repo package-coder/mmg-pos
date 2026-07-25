@@ -113,22 +113,31 @@ if exist "%TERMINAL_JSON%" (
     set /p TERMINAL_SN="  Serial Number (SN): "
     set /p TERMINAL_PTU="  Permit to Use No (PTU No): "
     echo.
-    powershell -NoProfile -Command ^
-        "$cfg = [ordered]@{ MIN = '%TERMINAL_MIN%'; SN = '%TERMINAL_SN%'; PTU_NO = '%TERMINAL_PTU%' }; ^
-         $cfg | ConvertTo-Json | Set-Content -Path '%TERMINAL_JSON%' -Encoding utf8"
+
+    if not defined TERMINAL_MIN set TERMINAL_MIN=---
+    if not defined TERMINAL_SN set TERMINAL_SN=---
+    if not defined TERMINAL_PTU set TERMINAL_PTU=---
+
+    (
+        echo {
+        echo   "MIN": "!TERMINAL_MIN!",
+        echo   "SN": "!TERMINAL_SN!",
+        echo   "PTU_NO": "!TERMINAL_PTU!"
+        echo }
+    ) > "%TERMINAL_JSON%"
     echo terminal.json created at %TERMINAL_JSON%
 )
 
 :: Create Windows Startup shortcut (auto-start on login)
 echo Registering auto-start on login...
-powershell -NoProfile -Command ^
-    "$ws = New-Object -ComObject WScript.Shell; ^
-     $s = $ws.CreateShortcut('%STARTUP_LNK%'); ^
-     $s.TargetPath = '%INSTALL_DIR%\%EXE_NAME%'; ^
-     $s.WorkingDirectory = '%INSTALL_DIR%'; ^
-     $s.WindowStyle = 7; ^
-     $s.Description = 'MMG POS Hardware Bridge'; ^
-     $s.Save()"
+powershell -NoProfile -Command "^
+    $ws = New-Object -ComObject WScript.Shell; ^
+    $s = $ws.CreateShortcut('%STARTUP_LNK%'); ^
+    $s.TargetPath = '%INSTALL_DIR%\%EXE_NAME%'; ^
+    $s.WorkingDirectory = '%INSTALL_DIR%'; ^
+    $s.WindowStyle = 7; ^
+    $s.Description = 'MMG POS Hardware Bridge'; ^
+    $s.Save()"
 
 echo.
 echo Installation complete!
