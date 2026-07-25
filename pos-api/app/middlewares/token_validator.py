@@ -7,7 +7,7 @@ from jwt.api_jwt import decode
 JWT_SECRET = os.getenv('JWT_SECRET_KEY')
 
 excluded_routes_for_validator = [
-  '/login',  
+  '/login',
   '/booking/create',
   '/bookings',
   '/booking',
@@ -16,6 +16,9 @@ excluded_routes_for_validator = [
   '/booking/confirm',
   '/v2/reports',
   '/v2/transactions',
+  '/print',
+  '/print-report',
+  '/display',
 ]
 
 def token_validator(): 
