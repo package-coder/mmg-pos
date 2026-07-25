@@ -27,17 +27,25 @@ if %ERRORLEVEL% neq 0 (
 )
 
 :: Search for mmg-helper.exe dynamically
+setlocal enabledelayedexpansion
 set EXE_PATH=
+
+:: Check common locations first (faster and more reliable)
 if exist "%~dp0%EXE_NAME%" (
-    set EXE_PATH=%~dp0%EXE_NAME%
+    set "EXE_PATH=%~dp0%EXE_NAME%"
 ) else if exist "%USERPROFILE%\Downloads\%EXE_NAME%" (
-    set EXE_PATH=%USERPROFILE%\Downloads\%EXE_NAME%
+    set "EXE_PATH=%USERPROFILE%\Downloads\%EXE_NAME%"
 ) else if exist "%USERPROFILE%\Desktop\%EXE_NAME%" (
-    set EXE_PATH=%USERPROFILE%\Desktop\%EXE_NAME%
-) else (
+    set "EXE_PATH=%USERPROFILE%\Desktop\%EXE_NAME%"
+)
+
+:: If not found in common locations, search recursively with validation
+if not defined EXE_PATH (
     for /r "%USERPROFILE%" %%F in (%EXE_NAME%) do (
-        set EXE_PATH=%%F
-        goto found_exe
+        if exist "%%F" (
+            set "EXE_PATH=%%F"
+            goto found_exe
+        )
     )
 )
 
@@ -48,20 +56,14 @@ if not defined EXE_PATH (
     echo   - Current directory
     echo   - Downloads folder
     echo   - Desktop
-    echo   - User home directory
+    echo   - User home directory and subdirectories
     echo.
-    echo Please ensure mmg-helper.exe is accessible or place it in one of the above locations.
+    echo Please ensure mmg-helper.exe is in one of these locations.
     pause
     exit /b 1
 )
 
 echo Found %EXE_NAME% at: !EXE_PATH!
-if not exist "!EXE_PATH!" (
-    echo ERROR: File was found but no longer exists: !EXE_PATH!
-    echo The file may have been deleted or moved.
-    pause
-    exit /b 1
-)
 echo.
 
 :: Copy exe
@@ -73,13 +75,6 @@ if not exist "%INSTALL_DIR%" (
         pause
         exit /b 1
     )
-)
-
-echo Source file check: "!EXE_PATH!"
-if not exist "!EXE_PATH!" (
-    echo ERROR: Source file does not exist: !EXE_PATH!
-    pause
-    exit /b 1
 )
 
 echo Source size:
