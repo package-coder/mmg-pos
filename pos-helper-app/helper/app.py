@@ -689,18 +689,43 @@ def kill_existing_process(port=9999):
     import platform
     try:
         if platform.system() == "Windows":
-            result = subprocess.run(f'netstat -ano | findstr :{port}', shell=True, capture_output=True, text=True)
+            # Find process on port
+            result = subprocess.run(f'netstat -ano | findstr LISTENING', shell=True, capture_output=True, text=True)
+            pids_to_kill = []
+
             if result.stdout:
-                pid = result.stdout.strip().split()[-1]
-                print(f"[{get_local_time()}] [INFO] Killing existing process on port {port} (PID: {pid})")
-                subprocess.run(f'taskkill /PID {pid} /F', shell=True, capture_output=True)
+                for line in result.stdout.split('\n'):
+                    if f':{port}' in line and 'LISTENING' in line:
+                        # Extract PID from last column
+                        parts = line.split()
+                        if parts:
+                            pid = parts[-1]
+                            if pid.isdigit():
+                                pids_to_kill.append(pid)
+
+            if pids_to_kill:
+                for pid in pids_to_kill:
+                    try:
+                        print(f"[{get_local_time()}] [INFO] Killing existing process on port {port} (PID: {pid})")
+                        subprocess.run(f'taskkill /PID {pid} /F', shell=True, capture_output=True, text=True)
+                        time.sleep(0.5)
+                    except Exception as e:
+                        print(f"[{get_local_time()}] [WARN] Failed to kill PID {pid}: {e}")
                 time.sleep(1)
-                print(f"[{get_local_time()}] [OK] Process killed successfully")
+                print(f"[{get_local_time()}] [OK] Existing processes cleaned up")
+            else:
+                print(f"[{get_local_time()}] [INFO] No existing process on port {port}")
         else:
-            subprocess.run(f'lsof -ti:{port} | xargs kill -9 2>/dev/null', shell=True)
-            time.sleep(1)
+            result = subprocess.run(f'lsof -ti:{port}', shell=True, capture_output=True, text=True)
+            if result.stdout:
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    if pid:
+                        subprocess.run(f'kill -9 {pid}', shell=True, capture_output=True)
+                time.sleep(1)
+                print(f"[{get_local_time()}] [OK] Existing processes cleaned up")
     except Exception as e:
-        print(f"Could not kill existing process: {e}")
+        print(f"[{get_local_time()}] [WARN] Could not kill existing process: {e}")
 
 async def main():
     kill_existing_process(9999)
