@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
 set INSTALL_DIR=C:\MMG-POS
 set EXE_NAME=mmg-helper.exe
@@ -9,6 +9,22 @@ echo ============================================
 echo  MMG POS Helper - Workstation Installer
 echo ============================================
 echo.
+
+:: Check for admin privileges
+>nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
+if %ERRORLEVEL% neq 0 (
+    echo.
+    echo WARNING: This installer requires administrator privileges.
+    echo Attempting to elevate...
+    echo.
+
+    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs" 2>nul
+    if %ERRORLEVEL% equ 0 exit /b 0
+
+    echo ERROR: Could not elevate to administrator. Please run this script as administrator.
+    pause
+    exit /b 1
+)
 
 :: Search for mmg-helper.exe dynamically
 set EXE_PATH=
@@ -40,21 +56,34 @@ if not defined EXE_PATH (
 )
 
 echo Found %EXE_NAME% at: %EXE_PATH%
-
-:: Create install directory
-if not exist "%INSTALL_DIR%" (
-    echo Creating %INSTALL_DIR%...
-    mkdir "%INSTALL_DIR%"
-)
+echo.
 
 :: Copy exe
 echo Installing %EXE_NAME% to %INSTALL_DIR%...
-copy /Y "%EXE_PATH%" "%INSTALL_DIR%\%EXE_NAME%" >nul
+if not exist "%INSTALL_DIR%" (
+    mkdir "%INSTALL_DIR%" 2>nul
+    if errorlevel 1 (
+        echo ERROR: Cannot create %INSTALL_DIR%. Check disk permissions and available space.
+        pause
+        exit /b 1
+    )
+)
+
+copy /Y "%EXE_PATH%" "%INSTALL_DIR%\%EXE_NAME%" 2>&1
 if errorlevel 1 (
+    echo.
     echo ERROR: Failed to copy %EXE_NAME% to %INSTALL_DIR%.
+    echo Possible causes:
+    echo   - Permission denied (run as administrator)
+    echo   - Disk full or read-only
+    echo   - Source file in use
+    echo.
+    echo Source: %EXE_PATH%
+    echo Destination: %INSTALL_DIR%\%EXE_NAME%
     pause
     exit /b 1
 )
+echo Successfully installed to %INSTALL_DIR%\%EXE_NAME%
 
 :: BIR terminal credentials
 set TERMINAL_JSON=%INSTALL_DIR%\terminal.json
