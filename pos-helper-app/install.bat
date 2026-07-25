@@ -55,7 +55,13 @@ if not defined EXE_PATH (
     exit /b 1
 )
 
-echo Found %EXE_NAME% at: %EXE_PATH%
+echo Found %EXE_NAME% at: !EXE_PATH!
+if not exist "!EXE_PATH!" (
+    echo ERROR: File was found but no longer exists: !EXE_PATH!
+    echo The file may have been deleted or moved.
+    pause
+    exit /b 1
+)
 echo.
 
 :: Copy exe
@@ -69,7 +75,17 @@ if not exist "%INSTALL_DIR%" (
     )
 )
 
-copy /Y "%EXE_PATH%" "%INSTALL_DIR%\%EXE_NAME%" 2>&1
+echo Source file check: "!EXE_PATH!"
+if not exist "!EXE_PATH!" (
+    echo ERROR: Source file does not exist: !EXE_PATH!
+    pause
+    exit /b 1
+)
+
+echo Source size:
+for %%A in ("!EXE_PATH!") do echo   %%~zA bytes
+
+copy /Y "!EXE_PATH!" "%INSTALL_DIR%\%EXE_NAME%" 2>&1
 if errorlevel 1 (
     echo.
     echo ERROR: Failed to copy %EXE_NAME% to %INSTALL_DIR%.
@@ -78,7 +94,7 @@ if errorlevel 1 (
     echo   - Disk full or read-only
     echo   - Source file in use
     echo.
-    echo Source: %EXE_PATH%
+    echo Source: !EXE_PATH!
     echo Destination: %INSTALL_DIR%\%EXE_NAME%
     pause
     exit /b 1
