@@ -30,39 +30,40 @@ if %ERRORLEVEL% neq 0 (
 setlocal enabledelayedexpansion
 set EXE_PATH=
 
-:: Check common locations first (faster and more reliable)
+:: Check common locations first
 if exist "%~dp0%EXE_NAME%" (
     set "EXE_PATH=%~dp0%EXE_NAME%"
-) else if exist "%USERPROFILE%\Downloads\%EXE_NAME%" (
+    goto exe_found
+)
+
+if exist "%USERPROFILE%\Downloads\%EXE_NAME%" (
     set "EXE_PATH=%USERPROFILE%\Downloads\%EXE_NAME%"
-) else if exist "%USERPROFILE%\Desktop\%EXE_NAME%" (
+    goto exe_found
+)
+
+if exist "%USERPROFILE%\Desktop\%EXE_NAME%" (
     set "EXE_PATH=%USERPROFILE%\Desktop\%EXE_NAME%"
+    goto exe_found
 )
 
-:: If not found in common locations, search recursively with validation
-if not defined EXE_PATH (
-    for /r "%USERPROFILE%" %%F in (%EXE_NAME%) do (
-        if exist "%%F" (
-            set "EXE_PATH=%%F"
-            goto found_exe
-        )
-    )
+:: If not found, prompt user for manual path
+:exe_not_found
+echo.
+echo %EXE_NAME% not found in common locations.
+echo.
+echo You can either:
+echo   1. Copy mmg-helper.exe to the same folder as this installer, or
+echo   2. Enter the full path to mmg-helper.exe manually
+echo.
+set /p EXE_PATH="Enter path to mmg-helper.exe (or press Ctrl+C to cancel): "
+
+if not defined EXE_PATH goto exe_not_found
+if not exist "!EXE_PATH!" (
+    echo ERROR: File not found at: !EXE_PATH!
+    goto exe_not_found
 )
 
-:found_exe
-if not defined EXE_PATH (
-    echo ERROR: %EXE_NAME% not found.
-    echo Searched in:
-    echo   - Current directory
-    echo   - Downloads folder
-    echo   - Desktop
-    echo   - User home directory and subdirectories
-    echo.
-    echo Please ensure mmg-helper.exe is in one of these locations.
-    pause
-    exit /b 1
-)
-
+:exe_found
 echo Found %EXE_NAME% at: !EXE_PATH!
 echo.
 
