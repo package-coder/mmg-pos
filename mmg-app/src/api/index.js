@@ -3,6 +3,7 @@ import TokenStorage from 'utils/TokenStorage';
 
 let baseURL = ''
 export const APP_ENV = import.meta.env.VITE_APP_ENV
+export const APP_ROLE = import.meta.env.VITE_ROLE
 export const SERVER_URL = import.meta.env.VITE_APP_SERVER_URL
 export const SERVER_PORT = import.meta.env.VITE_APP_SERVER_PORT
 

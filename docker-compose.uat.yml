@@ -1,0 +1,103 @@
+# Admin/UAT deployment — centralized instance, no POS routes.
+# Same stack shape as docker-compose.yml, but:
+#   - app runs with VITE_ROLE=admin (hides POS routes, unlocks master-data routes)
+#   - frontend is on port 80 (no port needed in the URL)
+# Run:    docker-compose -f docker-compose.uat.yml up --build -d
+# Seed:   docker-compose -f docker-compose.uat.yml exec server python seed.py
+#
+# Ports exposed to host:
+#   80   → mmg-app  (frontend)
+#   8001 → server   (Flask API, debug only)
+#   8002 → proxy    (API entry point for the browser)
+#   8003 → mongo    (needed by branch servers' `sync` to reach this instance)
+
+services:
+
+  app:
+    build: ./mmg-app
+    image: chrisn0tdev/pos-client
+    ports:
+      - "80:5173"
+    depends_on:
+      - proxy
+    volumes:
+      - ./mmg-app:/app
+      - /app/node_modules
+    environment:
+      - VITE_APP_ENV=internal-production
+      - VITE_APP_BASE_NAME=/
+      - VITE_APP_SERVER_PORT=8002
+      - VITE_ROLE=admin
+    restart: always
+
+  server:
+    build: ./pos-api
+    image: chrisn0tdev/pos-app
+    ports:
+      - "8001:5100"
+    depends_on:
+      - mongo
+    networks:
+      - pos-network
+    env_file:
+      - pos-api/.env
+    environment:
+      - LOCAL_DATABASE_URL=mongodb://mongo:27017
+      - APP_ENV=internal-production
+    restart: always
+
+  proxy:
+    build: ./pos-api/proxy
+    image: chrisn0tdev/pos-proxy
+    volumes:
+      - /dev:/dev
+    ports:
+      - "8002:5001"
+    depends_on:
+      - mongo
+      - server
+    networks:
+      - pos-network
+    env_file:
+      - pos-api/.env
+    privileged: true
+    environment:
+      - LOCAL_DATABASE_URL=mongodb://mongo:27017
+      - LOCAL_SERVER_URL=http://server:5100
+    restart: always
+
+  # No further upstream to sync to from here — this instance IS the top of the
+  # sync hierarchy. Kept so branch servers' downstream pulls (users/packages/
+  # discounts/etc. pushed here) have something to read from; REMOTE_DATABASE_URL
+  # in pos-api/.env stays a placeholder and this service just crash-loops
+  # harmlessly (see CLAUDE.md).
+  sync:
+    build: ./pos-api/sync
+    image: chrisn0tdev/pos-sync
+    depends_on:
+      - mongo
+    networks:
+      - pos-network
+    env_file:
+      - pos-api/.env
+    environment:
+      - LOCAL_DATABASE_URL=mongodb://mongo:27017
+    restart: always
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "8003:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - pos-network
+    restart: always
+
+networks:
+  pos-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
+    driver: local

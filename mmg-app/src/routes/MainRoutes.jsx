@@ -3,9 +3,11 @@ import { lazy } from 'react';
 // project imports
 import MainLayout from 'layout/MainLayout';
 import Loadable from 'ui-component/Loadable';
+import { Navigate } from 'react-router-dom';
 import AuthorizeRoute from './components/AuthorizeRoute';
 import Role from 'utils/Role';
 import { element } from 'prop-types';
+import { APP_ROLE } from 'api';
 
 // dashboard routing
 const DashboardDefault = Loadable(lazy(() => import('views/dashboard')));
@@ -45,6 +47,23 @@ export function RequireAuth(children, roles) {
     };
 }
 
+// Downstream-synced master data (users, roles, branches, doctors, corporates,
+// packages, discounts, labtest/services) is centrally owned by the admin
+// instance (VITE_ROLE=admin). Branches only ever receive it via sync, so
+// editing it locally would just get clobbered by the next sync tick.
+const AdminOnlyRoute = ({ roles }) => {
+    if (APP_ROLE !== 'admin') return <Navigate to="/404" replace />;
+    return <AuthorizeRoute roles={roles} />;
+};
+
+export function RequireAdminDeployment(children, roles) {
+    return {
+        path: '',
+        element: <AdminOnlyRoute roles={roles} />,
+        children
+    };
+}
+
 const MainRoutes = {
     path: '/',
     element: <MainLayout />,
@@ -56,13 +75,8 @@ const MainRoutes = {
                 RequireAuth(
                     [
                         { path: '' },
-                        { path: 'users', element: <UsersPage /> },
-                        { path: 'roles', element: <RolesPage /> },
                         { path: 'home', element: <HomePage /> },
-                        { path: 'branches', element: <BranchesPage /> },
                         { path: 'bookings', element: <BookingPage /> },
-                        { path: 'doctors', element: <DoctorsPage /> },
-                        { path: 'corporates', element: <CorporatesPage /> },
                         { path: 'audit-logs', element: <AuditLogPage /> },
                         { path: 'printer-settings', element: <PrinterSettings /> },
                         // { path: 'sales-deposits', element: <SalesDepositsPage /> },
@@ -95,6 +109,21 @@ const MainRoutes = {
                             ]
                         },
                         {
+                            path: 'general-reports',
+                            children: [{ path: '', element: <GenReports /> }]
+                        }
+                    ],
+                    [Role.CASHIER, Role.ADMIN]
+                ),
+                // Centrally-managed master data — admin deployment only (see AdminOnlyRoute above)
+                RequireAdminDeployment(
+                    [
+                        { path: 'users', element: <UsersPage /> },
+                        { path: 'roles', element: <RolesPage /> },
+                        { path: 'branches', element: <BranchesPage /> },
+                        { path: 'doctors', element: <DoctorsPage /> },
+                        { path: 'corporates', element: <CorporatesPage /> },
+                        {
                             path: 'packages',
                             children: [
                                 { path: '', element: <PackagesPage /> },
@@ -117,10 +146,6 @@ const MainRoutes = {
                         {
                             path: 'discounts',
                             children: [{ path: '', element: <DiscountsPage /> }]
-                        },
-                        {
-                            path: 'general-reports',
-                            children: [{ path: '', element: <GenReports /> }]
                         }
                     ],
                     [Role.CASHIER, Role.ADMIN]
