@@ -34,7 +34,7 @@ const schema = yup.object().shape({
 });
 
 const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
-    const { display: showCustomerDisplay } =  usePrinter()
+    const { display: showCustomerDisplay, print: sendToHelper } = usePrinter()
     // const { mutate: showCustomerDisplay } = useMutation(print.Display)
     const [amountGiven, setAmountGiven] = useState('');
     const [paymentMethod, setPaymentMethod] = useState(ar ? 'charge' : 'cash');
@@ -217,9 +217,23 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
     const handlePayClick = async () => {
         setLoading(true);
         try {
+            // Invoice numbers must be sequential per BIR-registered terminal,
+            // not per cashier — a branch can run multiple terminals, and two
+            // cashiers rotating shifts on the same terminal must not fragment
+            // its sequence. The terminal's own identity (SN) only exists in
+            // pos-helper-app's local config on this machine, so it's fetched
+            // fresh per sale rather than cached — if the helper isn't
+            // reachable, printing the receipt would fail anyway, so failing
+            // the sale here instead of silently mis-numbering it is correct.
+            const terminalInfo = await sendToHelper('terminal', 'info', {});
+            if (terminalInfo?.error || !terminalInfo?.SN) {
+                console.error('Could not reach the printer helper to identify this terminal', terminalInfo);
+                return;
+            }
+
             const newData = buildNewData(paymentMethod, amountGiven);
-            await editTransactionMutation.mutateAsync({ ...newData, branchId: branch.id });
-            
+            await editTransactionMutation.mutateAsync({ ...newData, branchId: branch.id, terminalId: terminalInfo.SN });
+
             showCustomerDisplay('next')
 
             await refetchCashierReport()

@@ -8,6 +8,7 @@ from bson import ObjectId
 from flask import Blueprint, request, g
 
 from app.database.config import corporates
+from app.database.store import update_one as store_update_one
 from app.new_models.AuditLog import AuditCode, AuditLog
 from app.repositories.audit_log import AuditLogRepository
 
@@ -58,7 +59,7 @@ def _update_company():
    #array_filt = {"arrayFilters": [{'[0].id': '1'}]}
 
    print(new_val)
-   res = corporates.update_one(filter, new_val)
+   res = store_update_one('corporates', filter, new_val)
    if res.modified_count > 0:
       logger.insert_one(AuditLog(action=AuditCode.CORPORATE_UPDATE, userId=g.user_id, data=request_data))
 

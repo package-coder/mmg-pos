@@ -3,6 +3,7 @@ from bson.objectid import ObjectId
 from flask import Blueprint, request, g
 
 from app.database.config import users
+from app.database.store import update_one as store_update_one
 from app.new_models.AuditLog import AuditCode, AuditLog
 from app.repositories.audit_log import AuditLogRepository
 
@@ -44,7 +45,7 @@ def _update_user():
    filter = { '_id': ObjectId(id) }
    new_val = { "$set": update_val }
 
-   res = users.update_one(filter, new_val)
+   res = store_update_one('users', filter, new_val)
    if res.modified_count > 0:
       logger.insert_one(AuditLog(action=AuditCode.USER_UPDATE, userId=g.user_id, data={**update_val, 'id': id}))
 

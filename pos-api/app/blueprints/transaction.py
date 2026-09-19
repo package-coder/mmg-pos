@@ -127,7 +127,16 @@ def v3_create_transaction(user_id):
             model = CreateCashTransaction(**args)
 
         if(status == TransactionStatus.COMPLETED and model.status == TransactionStatus.COMPLETED):
-            model.invoiceNumber = transactionRepository._get_next_sequence({ "type": "INVOICE_NUMBER", "cashierId": user_id })
+            # Scoped by terminal, not cashier: BIR requires one continuous,
+            # sequential, non-resettable invoice number per registered
+            # terminal. A branch can run multiple terminals, and cashiers
+            # rotate shifts on the same terminal — scoping by cashierId
+            # instead would fragment/interleave the sequence a single
+            # terminal's receipts are supposed to form.
+            terminal_id = request_data.get('terminalId')
+            if not terminal_id:
+                return jsonify({'message': 'terminalId is required to complete a sale', 'code': 24}), 400
+            model.invoiceNumber = transactionRepository._get_next_sequence({ "type": "INVOICE_NUMBER", "terminalId": terminal_id })
 
         model.transactionNumber = transactionRepository._get_next_sequence({ "type": "TRANSACTION_NUMBER", "cashierId": user_id })
         data = model.model_dump(by_alias=True, exclude={'discounts', 'transactionItems'})

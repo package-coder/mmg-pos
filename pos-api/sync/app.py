@@ -40,6 +40,44 @@ RETRY_BACKOFF_SECONDS = 60
 # container logs instead of failing forever in silence.
 ATTEMPTS_WARNING_THRESHOLD = 10
 
+# Cap on how many pending docs one cycle pushes, per collection. Without this,
+# a branch that's been offline for days and accumulated a large backlog would
+# have its very first recovery cycle try to push everything at once — a long,
+# unpredictable-duration cycle that delays every other collection and the
+# next scheduled run. Capping keeps each cycle's duration bounded; a large
+# backlog just drains over several 20s cycles instead of one giant one.
+BATCH_SIZE = 200
+
+
+# --- Connection management -------------------------------------------------
+#
+# MongoClient is thread-safe, long-lived, and pools/retries connections on
+# its own — constructing a brand new client every 20s (the previous design)
+# throws that away for nothing. Bigger problem it caused: constructing a
+# client for a malformed/unreachable REMOTE_DATABASE_URL (e.g. an
+# unconfigured mongodb+srv:// placeholder) raises immediately, and that call
+# happened INSIDE downstream_sync_data()/upstream_sync_data(), unguarded, and
+# downstream_sync_data() ran once unconditionally BEFORE the scheduler loop
+# even started — so a bad remote config crashed the whole process before
+# upstream sync ever got a chance to run, even though upstream doesn't
+# depend on the remote being reachable at connection-construction time.
+# Fixed by: building each client lazily, once, cached; a construction
+# failure is logged and retried on the next cycle instead of crashing.
+
+_clients = {}
+
+
+def get_client(name, url):
+  if name in _clients:
+    return _clients[name]
+  try:
+    client = pymongo.MongoClient(url, serverSelectionTimeoutMS=5000)
+    _clients[name] = client
+    return client
+  except Exception as e:
+    print(f'[sync] Could not create {name} MongoDB client: {repr(e)}')
+    return None
+
 
 def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client: pymongo.MongoClient, dest_db_name):
   """Upstream sync: push every doc flagged `_sync.status: pending` (skipping
@@ -73,25 +111,43 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
       source_collection = source_db[collection_name]
       dest_collection = dest_db[collection_name]
 
-      for doc in source_collection.find(query):
+      for doc in source_collection.find(query).limit(BATCH_SIZE):
         doc_id = doc['_id']
+        # Captured at read time. Used as an optimistic-concurrency guard: if
+        # the app edits this same document (via BackupRepository.update_one)
+        # between our read and our write-back below, that edit resets `_sync`
+        # to a fresh pending stamp. Without this guard, our write-back would
+        # stomp that fresh stamp with "synced" even though only the OLDER
+        # content we read here was ever actually pushed — silently losing
+        # the newer edit (it would never sync, since it now reads as already
+        # synced). Filtering on the exact original `_sync` value means the
+        # write-back only applies if nothing changed underneath us; if it
+        # did change, this doc simply falls through to the next cycle and
+        # gets picked up correctly then — matched_count check below is what
+        # detects the race and skips counting it as pushed/failed.
+        original_sync = doc.get('_sync')
         payload = {k: v for k, v in doc.items() if k != '_sync'}
 
         try:
           dest_collection.update_one({'_id': doc_id}, {'$set': payload}, upsert=True)
-          source_collection.update_one(
-            {'_id': doc_id},
+          result = source_collection.update_one(
+            {'_id': doc_id, '_sync': original_sync},
             {'$set': {
               '_sync.status': 'synced',
               '_sync.synced_at': now,
               '_sync.last_error': None,
             }}
           )
-          pushed += 1
+          if result.matched_count == 0:
+            print(f'[upstream-sync] {collection_name}/{doc_id} was edited concurrently — '
+                  f'pushed the version we read, but leaving it pending so the newer edit '
+                  f'gets synced on the next cycle instead of being marked synced by mistake.')
+          else:
+            pushed += 1
         except Exception as e:
-          attempts = doc.get('_sync', {}).get('attempts', 0) + 1
+          attempts = original_sync.get('attempts', 0) + 1 if original_sync else 1
           source_collection.update_one(
-            {'_id': doc_id},
+            {'_id': doc_id, '_sync': original_sync},
             {'$set': {
               '_sync.attempts': attempts,
               '_sync.last_attempt_at': now,
@@ -113,51 +169,114 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
     print('[upstream-sync] Error: ', repr(e))
 
 
-def sync_data(source_client: pymongo.MongoClient, source_db_name, dest_client: pymongo.MongoClient, dest_db_name, downstream=False):
+def pull_pending(remote_client: pymongo.MongoClient, remote_db_name, local_client: pymongo.MongoClient, local_db_name):
+  """Downstream sync: pull lookup/master-data docs from the central source
+  that are newer than THIS branch's own last-seen watermark, per collection.
+
+  Deliberately NOT the same pending/synced flag pattern as push_pending.
+  Upstream is one branch -> one central, so "mark synced after pushing"
+  makes sense. Downstream is one central -> potentially many branches — if
+  the first branch to pull an update marked the central document `synced`,
+  every OTHER branch would then see it as already-synced and never receive
+  it, silently. So each branch tracks its own progress locally (the newest
+  `_sync.stamp_id` it has pulled per collection) and never mutates anything
+  on the source. Idempotent for the same reason push_pending is: the local
+  write is upsert-by-_id, so re-pulling something already pulled is a
+  harmless no-op.
+
+  Requires every doc to have been written after this rebuild (so it has a
+  `_sync.stamp_id`) — there's no backfill for pre-existing un-stamped data,
+  which is fine for a fresh system but would need one before adopting this
+  against a database with real history.
+  """
   try:
-    source_db = source_client[source_db_name]
-    dest_db = dest_client[dest_db_name]
+    remote_db = remote_client[remote_db_name]
+    local_db = local_client[local_db_name]
+    now = datetime.datetime.utcnow()
+    pulled = 0
 
-    for collection_name in source_db.list_collection_names():
-      if((not downstream and not collection_name in lookups) or (downstream and collection_name in lookups)):
-        print(f'- Collection: {collection_name}')
-        source_collection = source_db[collection_name]
-        dest_collection = dest_db[collection_name]
+    for collection_name in lookups:
+      if collection_name not in remote_db.list_collection_names():
+        continue
 
-        for doc in source_collection.find():
-          filter = { '_id': doc['_id'] }
-          value = { "$set": doc }
-          dest_collection.update_one(filter, value, upsert=True)
+      watermark_id = f'downstream_watermark_{collection_name}'
+      watermark_doc = local_db['sync_meta'].find_one({'_id': watermark_id})
+      last_stamp_id = watermark_doc['last_stamp_id'] if watermark_doc else None
+
+      query = {'_sync.stamp_id': {'$gt': last_stamp_id}} if last_stamp_id else {}
+
+      remote_collection = remote_db[collection_name]
+      local_collection = local_db[collection_name]
+      newest_stamp_id = last_stamp_id
+
+      for doc in remote_collection.find(query).sort('_sync.stamp_id', 1).limit(BATCH_SIZE):
+        payload = {k: v for k, v in doc.items() if k != '_sync'}
+        local_collection.update_one({'_id': doc['_id']}, {'$set': payload}, upsert=True)
+        pulled += 1
+        stamp_id = doc.get('_sync', {}).get('stamp_id')
+        if stamp_id is not None and (newest_stamp_id is None or stamp_id > newest_stamp_id):
+          newest_stamp_id = stamp_id
+
+      if newest_stamp_id != last_stamp_id:
+        local_db['sync_meta'].update_one(
+          {'_id': watermark_id},
+          {'$set': {'last_stamp_id': newest_stamp_id}},
+          upsert=True,
+        )
+
+    local_db['sync_meta'].update_one(
+      {'_id': 'downstream'},
+      {'$set': {'last_run_at': now, 'pulled': pulled}},
+      upsert=True,
+    )
+    print(f'[downstream-sync] pulled={pulled}')
 
   except Exception as e:
-    print('Error: ', repr(e))
+    print('[downstream-sync] Error: ', repr(e))
 
 
 def downstream_sync_data():
-  source_client = pymongo.MongoClient(REMOTE_DATABASE_URL)
-  dest_client = pymongo.MongoClient(LOCAL_DATABASE_URL)
+  remote = get_client('remote', REMOTE_DATABASE_URL)
+  local = get_client('local', LOCAL_DATABASE_URL)
+  if remote is None or local is None:
+    print('[downstream-sync] Skipping this cycle — a client is unavailable.')
+    return
 
   print('\n=========================================================================')
-  print(f'Downstream-Sync data from remote to backup...')
-  sync_data(source_client, "pos", dest_client, "pos", True)
-
-  print(f'Downstream-Sync was sucessfully done...')
+  print(f'Downstream-Sync: pulling newer lookup data from central...')
+  pull_pending(remote, "pos", local, "pos")
 
 
 def upstream_sync_data():
-  source_client = pymongo.MongoClient(LOCAL_DATABASE_URL)
-  dest_client = pymongo.MongoClient(REMOTE_DATABASE_URL)
+  local = get_client('local', LOCAL_DATABASE_URL)
+  remote = get_client('remote', REMOTE_DATABASE_URL)
+  if local is None or remote is None:
+    print('[upstream-sync] Skipping this cycle — a client is unavailable.')
+    return
 
   print('\n=========================================================================')
   print(f'Upstream-Sync: pushing pending docs from local to remote...')
-  push_pending(source_client, "pos", dest_client, "pos")
+  push_pending(local, "pos", remote, "pos")
 
 
-print('Auto-Sync starting...')
-schedule.every(3).minutes.do(downstream_sync_data)
-schedule.every(20).seconds.do(upstream_sync_data)
+def run_safely(job_name, fn):
+  """Last line of defense: nothing a scheduled job does should ever be able
+  to kill the process. An uncaught exception here previously took down the
+  whole `while True` loop, forcing Docker to fully restart the container —
+  losing the in-memory client cache and any timing state — instead of just
+  waiting for the next scheduled attempt."""
+  try:
+    fn()
+  except Exception as e:
+    print(f'[sync] {job_name} raised unexpectedly: {repr(e)}')
 
-downstream_sync_data()
-while True:
-  schedule.run_pending()
-  time.sleep(1)
+
+if __name__ == '__main__':
+  print('Auto-Sync starting...')
+  schedule.every(3).minutes.do(run_safely, 'downstream', downstream_sync_data)
+  schedule.every(20).seconds.do(run_safely, 'upstream', upstream_sync_data)
+
+  run_safely('downstream', downstream_sync_data)
+  while True:
+    schedule.run_pending()
+    time.sleep(1)

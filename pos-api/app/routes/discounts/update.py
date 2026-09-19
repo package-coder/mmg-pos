@@ -8,6 +8,7 @@ from bson import ObjectId
 from flask import Blueprint, request, g
 
 from app.database.config import discounts
+from app.database.store import update_one as store_update_one
 from app.new_models.AuditLog import AuditCode, AuditLog
 from app.repositories.audit_log import AuditLogRepository
 
@@ -49,7 +50,7 @@ def _update_discount():
    #array_filt = {"arrayFilters": [{'[0].id': '1'}]}
 
    print(new_val)
-   res = discounts.update_one(filter, new_val)
+   res = store_update_one('discounts', filter, new_val)
    if res.modified_count > 0:
       logger.insert_one(AuditLog(action=AuditCode.DISCOUNT_UPDATE, userId=g.user_id, data=request_data))
 

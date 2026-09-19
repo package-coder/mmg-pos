@@ -31,3 +31,14 @@ def ensure_indexes(db):
             [("_sync.status", ASCENDING), ("_sync.last_attempt_at", ASCENDING)],
             partialFilterExpression={"_sync.status": "pending"},
         )
+
+    # _sync.stamp_id — queried every 3min by sync/app.py's downstream pull,
+    # on this instance's copy of every lookup/master-data collection (this
+    # matters most on the central/admin instance, where branches actually
+    # pull from; harmless to also have it on a branch's own local copy).
+    # Not a partial index like the one above — every branch needs to sort
+    # by this across the whole collection each cycle, not just a "pending"
+    # subset (downstream has no per-document status field at all; see
+    # sync/app.py:pull_pending for why).
+    for collection_name in ['branches', 'users', 'customers', 'discounts', 'doctors', 'corporates', 'roles', 'items', 'audit_logs_lookup', 'products', 'packages', 'product_categories']:
+        db[collection_name].create_index([("_sync.stamp_id", ASCENDING)])

@@ -8,6 +8,7 @@ from bson import ObjectId
 from flask import Blueprint, request
 
 from app.database.config import product_categories
+from app.database.store import update_one as store_update_one
 
 update_product_category = Blueprint("/product/category/edit", __name__)
 
@@ -42,7 +43,7 @@ def _update_product_category():
    #array_filt = {"arrayFilters": [{'[0].id': '1'}]}
 
    print(new_val)
-   res = product_categories.update_one(filter, new_val)
+   res = store_update_one('product_categories', filter, new_val)
    if res.modified_count > 0:
       return {
          'message': 'Product category update success',

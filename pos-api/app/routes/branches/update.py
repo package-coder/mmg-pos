@@ -9,6 +9,7 @@ from flask import Blueprint, request, g
 from pydash import omit
 
 from app.database.config import branches
+from app.database.store import update_one as store_update_one
 from app.models.Branch import Branch
 from app.new_models.AuditLog import AuditCode, AuditLog
 from app.repositories.audit_log import AuditLogRepository
@@ -35,7 +36,7 @@ def _update_branch():
    filter = { '_id': ObjectId(id) }
    new_val = { "$set": filterValues(omit(branch.toDict(), 'id')) }
 
-   res = branches.update_one(filter, new_val)
+   res = store_update_one('branches', filter, new_val)
    if res.modified_count > 0:
       logger.insert_one(AuditLog(action=AuditCode.BRANCH_UPDATE, userId=g.user_id, data=request_data))
 
