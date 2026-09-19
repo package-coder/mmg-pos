@@ -3,11 +3,11 @@
 # the latest code and redeploy the docker-compose.uat.yml stack.
 #
 # Usage: ./scripts/deploy-uat.sh [branch]
-#   branch defaults to "master"
+#   branch defaults to "uat"
 
 set -euo pipefail
 
-BRANCH="${1:-master}"
+BRANCH="${1:-uat}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
