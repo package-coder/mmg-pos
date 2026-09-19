@@ -137,20 +137,28 @@ when something is blocked or needs a decision.
       (primary write always happens, backup write is best-effort) since the
       old code provided zero real atomicity despite looking like it did —
       a clarity fix, not an emergency one.
-- [ ] **Unresolved — invoice numbering is not scoped correctly.** Invoice
-      numbers are generated via `_get_next_sequence({"type":
-      "INVOICE_NUMBER", "cashierId": user_id})` — scoped by **cashier**, not
-      by physical terminal. If two cashiers rotate shifts on the same
-      BIR-registered terminal, their invoice sequences interleave instead of
-      being one continuous sequence, which is what BIR requires
-      (sequential, non-resettable, per terminal). Root blocker: the backend
-      receives **no terminal/machine identifier at all** in the transaction
-      payload today (`MIN`/`SN`/`PTU` live only in `pos-helper-app`'s local
-      `config.json`, never sent to `pos-api`). Needs a decision: add a
-      terminal-id field to the transaction payload and re-scope the counter
-      by it, or scope by `branchId` as a lesser fix if a branch never has
-      more than one physical terminal (unconfirmed assumption — don't pick
-      this silently).
+- [x] **FIXED — invoice numbering now scoped per terminal, not cashier.**
+      Confirmed with the user: branches run multiple terminals, and the
+      invoice queue must be per machine. `pos-helper-app` already exposes
+      `{device: "terminal", device_type: "info"}` returning `{MIN, SN,
+      PTU_NO}` — wired `Checkout.jsx` to fetch this at checkout time and
+      send `terminalId: SN` with the sale; `/v3/transactions` now scopes
+      `_get_next_sequence` by `terminalId` instead of `cashierId`, and
+      rejects (400, not a silent fallback) a completed sale with no
+      `terminalId` — mis-numbering an invoice is a compliance issue, not a
+      UX one. Verified live against real UAT: same terminal gets 2,3
+      (sequential); a different terminal independently gets 1, never
+      colliding. Permanent test at `tests/test_invoice_numbering.py`.
+      While testing this, also found and fixed a real, live, pre-existing
+      bug: `/v3/transactions`'s success response crashed with
+      `TypeError('Object of type ObjectId is not JSON serializable')` —
+      no global JSON encoder for `ObjectId` exists anywhere in this app, so
+      this endpoint has always 500'd on its own response whenever actually
+      reached, independent of anything this session changed. A real
+      completed sale would have written correctly but the cashier's
+      browser would never have seen the invoice number or been able to
+      print. Fixed using the existing (previously unused)
+      `convert_objectid_to_str` helper.
 - [x] **RESOLVED — mixed timestamp storage does NOT cause a display bug,
       verified with the real library.** Earlier flagged a concern: fields
       like `users.created_at`/`products.created_at`/`doctors.created_at`
@@ -227,6 +235,9 @@ when something is blocked or needs a decision.
   - `tests/test_downstream_sync.py` — fan-out correctness (two branches
     both receive the same central update), watermark advancement, edits to
     already-pulled documents being picked up
+  - `tests/test_invoice_numbering.py` — same-terminal sequential, different
+    terminals independent, a cashier rotating terminals doesn't fragment
+    the sequence
   - `sync/app.py`'s scheduler loop is now guarded behind
     `if __name__ == '__main__'` specifically so it can be imported by tests
     without triggering the infinite loop — a small structural fix, correct
@@ -236,8 +247,8 @@ when something is blocked or needs a decision.
 - [x] Timezone consistency — investigated and resolved (see "Bugs Found
       This Session"); not a dedicated automated test since it turned out to
       depend on Flask's serialization format, not a Python-side check
-- [ ] Invoice number uniqueness per machine/terminal — still blocked on the
-      terminal-vs-branch scoping decision, not yet tested or fixed
+- [x] Invoice number uniqueness per machine/terminal — fixed and verified
+      live (see "Bugs Found This Session")
 - [ ] Basic speed/throughput benchmark for the sync push loop — not done;
       batch limiting was addressed instead (arguably the more important
       volume-safety property), but no raw throughput numbers measured
@@ -254,11 +265,15 @@ real cloud server, with every record clearly flagged so it's identifiable:
 - [x] `pos_test_probe` and all `claude_test_*` databases from the sync
       testing pass — confirmed dropped from both UAT and local; the pytest
       suite's fixtures now do this automatically going forward
-- [ ] Transaction creation test was not completed — got as far as fixing the
-      `discounts: None` crash, ran out of turn budget before creating an
-      actual flagged test transaction to check invoice-number scoping
-      end-to-end. **Invoice number scoping is still unverified live** —
-      only reasoned about from reading the code.
+- [x] Test transactions/items/discounts/counters created while verifying
+      terminal-scoped invoice numbering — confirmed all deleted from the
+      real `pos` database (4 transactions, 4 items, 2 counters); the
+      flagged test customer was reused for these rather than creating more
+      throwaway records
+- [x] An orphaned `mmg-pos-proxy-1` container (leftover from removing
+      `proxy` from `docker-compose.uat.yml` earlier this session, never
+      actually stopped on the box) — stopped and removed; both deploy
+      scripts now pass `--remove-orphans` so this can't recur silently
 
 ## Notes on Scope Widening (not problems, just worth knowing)
 
