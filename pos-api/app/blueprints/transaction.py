@@ -11,7 +11,7 @@ from app.repositories.transaction import TransactionRepository
 from app.repositories.transaction_discount import TransactionDiscountRepository
 from app.repositories.transaction_item import TransactionItemRepository
 from app.services.Transaction import TransactionService
-from app.utils.utils import getLocalDateStr, getLocalTimeStr
+from app.utils.utils import convert_objectid_to_str, getLocalDateStr, getLocalTimeStr
 
 api = '/v2/transactions'
 transaction_bp = Blueprint('transactions', __name__)
@@ -176,7 +176,15 @@ def v3_create_transaction(user_id):
         if(len(transactionItems) > 0):
             itemRepository.insert_many(transactionItems)
 
+        # No global JSON encoder exists for ObjectId anywhere in this app,
+        # so jsonify() on a raw Mongo document has always crashed here
+        # whenever it's reached in practice — the top-level `_id` alone was
+        # already enough to fail, `_sync.stamp_id` (this session's addition)
+        # is not a new failure mode. `_sync` itself is internal sync
+        # bookkeeping the frontend has no use for, so it's dropped here
+        # rather than just stringified.
         result = transactionRepository.find_one({ '_id': ObjectId(result['_id']) })
+        result = convert_objectid_to_str(omit(result, '_sync'))
         return jsonify({'message': 'Transaction created successfully', 'data': result })
     except ValidationError as e:
         return jsonify({'message': 'Unable to process data', 'error': e.errors(include_input=False)}), 500

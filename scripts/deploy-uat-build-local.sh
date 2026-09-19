@@ -51,7 +51,7 @@ ssh "$REMOTE" bash -s <<EOF
   docker compose -f docker-compose.uat.yml pull
 
   echo "--> Restarting stack"
-  docker compose -f docker-compose.uat.yml up -d
+  docker compose -f docker-compose.uat.yml up -d --remove-orphans
 
   echo "--> Pruning dangling images"
   docker image prune -f

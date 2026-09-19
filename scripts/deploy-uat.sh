@@ -29,7 +29,7 @@ if [ ! -f pos-api/.env ]; then
 fi
 
 echo "==> Rebuilding and restarting the UAT stack"
-docker compose -f docker-compose.uat.yml up --build -d
+docker compose -f docker-compose.uat.yml up --build -d --remove-orphans
 
 echo "==> Pruning dangling images"
 docker image prune -f
