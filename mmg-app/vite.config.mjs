@@ -22,5 +22,11 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     // origin: "http://0.0.0.0:6000",
+    // Vite's dev server rejects unrecognized Host headers by default (DNS
+    // rebinding protection). This server is reached by IP and by whatever
+    // public DNS name AWS assigns (which changes per instance), so there's
+    // no fixed hostname to allowlist — access is already restricted by the
+    // security group, so disable the check instead.
+    allowedHosts: true,
    },
 });

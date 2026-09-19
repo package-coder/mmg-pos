@@ -25,10 +25,10 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
 echo "==> Building images locally"
-docker-compose -f docker-compose.uat.yml build
+docker compose -f docker-compose.uat.yml build
 
 echo "==> Pushing images to Docker Hub"
-docker-compose -f docker-compose.uat.yml push
+docker compose -f docker-compose.uat.yml push
 
 echo "==> Deploying on $REMOTE"
 ssh "$REMOTE" bash -s <<EOF
@@ -48,15 +48,15 @@ ssh "$REMOTE" bash -s <<EOF
   fi
 
   echo "--> Pulling images"
-  docker-compose -f docker-compose.uat.yml pull
+  docker compose -f docker-compose.uat.yml pull
 
   echo "--> Restarting stack"
-  docker-compose -f docker-compose.uat.yml up -d
+  docker compose -f docker-compose.uat.yml up -d
 
   echo "--> Pruning dangling images"
   docker image prune -f
 
-  docker-compose -f docker-compose.uat.yml ps
+  docker compose -f docker-compose.uat.yml ps
 EOF
 
 echo "==> Done."
