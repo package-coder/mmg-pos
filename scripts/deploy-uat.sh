@@ -11,6 +11,12 @@ BRANCH="${1:-uat}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
+# mmg-app's Dockerfile has no USER directive, so vite/yarn run as root inside
+# the container. Since ./mmg-app is bind-mounted, files that process touches
+# come back owned by root, which then blocks `git reset --hard` below (run as
+# the regular SSH user) with "Permission denied" on the next deploy.
+sudo chown -R "$(id -u):$(id -g)" "$REPO_DIR"
+
 echo "==> Pulling $BRANCH"
 git fetch origin "$BRANCH"
 git checkout "$BRANCH"

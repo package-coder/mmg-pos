@@ -16,6 +16,7 @@ services:
   app:
     build: ./mmg-app
     image: chrisn0tdev/pos-client
+    platform: linux/amd64
     ports:
       - "80:5173"
     depends_on:
@@ -33,6 +34,7 @@ services:
   server:
     build: ./pos-api
     image: chrisn0tdev/pos-app
+    platform: linux/amd64
     ports:
       - "8001:5100"
     depends_on:
@@ -49,6 +51,7 @@ services:
   proxy:
     build: ./pos-api/proxy
     image: chrisn0tdev/pos-proxy
+    platform: linux/amd64
     volumes:
       - /dev:/dev
     ports:
@@ -74,6 +77,7 @@ services:
   sync:
     build: ./pos-api/sync
     image: chrisn0tdev/pos-sync
+    platform: linux/amd64
     depends_on:
       - mongo
     networks:

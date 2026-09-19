@@ -34,6 +34,10 @@ echo "==> Deploying on $REMOTE"
 ssh "$REMOTE" bash -s <<EOF
   set -euo pipefail
   cd mmg-pos
+  # mmg-app's Dockerfile has no USER directive, so vite/yarn run as root inside
+  # the container. Since ./mmg-app is bind-mounted, files that process touches
+  # come back owned by root, which then blocks the git reset below.
+  sudo chown -R "\$(id -u):\$(id -g)" .
   git fetch origin "$BRANCH"
   git checkout "$BRANCH"
   git reset --hard "origin/$BRANCH"
