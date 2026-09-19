@@ -101,7 +101,18 @@ class BackupRepository(Repository):
             self._backup_db = current_backup_database.connect()
             self._backup_db_client = current_backup_database._connection
 
+    # New document, never synced upstream yet.
+    def _pending_sync(self):
+        return {
+            'status': 'pending',
+            'synced_at': None,
+            'attempts': 0,
+            'last_attempt_at': None,
+            'last_error': None,
+        }
+
     def insert_one(self, data):
+        data['_sync'] = self._pending_sync()
         with self._db_client.start_session() as session:
             with session.start_transaction():
                 try:
@@ -109,10 +120,29 @@ class BackupRepository(Repository):
                     result = self._db[self._collection].insert_one(data)
                     session.commit_transaction()
                     return result
-                except:
+                except Exception as e:
                     session.abort_transaction()
                     raise Exception(e)
-                
+
+    # A document that already synced and is now edited must be re-flagged —
+    # otherwise the edit never leaves this branch. Resets attempts too: this
+    # is a fresh sync task, not a continuation of a previous failure.
+    def update_one(self, query, data: BaseModel, *args, **kwargs):
+        payload = data.model_dump(exclude_none=True)
+        payload['_sync'] = self._pending_sync()
+        return_document = self._db[self._collection].find_one_and_update(
+            query, {'$set': payload}, *args, **kwargs, return_document=pymongo.ReturnDocument.AFTER
+        )
+        return self.find_one({'_id': ObjectId(return_document['_id'])})
+
+    def update_one_bare(self, query, data, refetch: bool = True, *args, **kwargs):
+        data = {**data, '_sync': self._pending_sync()}
+        return_document = self._db[self._collection].find_one_and_update(
+            query, {'$set': data}, *args, **kwargs, return_document=pymongo.ReturnDocument.AFTER
+        )
+        if return_document is None or not refetch:
+            return None
+        return self.find_one({'_id': ObjectId(return_document['_id'])})
 
     def backup_one(self, data):
         if(self._backup_db is not None and IS_INTERNAL_PRODUCTION):

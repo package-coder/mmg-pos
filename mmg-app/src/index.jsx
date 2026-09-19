@@ -1,3 +1,11 @@
+// Every `moment()` call in the app (40+ call sites) is bare, with no explicit
+// timezone — moment defaults to the *viewer's browser* timezone, not the
+// business's. Since the admin instance can be viewed from anywhere, and
+// branches must always show the same wall-clock time for the same data,
+// force a single fixed default here, before anything else in the app runs.
+import moment from 'moment-timezone';
+moment.tz.setDefault('Asia/Manila');
+
 import { createRoot } from 'react-dom/client';
 
 // third party

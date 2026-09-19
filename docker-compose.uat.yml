@@ -2,13 +2,15 @@
 # Same stack shape as docker-compose.yml, but:
 #   - app runs with VITE_ROLE=admin (hides POS routes, unlocks master-data routes)
 #   - frontend is on port 80 (no port needed in the URL)
+#   - no `proxy` service: it's just a pass-through to `server` plus legacy
+#     printer/VFD HTTP endpoints, neither useful on a cloud box with no
+#     hardware attached. The frontend talks directly to `server` instead.
 # Run:    docker-compose -f docker-compose.uat.yml up --build -d
 # Seed:   docker-compose -f docker-compose.uat.yml exec server python seed.py
 #
 # Ports exposed to host:
 #   80   → mmg-app  (frontend)
-#   8001 → server   (Flask API, debug only)
-#   8002 → proxy    (API entry point for the browser)
+#   8001 → server   (Flask API — this is what the browser calls directly)
 #   8003 → mongo    (needed by branch servers' `sync` to reach this instance)
 
 services:
@@ -20,14 +22,14 @@ services:
     ports:
       - "80:5173"
     depends_on:
-      - proxy
+      - server
     volumes:
       - ./mmg-app:/app
       - /app/node_modules
     environment:
       - VITE_APP_ENV=internal-production
       - VITE_APP_BASE_NAME=/
-      - VITE_APP_SERVER_PORT=8002
+      - VITE_APP_SERVER_PORT=8001
       - VITE_ROLE=admin
     restart: always
 
@@ -46,27 +48,6 @@ services:
     environment:
       - LOCAL_DATABASE_URL=mongodb://mongo:27017
       - APP_ENV=internal-production
-    restart: always
-
-  proxy:
-    build: ./pos-api/proxy
-    image: chrisn0tdev/pos-proxy
-    platform: linux/amd64
-    volumes:
-      - /dev:/dev
-    ports:
-      - "8002:5001"
-    depends_on:
-      - mongo
-      - server
-    networks:
-      - pos-network
-    env_file:
-      - pos-api/.env
-    privileged: true
-    environment:
-      - LOCAL_DATABASE_URL=mongodb://mongo:27017
-      - LOCAL_SERVER_URL=http://server:5100
     restart: always
 
   # No further upstream to sync to from here — this instance IS the top of the

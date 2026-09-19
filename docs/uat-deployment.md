@@ -60,8 +60,7 @@ inbound rules** → add:
 | Port | Purpose |
 |---|---|
 | `80` | Frontend (browser) |
-| `8001` | Flask API direct (debug only) |
-| `8002` | Proxy — API entry point for the browser |
+| `8001` | Flask API — the browser calls this directly (no proxy on this instance) |
 | `8003` | MongoDB — needed so a branch server's `sync` can reach this instance |
 | `22` | SSH |
 

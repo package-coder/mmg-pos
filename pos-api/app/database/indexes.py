@@ -19,3 +19,15 @@ def ensure_indexes(db):
     # audit_logs — typically queried by userId and datetime range
     db.audit_logs.create_index([("userId", ASCENDING)])
     db.audit_logs.create_index([("datetime", DESCENDING)])
+
+    # _sync.status — queried every 20s by sync/app.py's upstream push, on every
+    # collection behind BackupRepository (new_transactions, cashier_reports,
+    # branch_reports, audit_logs, settings, report_cash_count). A partial
+    # index (only "pending" docs) keeps this cheap as synced history grows —
+    # most docs settle into "synced" and never need to be found by this query
+    # again.
+    for collection_name in ['new_transactions', 'cashier_reports', 'branch_reports', 'audit_logs', 'settings', 'report_cash_count']:
+        db[collection_name].create_index(
+            [("_sync.status", ASCENDING), ("_sync.last_attempt_at", ASCENDING)],
+            partialFilterExpression={"_sync.status": "pending"},
+        )
