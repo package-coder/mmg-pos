@@ -181,13 +181,47 @@ service so this is safe regardless of which machine builds them.
 
 [`scripts/deploy-uat-build-local.sh`](../scripts/deploy-uat-build-local.sh)
 automates this end to end — it runs from **your machine**, not the box, and
-does the build/push locally then SSHes in to pull and restart:
+does the build/push locally then SSHes in to pull and restart.
+
+### One-time local setup
+
+The script just calls plain `ssh "$REMOTE"` with no `-i` flag, so your SSH
+client needs to already know which key to use for this host.
+
+1. **Move the instance's `.pem` key out of any git repo**, into `~/.ssh/`,
+   and lock down its permissions (SSH refuses to use a key readable by
+   anyone but you):
+   ```bash
+   mv ~/Downloads/<keyname>.pem ~/.ssh/<keyname>.pem
+   chmod 400 ~/.ssh/<keyname>.pem
+   ```
+   `*.pem` and `*.ppk` are gitignored in this repo, but that's a safety net —
+   never place a key inside the repo directory to begin with.
+
+2. **Register the host in `~/.ssh/config`** (create the file if it doesn't
+   exist) so a plain `ssh ubuntu@<ip>` — exactly what the script calls —
+   just works, without needing to modify the script:
+   ```
+   Host <elastic-ip>
+     User ubuntu
+     IdentityFile ~/.ssh/<keyname>.pem
+   ```
+
+3. `docker login` locally, if not already logged in.
+
+### Redeploying
+
+Once the setup above is done, every subsequent redeploy is one command from
+the repo root on your machine:
 
 ```bash
-docker login   # once, if not already logged in locally
-
 ./scripts/deploy-uat-build-local.sh ubuntu@<elastic-ip> uat
 ```
+
+This builds all four images, pushes them to Docker Hub, SSHes in, pulls the
+fresh images, restarts the containers, and prunes old images — no manual SSH
+session needed unless something's broken and you need to debug directly
+(`docker ps`, `docker logs <container>`, `df -h`, `docker system df`, etc.).
 
 It never touches your SSH key or Docker Hub credentials directly — it just
 shells out to `docker` and `ssh` using whatever's already configured in your
