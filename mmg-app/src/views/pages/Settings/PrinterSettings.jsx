@@ -5,6 +5,7 @@ import { usePrinter } from 'providers/PrinterProvider';
 import MainCard from 'ui-component/cards/MainCard';
 import { APP_ROLE } from 'api';
 import { useDevTestMode } from 'utils/devTestMode';
+import { usePrinterTrialMode, setPrinterTrialMode } from 'utils/printerTrialMode';
 
 const PrinterSettings = () => {
     const [printerIP, setPrinterIP] = useState('192.168.192.168');
@@ -12,7 +13,7 @@ const PrinterSettings = () => {
     const [testMessage, setTestMessage] = useState('Test print message');
     const [statusMessage, setStatusMessage] = useState('');
     const [statusType, setStatusType] = useState('');
-    const [trialMode, setTrialMode] = useState(false);
+    const trialMode = usePrinterTrialMode();
     const { print, status, printing } = usePrinter()
     const devTestMode = useDevTestMode();
     // Same restriction PrinterProvider/api/print.js enforce — disabled here too so a click
@@ -22,14 +23,10 @@ const PrinterSettings = () => {
     useEffect(() => {
         const savedPrinterIP = localStorage.getItem('printerIP') || '192.168.192.168';
         const savedPrinterPort = localStorage.getItem('printerPort');
-        const savedTrialMode = localStorage.getItem('printerTrialMode');
 
         setPrinterIP(savedPrinterIP);
         if (savedPrinterPort) {
             setPrinterPort(savedPrinterPort);
-        }
-        if (savedTrialMode !== null) {
-            setTrialMode(JSON.parse(savedTrialMode));
         }
     }, []);
 
@@ -59,9 +56,7 @@ const PrinterSettings = () => {
     };
 
     const handleTrialModeChange = (e) => {
-        const enabled = e.target.checked;
-        setTrialMode(enabled);
-        localStorage.setItem('printerTrialMode', JSON.stringify(enabled));
+        setPrinterTrialMode(e.target.checked);
     };
 
     const handlePrintEjournal = async () => {
@@ -155,7 +150,7 @@ const PrinterSettings = () => {
                                     Paper Saver Mode
                                 </Typography>
                                 <Typography variant="caption" color="textSecondary">
-                                    When enabled: prints receipt 1 time only. When disabled: prints receipt 3 times (normal operation).
+                                    When enabled: prints the receipt once (customer's copy only). When disabled: prints twice (customer's + company's copy — normal operation).
                                 </Typography>
                             </Stack>
                         }

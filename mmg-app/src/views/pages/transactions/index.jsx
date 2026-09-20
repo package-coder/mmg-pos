@@ -37,11 +37,13 @@ import generateReportFilename from 'utils/generateReportFilename';
 import { CSVLink } from 'react-csv';
 import TransactionModal from './components/TransactionModal';
 import PrinterProvider from 'providers/PrinterProvider';
+import { useDevTestMode } from 'utils/devTestMode';
 
 const DEFAULT_FILTER = 'all';
 
 function TransactionsPage() {
     const { branch, user, matchRole } = useAuth();
+    const devTestMode = useDevTestMode();
     const [dateFilter, setDateFilter] = useState(DateFilterEnum.TODAY);
     const [customDate, setCustomDate] = useState({});
 
@@ -78,6 +80,11 @@ function TransactionsPage() {
     useEffect(() => {
         let transactions = data || [];
 
+        // Dev Test Mode data (mocked terminal, see utils/devTestMode.js) only shows up here
+        // while the toggle is on for this browser — otherwise it'd clutter real transaction
+        // history for everyone else viewing this same list.
+        if (!devTestMode) transactions = transactions?.filter((transaction) => !transaction.isDevTest);
+
         if (statusFilter && statusFilter != DEFAULT_FILTER) transactions = transactions?.filter((transaction) => transaction.status == statusFilter);
 
         if (searchFilter) {
@@ -90,7 +97,7 @@ function TransactionsPage() {
         }
 
         setTransactions(transactions);
-    }, [data, statusFilter, searchFilter]);
+    }, [data, statusFilter, searchFilter, devTestMode]);
 
     const exportToCSV = useCallback(() => {
         const headers = [

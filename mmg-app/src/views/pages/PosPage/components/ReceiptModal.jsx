@@ -8,12 +8,21 @@ import SplitButton from "ui-component/buttons/SplitButton";
 import { useEffect } from "react";
 import { IoMdPrint } from 'react-icons/io';
 import { usePrinter } from 'providers/PrinterProvider';
+import { useDevTestMode } from 'utils/devTestMode';
+import { usePrinterTrialMode } from 'utils/printerTrialMode';
 
 
 const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPrint, receipt, transaction, forceShow }) => {
 
     const { toPDF, targetRef } = usePDF({ filename: `invoice-${transaction?.invoiceNumber}.pdf`, page: { format: 'letter' } });
     const printing = usePrinter()?.printing
+    // Dev Test Mode means every print is a throwaway test, not a real customer's/company's copy
+    // pair — printing 2 physical copies for every test click just burns paper for nothing.
+    const devTestMode = useDevTestMode()
+    // Settings > Printer Settings > Paper Saver Mode — same single-print effect, independently
+    // switchable for a real branch that just wants to save paper every day.
+    const trialMode = usePrinterTrialMode()
+    const singlePrintOnly = devTestMode || trialMode
 
     useEffect(() => {
         if (open) {
@@ -45,20 +54,15 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPri
                 transaction,
                 dvoteDetails,
             })
-            await onPrint({
-                ...receipt,
-                reprint,
-                transaction,
-                dvoteDetails,
-                companyCopy: true
-            })
-            // await onPrint({ 
-            //     ...receipt, 
-            //     reprint,
-            //     transaction,
-            //     dvoteDetails,
-            //     companyCopy: true
-            // })
+            if (!singlePrintOnly) {
+                await onPrint({
+                    ...receipt,
+                    reprint,
+                    transaction,
+                    dvoteDetails,
+                    companyCopy: true
+                })
+            }
             if (!disableCloseAfterPrinting) {
                 onClose()
             }
