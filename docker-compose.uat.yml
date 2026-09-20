@@ -59,25 +59,6 @@ services:
       - APP_ENV=internal-production
     restart: always
 
-  # No further upstream to sync to from here — this instance IS the top of the
-  # sync hierarchy. Kept so branch servers' downstream pulls (users/packages/
-  # discounts/etc. pushed here) have something to read from; REMOTE_DATABASE_URL
-  # in pos-api/.env stays a placeholder and this service just logs "client
-  # unavailable" and skips each cycle harmlessly (see CLAUDE.md).
-  sync:
-    build: ./pos-api/sync
-    image: chrisn0tdev/pos-sync
-    platform: linux/amd64
-    depends_on:
-      - mongo
-    networks:
-      - pos-network
-    env_file:
-      - pos-api/.env
-    environment:
-      - LOCAL_DATABASE_URL=mongodb://mongo:27017
-    restart: always
-
   mongo:
     image: mongo:7
     ports:
