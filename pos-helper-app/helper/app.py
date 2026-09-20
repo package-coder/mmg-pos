@@ -107,6 +107,11 @@ class ReceiptWriter:
         self.file = None
         self.journal = journal
         self.journal_error = None
+        # Lets one session print several physical copies (see print_receipt's `copies` loop)
+        # while only the first copy's content reaches ejournal.txt — the file stays open the
+        # whole time (so it's still only opened/closed once), this just gates whether write()
+        # touches it for a given line.
+        self._journal_enabled = True
 
     def __enter__(self):
         if self.journal:
@@ -116,6 +121,9 @@ class ReceiptWriter:
                 self.journal_error = f"Could not open ejournal at {EJOURNAL_PATH}: {e}"
                 print(f"[{get_local_time()}] [ERR] {self.journal_error}")
         return self
+
+    def set_journal_enabled(self, enabled: bool):
+        self._journal_enabled = enabled
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.file:
@@ -147,11 +155,21 @@ class ReceiptWriter:
             except Exception as e:
                 self._printer_failed("set", e)
 
+    def cut(self):
+        """Manual mid-session cut, for separating physical copies printed within one
+        session — __exit__'s cut still runs once more at the very end, which is harmless
+        (an extra cut on an already-fed edge, not a second physical copy)."""
+        if self.printer:
+            try:
+                self.printer.cut()
+            except Exception as e:
+                self._printer_failed("cut", e)
+
     def write(self, text: str):
         if text is None: return
         if not isinstance(text, str): text = str(text)
 
-        if self.file:
+        if self.file and self._journal_enabled:
             try:
                 self.file.write(text)
                 self.file.flush()
@@ -250,11 +268,18 @@ def print_receipt(request_data: dict = {}):
     cashier = transaction['cashier']
     dvote = request_data['dvoteDetails'][0]
     customer = transaction['customer']
-    reprint = request_data.get('reprint') 
+    reprint = request_data.get('reprint')
     reprintLabel = '(RE-PRINT)' if reprint else ''
 
-    companyCopy = request_data.get('companyCopy')
-    companyLabel = '(COMPANY\'S COPY)' if companyCopy else ''
+    # How many physical copies to print for this one logical sale. Defaults to 1, in which case
+    # the legacy single-shot `companyCopy` flag (a manual, one-copy-at-a-time reprint) still
+    # applies as before. A `copies` > 1 request always makes copy 1 the customer's and every
+    # copy after that the company's — this lets one request produce both copies while
+    # journaling the sale to ejournal.txt exactly once (see ReceiptWriter.set_journal_enabled),
+    # instead of the frontend firing two entirely separate requests that each journaled
+    # independently (a real duplicate-journal-entry bug this replaced).
+    copies = max(1, int(request_data.get('copies', 1)))
+    requested_company_copy = request_data.get('companyCopy', False)
 
     discounts = list(filter(lambda i: i.get('memberType') is not None, transaction['discounts']))
     memberDiscount = discounts[0] if len(discounts) > 0 else None
@@ -266,163 +291,173 @@ def print_receipt(request_data: dict = {}):
 
     try:
         with ReceiptWriter(request_data.get('settings', {}), journal=not reprint) as p:
-            # Dev Test Mode (mmg-app) mocks the terminal that issued this transaction — flagged
-            # server-side (pos-api) as `isDevTest`, not something this app decides on its own.
-            # Printed AND journaled (this write goes through the same p.write() as everything
-            # else, so it lands in ejournal.txt too) so a dev-test entry is never mistaken for a
-            # real BIR-relevant one on either the paper copy or the audit trail.
-            if transaction.get('isDevTest'):
+            for copy_index in range(copies):
+                # Copy 1 is always the customer's; anything after that is the company's.
+                # Only copy 1's content reaches ejournal.txt (see
+                # ReceiptWriter.set_journal_enabled) — the sale is journaled once no matter
+                # how many physical copies come out of the printer.
+                companyCopy = requested_company_copy if copies == 1 else copy_index > 0
+                companyLabel = '(COMPANY\'S COPY)' if companyCopy else ''
+                p.set_journal_enabled(copy_index == 0)
+                # Dev Test Mode (mmg-app) mocks the terminal that issued this transaction — flagged
+                # server-side (pos-api) as `isDevTest`, not something this app decides on its own.
+                # Printed AND journaled (this write goes through the same p.write() as everything
+                # else, so it lands in ejournal.txt too) so a dev-test entry is never mistaken for a
+                # real BIR-relevant one on either the paper copy or the audit trail.
+                if transaction.get('isDevTest'):
+                    p.set(align='center', bold=True)
+                    p.write('*** DEV TEST — NOT A REAL RECEIPT ***\n\n')
                 p.set(align='center', bold=True)
-                p.write('*** DEV TEST — NOT A REAL RECEIPT ***\n\n')
-            p.set(align='center', bold=True)
-            p.write(f'MMG-ALBAY {companyLabel}\n\n')
-            p.set(align='center', bold=False)
-            p.write('Operated By:\n')
-            p.set(align='center', bold=True)
-            p.write('MEDICAL MISSION GROUP MULTIPURPOSE COOPERATIVE-ALBAY\n')
-            p.set(align='center', bold=False)
-            p.write('VAT REG TIN ' + branch['tin'] + '\n')
-            p.write(upper_case(branch['streetAddress']) + '\n\n')
+                p.write(f'MMG-ALBAY {companyLabel}\n\n')
+                p.set(align='center', bold=False)
+                p.write('Operated By:\n')
+                p.set(align='center', bold=True)
+                p.write('MEDICAL MISSION GROUP MULTIPURPOSE COOPERATIVE-ALBAY\n')
+                p.set(align='center', bold=False)
+                p.write('VAT REG TIN ' + branch['tin'] + '\n')
+                p.write(upper_case(branch['streetAddress']) + '\n\n')
 
-            p.set(align='center', bold=True)
-            if(transaction['status'] == 'completed'):
-                p.write(f'SERVICE INVOICE\n')
-            else:
-                p.write(f'{transaction["status"].upper()} DOCUMENT\n')
+                p.set(align='center', bold=True)
+                if(transaction['status'] == 'completed'):
+                    p.write(f'SERVICE INVOICE\n')
+                else:
+                    p.write(f'{transaction["status"].upper()} DOCUMENT\n')
             
-            if(reprint):
-                p.write(f'{reprintLabel}\n')
+                if(reprint):
+                    p.write(f'{reprintLabel}\n')
 
-            p.set(align='left', bold=False)
-            p.line()
-
-            if(reprint):
-                p.row("Reprint Date: ", dateNow.strftime("%Y-%m-%d %I:%M%p"))
-
-            
-            p.row("MIN: ", TERMINAL_MIN)
-            p.row("SN: ", TERMINAL_SN)
-            p.row("PTU No: ", TERMINAL_PTU_NO)
-            p.row("Date & Time: ", dt.strftime("%Y-%m-%d %I:%M%p"))
-            p.row("Cashier: ", start_case(cashier["first_name"] + " " + cashier["last_name"]))
-            if(transaction['status'] == 'completed'):
-                p.row("Invoice #: ", str(transaction["invoiceNumber"]).zfill(6))
-            else:
-                p.row("Serial #: ", str(transaction["serialNumber"]).zfill(6))
-                p.row("Reference #: ", str(transaction["invoiceNumber"]).zfill(6))
-
-            p.line()
-            p.set(align='center', bold=True)
-            p.write('SOLD TO\n')
-            p.set(align='left', bold=False)
-
-            p.row("Name: ", start_case(to_lower(customer["name"])))
-            p.row("Address: ", start_case(to_lower(customer["address"])))
-            p.row("TIN: ", customer.get("tin_number") or "---")
-
-            if(companyCopy):
-                p.row("Age: ", customer["age"], transform=False)
-                p.row("Birth Date: ", str(customer["birthDate"]).split("T")[0])
-            else:
-                p.row("Age: ", "---")
-                p.row("Birth Date: ", "---")
-                
-            p.row("Requested By: ", transaction.get("requestedByName", "---"))
-
-            p.line()
-            p.set(align='center', bold=True)
-            p.row("ITEM ", "|QTY|PRICE|AMOUNT")
-            p.set(align='left', bold=False)
-            p.line()
-
-            for key, items in groupby(transaction['transactionItems'], lambda i: i.get('package')):
-                package = key
-
-                indented = ''
-                if(package is not None):
-                    indented = '  '
-                    p.write(f'> {package["name"]} \n')
-
-                for item in list(items):
-                    amount = item['price'] if transaction['status'] != 'refunded' else item['price'] * -1
-                    p.writeln(str((indented + item["name"])[:22]).ljust(23) + f'({item["quantity"]})'.center(5) + str(amount).center(6) + str(amount).rjust(6))
-                
-                if(package is not None):
-                    discounts = list(filter(lambda i: i.get('packageId') == package['id'] and i['memberType'] is None, transaction['discounts']))
-                    if(len(discounts) > 0):
-                        discount = discounts[0]
-                        totalDiscount = discount['value'] if discount['type'] == 'fixed' else (transaction['totalGrossSales'] * (discount['value'] / 100))
-                        p.row(f'  - Less: {discount["name"]}', f'- {"{:.2f}".format(totalDiscount)}')
-
-            p.line()
-            p.set(align='left', bold=True)
-            
-            totalSales = transaction['totalSalesWithoutMemberDiscount']
-            totalMemberDiscount = transaction['totalMemberDiscount']
-            totalNetSales = transaction['totalNetSales']
-            
-            # Calculate VAT components
-            vatableAmount = transaction.get('vatableAmount', 0.00)
-            vatExemptAmount = transaction.get('vatExemptAmount', totalNetSales if vatableAmount == 0 else 0.00)
-            vatAmount = transaction.get('vatAmount', 0.00)
-
-            p.row("Total Sales: ", totalSales)
-            p.set(bold=False)
-            
-            memberDiscountVal = f'{memberDiscount["value"]}%' if memberDiscount is not None else '0%'
-
-            if memberDiscount is not None: 
-                p.writeln(f"Less Discount: ")
-                p.row(f'  - {memberDiscountVal} {memberDiscountName}:', f'{totalMemberDiscount}')
-            else: 
-                p.row(f"Less Discount: ", "0.00")
-            
-            p.set(bold=True)
-            p.row("Net Sales: ", totalNetSales)
-            p.set(bold=False)
-            p.line()
-            
-            p.row("Vatable Amount: ", vatableAmount)
-            p.row("Vat Exempt Amount: ", vatExemptAmount)
-            p.row("12% Vat: ", vatAmount)
-            
-            p.set(bold=True)
-            p.row("Total Amount Due: ", totalNetSales)
-            
-            p.set(bold=False)
-            p.line()
-            
-            p.row("Tender Amount: ", get(transaction, 'tender.amount'))
-            p.row("Tender Type: ", upper_case(get(transaction, 'tender.type')))
-            p.row("Change: ", transaction["change"])
-
-            # This block only needed for dry run
-            # p.line()
-            # p.set(align='center', bold=True)
-            # p.write('*THIS DOCUMENT IS NOT VALID FOR CLAIM OF INPUT TAX*\n')
-
-            if(memberDiscount is not None):
+                p.set(align='left', bold=False)
                 p.line()
-                p.writeln()
+
+                if(reprint):
+                    p.row("Reprint Date: ", dateNow.strftime("%Y-%m-%d %I:%M%p"))
+
+            
+                p.row("MIN: ", TERMINAL_MIN)
+                p.row("SN: ", TERMINAL_SN)
+                p.row("PTU No: ", TERMINAL_PTU_NO)
+                p.row("Date & Time: ", dt.strftime("%Y-%m-%d %I:%M%p"))
+                p.row("Cashier: ", start_case(cashier["first_name"] + " " + cashier["last_name"]))
+                if(transaction['status'] == 'completed'):
+                    p.row("Invoice #: ", str(transaction["invoiceNumber"]).zfill(6))
+                else:
+                    p.row("Serial #: ", str(transaction["serialNumber"]).zfill(6))
+                    p.row("Reference #: ", str(transaction["invoiceNumber"]).zfill(6))
+
+                p.line()
+                p.set(align='center', bold=True)
+                p.write('SOLD TO\n')
                 p.set(align='left', bold=False)
 
-                customerTypeId = customer.get('customer_type_id') or ('_' * 10) 
-                p.row(f'ID Member: ', f'{customerTypeId}\n')
-                p.row("Signature: ", f'{("_" * 12)}\n')
+                p.row("Name: ", start_case(to_lower(customer["name"])))
+                p.row("Address: ", start_case(to_lower(customer["address"])))
+                p.row("TIN: ", customer.get("tin_number") or "---")
 
-            p.set(align="center")
-            p.writeln('Supplier:')
-            p.set(align="center", bold=True)
-            p.write(dvote['name'].upper() + '\n')
-            p.set(align="center", bold=False)
-            p.writeln('VAT REG TIN ' + dvote['tin'])
-            p.writeln(upper_case(dvote['address']))
-            p.write('Accred No: ' + dvote['accredNo'] + '\n')
-            p.write('Date Issued: ' + dvote['accredDateIssued'] + '\n')
-            p.write('Valid Until: ' + '---' + '\n')
-            p.write('PTU No: ' + dvote.get('PTUno', '---') + '\n')
-            p.write('Date Issued: ' + dvote['ptuDateIssued'] + '\n\n')
-            p.writeln()
+                if(companyCopy):
+                    p.row("Age: ", customer["age"], transform=False)
+                    p.row("Birth Date: ", str(customer["birthDate"]).split("T")[0])
+                else:
+                    p.row("Age: ", "---")
+                    p.row("Birth Date: ", "---")
+                
+                p.row("Requested By: ", transaction.get("requestedByName", "---"))
+
+                p.line()
+                p.set(align='center', bold=True)
+                p.row("ITEM ", "|QTY|PRICE|AMOUNT")
+                p.set(align='left', bold=False)
+                p.line()
+
+                for key, items in groupby(transaction['transactionItems'], lambda i: i.get('package')):
+                    package = key
+
+                    indented = ''
+                    if(package is not None):
+                        indented = '  '
+                        p.write(f'> {package["name"]} \n')
+
+                    for item in list(items):
+                        amount = item['price'] if transaction['status'] != 'refunded' else item['price'] * -1
+                        p.writeln(str((indented + item["name"])[:22]).ljust(23) + f'({item["quantity"]})'.center(5) + str(amount).center(6) + str(amount).rjust(6))
+                
+                    if(package is not None):
+                        discounts = list(filter(lambda i: i.get('packageId') == package['id'] and i['memberType'] is None, transaction['discounts']))
+                        if(len(discounts) > 0):
+                            discount = discounts[0]
+                            totalDiscount = discount['value'] if discount['type'] == 'fixed' else (transaction['totalGrossSales'] * (discount['value'] / 100))
+                            p.row(f'  - Less: {discount["name"]}', f'- {"{:.2f}".format(totalDiscount)}')
+
+                p.line()
+                p.set(align='left', bold=True)
+            
+                totalSales = transaction['totalSalesWithoutMemberDiscount']
+                totalMemberDiscount = transaction['totalMemberDiscount']
+                totalNetSales = transaction['totalNetSales']
+            
+                # Calculate VAT components
+                vatableAmount = transaction.get('vatableAmount', 0.00)
+                vatExemptAmount = transaction.get('vatExemptAmount', totalNetSales if vatableAmount == 0 else 0.00)
+                vatAmount = transaction.get('vatAmount', 0.00)
+
+                p.row("Total Sales: ", totalSales)
+                p.set(bold=False)
+            
+                memberDiscountVal = f'{memberDiscount["value"]}%' if memberDiscount is not None else '0%'
+
+                if memberDiscount is not None: 
+                    p.writeln(f"Less Discount: ")
+                    p.row(f'  - {memberDiscountVal} {memberDiscountName}:', f'{totalMemberDiscount}')
+                else: 
+                    p.row(f"Less Discount: ", "0.00")
+            
+                p.set(bold=True)
+                p.row("Net Sales: ", totalNetSales)
+                p.set(bold=False)
+                p.line()
+            
+                p.row("Vatable Amount: ", vatableAmount)
+                p.row("Vat Exempt Amount: ", vatExemptAmount)
+                p.row("12% Vat: ", vatAmount)
+            
+                p.set(bold=True)
+                p.row("Total Amount Due: ", totalNetSales)
+            
+                p.set(bold=False)
+                p.line()
+            
+                p.row("Tender Amount: ", get(transaction, 'tender.amount'))
+                p.row("Tender Type: ", upper_case(get(transaction, 'tender.type')))
+                p.row("Change: ", transaction["change"])
+
+                # This block only needed for dry run
+                # p.line()
+                # p.set(align='center', bold=True)
+                # p.write('*THIS DOCUMENT IS NOT VALID FOR CLAIM OF INPUT TAX*\n')
+
+                if(memberDiscount is not None):
+                    p.line()
+                    p.writeln()
+                    p.set(align='left', bold=False)
+
+                    customerTypeId = customer.get('customer_type_id') or ('_' * 10) 
+                    p.row(f'ID Member: ', f'{customerTypeId}\n')
+                    p.row("Signature: ", f'{("_" * 12)}\n')
+
+                p.set(align="center")
+                p.writeln('Supplier:')
+                p.set(align="center", bold=True)
+                p.write(dvote['name'].upper() + '\n')
+                p.set(align="center", bold=False)
+                p.writeln('VAT REG TIN ' + dvote['tin'])
+                p.writeln(upper_case(dvote['address']))
+                p.write('Accred No: ' + dvote['accredNo'] + '\n')
+                p.write('Date Issued: ' + dvote['accredDateIssued'] + '\n')
+                p.write('Valid Until: ' + '---' + '\n')
+                p.write('PTU No: ' + dvote.get('PTUno', '---') + '\n')
+                p.write('Date Issued: ' + dvote['ptuDateIssued'] + '\n\n')
+                p.writeln()
+                if copy_index < copies - 1:
+                    p.cut()
             
     except Exception as e: 
         return {

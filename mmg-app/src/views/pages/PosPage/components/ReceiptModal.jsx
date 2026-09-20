@@ -48,21 +48,17 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPri
     }
     const handlePrint2 = async () => {
         try {
+            // One request, not two: the helper journals the sale to ejournal.txt exactly once
+            // per request (see pos-helper-app print_receipt's `copies` handling) and prints
+            // `copies` physical copies within that same session — sending two separate requests
+            // here used to journal the same sale twice, once per copy.
             await onPrint({
                 ...receipt,
                 reprint,
                 transaction,
                 dvoteDetails,
+                copies: singlePrintOnly ? 1 : 2
             })
-            if (!singlePrintOnly) {
-                await onPrint({
-                    ...receipt,
-                    reprint,
-                    transaction,
-                    dvoteDetails,
-                    companyCopy: true
-                })
-            }
             if (!disableCloseAfterPrinting) {
                 onClose()
             }
