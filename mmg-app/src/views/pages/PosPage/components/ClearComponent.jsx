@@ -30,7 +30,7 @@ import { usePrinter } from 'providers/PrinterProvider';
 const validationSchema = Yup.object().shape({
     branchId: Yup.string().required(),
     cashierId: Yup.string().required(),
-    reason: Yup.string(),
+    reason: Yup.string().required('Reason is required'),
     status: Yup.string().required('Type is required'),
     invoiceNumber: Yup.number().required('Invoice Number is required'),
 });
@@ -161,6 +161,7 @@ export default memo(function ({ disabled, buttonProps }) {
                                         </TextField>
                                         <InvoiceNumberSelector options={cancellableInvoices} />
                                         <TextField
+                                            required
                                             name="reason"
                                             label="Reason"
                                             multiline

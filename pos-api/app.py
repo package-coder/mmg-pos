@@ -2,8 +2,10 @@
 import json
 import os
 
+from bson import ObjectId
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, request
+from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS, cross_origin
 
 from app.blueprints.audit_log import audit_log_bp
@@ -115,7 +117,22 @@ PORT = os.getenv('PORT')
 HOST = os.getenv('HOST')
 JWT_SECRET = os.getenv('JWT_SECRET_KEY')
 
+# No repository/aggregation pipeline in this app can be trusted to have hand-stripped every raw
+# bson.ObjectId before jsonify() sees it — a joined lookup (customer, cashier, branch, doctor...)
+# or an internal field like _sync.stamp_id routinely slips through, and Flask's default JSON
+# provider has no idea what an ObjectId is, so it 500s the whole endpoint. This is the single
+# place that makes ObjectId serializable everywhere in this app, instead of a per-endpoint
+# omit()/convert_objectid_to_str() call that has to be remembered on every new aggregation.
+class MongoJSONProvider(DefaultJSONProvider):
+    @staticmethod
+    def default(obj):
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        return DefaultJSONProvider.default(obj)
+
+
 app = Flask(__name__)
+app.json = MongoJSONProvider(app)
 
 
 cors = CORS(app, origins=["*", "*"])

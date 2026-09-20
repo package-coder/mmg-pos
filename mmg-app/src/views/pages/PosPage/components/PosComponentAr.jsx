@@ -1216,12 +1216,7 @@ const PosComponent = () => {
         />
         <RightDrawer open={drawerOpen} setOpen={setDrawerOpen}>
           {drawerContent === 'history' && (
-            <TransactionsSlideBar
-              cashierId={sessionItems?._id}
-              branch={branch}
-              role={sessionItems?.role?.name}
-              onRestoreTransaction={handleRestoreTransaction}
-            />
+            <TransactionsSlideBar onRestoreTransaction={handleRestoreTransaction} />
           )}
           {drawerContent === 'services' && <ServicesPage mode="view" />}
           {drawerContent === 'dreport' && <DailyReport cashierId={sessionItems?._id} branchId={branch?.id} />}

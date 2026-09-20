@@ -34,11 +34,13 @@ const features = [
 ];
 
 const COLUMN = Object.freeze({
-    FULL_ACCESS: 'full_access',
     READ: 'read',
     CREATE: 'create',
-    UPDATE: 'update'
+    UPDATE: 'update',
+    DELETE: 'delete'
 });
+
+const PERMISSION_COLUMNS = [COLUMN.READ, COLUMN.CREATE, COLUMN.UPDATE, COLUMN.DELETE];
 
 const formatKey = (key) => toLower(snakeCase(key));
 
@@ -79,6 +81,16 @@ export default function ({ initialValues, disabled = false }) {
     const toggleColumn = (column, row) => (e) => {
         const value = e.target.checked;
 
+        // Master "Full Access" switch — grants/revokes every permission on every resource
+        if (!column && !row) {
+            const newPermissions = features.reduce((prev, curr) => {
+                const key = formatKey(curr);
+                return { ...prev, [key]: Object.fromEntries(PERMISSION_COLUMNS.map((col) => [col, value])) };
+            }, {});
+            setPermissions(newPermissions);
+            return;
+        }
+
         if (column && row) {
             const newPermissions = {
                 ...permissions,
@@ -91,14 +103,11 @@ export default function ({ initialValues, disabled = false }) {
             return;
         }
 
+        // Per-row "Full Access" toggle — grants/revokes every permission for that resource
         if (row) {
             const newPermissions = {
                 ...permissions,
-                [row]: {
-                    [COLUMN.CREATE]: value,
-                    [COLUMN.READ]: value,
-                    [COLUMN.UPDATE]: value
-                }
+                [row]: Object.fromEntries(PERMISSION_COLUMNS.map((col) => [col, value]))
             };
 
             setPermissions(newPermissions);
@@ -126,25 +135,21 @@ export default function ({ initialValues, disabled = false }) {
     const renderSwitch = (column, row) => {
         let checked;
 
-        console.log('column', column, row);
-
         const isEveryColumnChecked = (row) => {
-            let values = permissions?.[row];
-            values = values ? Object.values(values) : [];
-            return values.length === 3 && values.every((permission) => !!permission);
+            const values = permissions?.[row];
+            return values ? PERMISSION_COLUMNS.every((col) => !!values[col]) : false;
         };
 
-        const isEveryRowChecked = (column) => {
-            const values = Object.entries(permissions);
-            console.log(values);
-            return (
-                values.length === features.length && values.every(([key, value]) => (!column ? isEveryColumnChecked(key) : !!value[column]))
-            );
-        };
+        const isEveryRowChecked = (column) =>
+            features.every((feature) => {
+                const key = formatKey(feature);
+                return column ? !!permissions?.[key]?.[column] : isEveryColumnChecked(key);
+            });
 
         if (column && row) checked = permissions?.[row]?.[column];
         else if (column) checked = isEveryRowChecked(column);
         else if (row) checked = isEveryColumnChecked(row);
+        else checked = isEveryRowChecked(null);
 
         return <Switch checked={checked === true} onChange={toggleColumn(column, row)} />;
     };
@@ -178,8 +183,6 @@ export default function ({ initialValues, disabled = false }) {
 
     if (!open) return renderButton();
 
-    console.log('initialValues', initialValues);
-
     return (
         <React.Fragment>
             {renderButton()}
@@ -194,7 +197,9 @@ export default function ({ initialValues, disabled = false }) {
                 >
                     {({ handleSubmit, submitForm, isSubmitting, handleChange, handleBlur, values }) => (
                         <form noValidate onSubmit={handleSubmit}>
-                            <DialogTitle sx={{ fontSize: '1.1rem', mb: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <DialogTitle
+                                sx={{ fontSize: '1.1rem', mb: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                            >
                                 Edit Role
                                 <IconButton onClick={handleClose} size="small" aria-label="Close">
                                     <CloseIcon fontSize="small" />
@@ -209,8 +214,11 @@ export default function ({ initialValues, disabled = false }) {
                                     onBlur={handleBlur} // Handle blur for Formik
                                     sx={{ mt: 1, mb: 2 }}
                                 />
-                                <Typography className="required" variant="h5" ml={1} mb={1} color="grey.400" fontWeight="regular">
+                                <Typography className="required" variant="h5" ml={1} mb={0.25} color="grey.400" fontWeight="regular">
                                     Authorizations
+                                </Typography>
+                                <Typography variant="caption" ml={1} mb={1} color="text.secondary" display="block">
+                                    Toggle Full Access to grant every permission for a resource in one step.
                                 </Typography>
                                 <TableContainer component={Paper}>
                                     <Table>
@@ -229,15 +237,17 @@ export default function ({ initialValues, disabled = false }) {
                                                 <TableCell width={0}>Read</TableCell>
                                                 <TableCell width={0}>Create</TableCell>
                                                 <TableCell width={0}>Update</TableCell>
+                                                <TableCell width={0}>Delete</TableCell>
                                             </TableRow>
                                             <TableRow>
-                                                <TableCell sx={{ py: 1.3 }}>All Items</TableCell>
+                                                <TableCell sx={{ py: 1.3, fontWeight: 600 }}>All Items</TableCell>
                                                 <TableCell sx={{ py: 0, width: 0 }} align="center">
-                                                    {renderSwitch(COLUMN.FULL_ACCESS, null)}
+                                                    {renderSwitch(null, null)}
                                                 </TableCell>
                                                 <TableCell sx={{ py: 0, width: 0 }}>{renderSwitch(COLUMN.READ, null)}</TableCell>
                                                 <TableCell sx={{ py: 0, width: 0 }}>{renderSwitch(COLUMN.CREATE, null)}</TableCell>
                                                 <TableCell sx={{ py: 0, width: 0 }}>{renderSwitch(COLUMN.UPDATE, null)}</TableCell>
+                                                <TableCell sx={{ py: 0, width: 0 }}>{renderSwitch(COLUMN.DELETE, null)}</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
@@ -250,12 +260,15 @@ export default function ({ initialValues, disabled = false }) {
                                                         },
                                                         '& .MuiTableCell-root': {
                                                             fontSize: '1rem'
+                                                        },
+                                                        '&:hover': {
+                                                            backgroundColor: 'action.hover'
                                                         }
                                                     }}
                                                 >
                                                     <TableCell sx={{ py: 1.3 }}>{feature}</TableCell>
                                                     <TableCell sx={{ py: 0, width: 0 }} align="center">
-                                                        {renderSwitch(COLUMN.FULL_ACCESS, formatKey(feature))}
+                                                        {renderSwitch(null, formatKey(feature))}
                                                     </TableCell>
                                                     <TableCell sx={{ py: 0, width: 0 }}>
                                                         {renderSwitch(COLUMN.READ, formatKey(feature))}
@@ -265,6 +278,9 @@ export default function ({ initialValues, disabled = false }) {
                                                     </TableCell>
                                                     <TableCell sx={{ py: 0, width: 0 }}>
                                                         {renderSwitch(COLUMN.UPDATE, formatKey(feature))}
+                                                    </TableCell>
+                                                    <TableCell sx={{ py: 0, width: 0 }}>
+                                                        {renderSwitch(COLUMN.DELETE, formatKey(feature))}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}

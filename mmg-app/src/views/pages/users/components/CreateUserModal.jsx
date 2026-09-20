@@ -88,7 +88,9 @@ export default function ({ disabled = false }) {
                 >
                     {({ handleSubmit, submitForm, isSubmitting }) => (
                         <form noValidate onSubmit={handleSubmit}>
-                            <DialogTitle sx={{ fontSize: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <DialogTitle
+                                sx={{ fontSize: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                            >
                                 New User
                                 <IconButton onClick={handleClose} size="small" aria-label="Close">
                                     <CloseIcon fontSize="small" />
@@ -96,6 +98,11 @@ export default function ({ disabled = false }) {
                             </DialogTitle>
                             <DialogContent sx={{ mt: 1 }}>
                                 <Grid container spacing={2}>
+                                    <Grid item xs={12}>
+                                        <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                                            Account details
+                                        </Typography>
+                                    </Grid>
                                     <Grid item xs={3}>
                                         <Typography className="required" variant="caption">
                                             Name
@@ -138,7 +145,12 @@ export default function ({ disabled = false }) {
                                         />
                                     </Grid>
                                     <Grid item xs={12}>
-                                        <Divider />
+                                        <Divider sx={{ my: 0.5 }} />
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                        <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                                            Access
+                                        </Typography>
                                     </Grid>
                                     <Grid item xs={3}>
                                         <Typography className="required" variant="caption">

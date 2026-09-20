@@ -246,11 +246,22 @@ class CashierReportRepository(Repository):
                 {
                     '$project': {
                         "discounts._id": 0,
+                        # The discount row's own transactionId, converted to a real ObjectId
+                        # earlier in this pipeline for the $lookup match — jsonify() has no
+                        # encoder for ObjectId, so leaving it in the response 500s the endpoint
+                        # whenever any discount is present.
+                        "discounts.transactionId": 0,
                         "discounts.transaction._id": 0,
                         "discounts.transaction.transactionId": 0,
                         "discounts.transaction.transactionItems": 0,
+                        "discounts.transaction._sync": 0,
                         "transactions._id": 0,
                         "transactions.transactionItems": 0,
+                        # The full raw transaction document is embedded here (this lookup has no
+                        # projection of its own) — _sync is internal sync-outbox bookkeeping whose
+                        # stamp_id is a real ObjectId; jsonify() has no encoder for it and 500s the
+                        # whole endpoint the first time a transaction with a populated _sync exists.
+                        "transactions._sync": 0,
                         "sales._id": 0,
                         'cashierId': 0,
                         "openingFundId": 0,
@@ -277,7 +288,11 @@ class CashierReportRepository(Repository):
             reports = []
             for item in data:
                 discountSummary = {}
-                discounts = filter(lambda i: i['memberType'] is not None, item['discounts'])
+                # Only a still-completed discount row counts here. A cancelled/refunded sale's
+                # discount must not stay counted — no offsetting discount row is ever created for
+                # the void/refund mirror document (only the original's row has its status flipped),
+                # so counting it regardless of status double-counts a reversed discount forever.
+                discounts = filter(lambda i: i['memberType'] is not None and i['status'] == TransactionStatus.COMPLETED, item['discounts'])
                 for key, value in groupby(discounts, lambda i: i['memberType']):
                     total = sum(map(lambda i: i['transaction']['totalMemberDiscount'], value))
                     total += discountSummary.get(key, 0)
@@ -296,12 +311,17 @@ class CashierReportRepository(Repository):
                 item['totalPayments'] = sum(map(lambda i: i['tender']['amount'], transactions))
                 item['totalPayments'] += get(item, 'endingCashCount.total') or 0
 
+                withdrawal = get(item, 'withdraw') or 0
                 if(item.get('sales') is not None):
                     openingFundTotal = get(item, 'openingFund.total') or 0
-                    difference = item['totalPayments'] - openingFundTotal - item['sales']['totalNetSales']
+                    # Short/Over must add back what was legitimately withdrawn — expected cash in
+                    # the drawer is opening fund + net sales MINUS withdrawals, so without adding
+                    # it back here a withdrawal reads as a cash shortage instead of an accounted-
+                    # for removal.
+                    difference = item['totalPayments'] - openingFundTotal - item['sales']['totalNetSales'] + withdrawal
                     item['sales']['cashDifference'] = difference
-                
-                item['totalPayments'] -= get(item, 'withdraw') or 0
+
+                item['totalPayments'] -= withdrawal
 
                 transactionSummary = {}
                 transactions = filter(lambda i: get(i, 'tender.type') is not None and i['status'] == 'completed', item['transactions'])

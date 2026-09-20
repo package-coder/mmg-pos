@@ -72,7 +72,7 @@ function Content({ report, reprint }) {
             {renderGridItem('End. Cancel #: ', String(report.cancelledNumber?.ending || 0).padStart(6, '0'))}
             {renderGridItem('Beg. Refund #: ', String(report.refundedNumber?.beginning || 0).padStart(6, '0'))}
             {renderGridItem('End. Refund #: ', String(report.refundedNumber?.ending || 0).padStart(6, '0'))}
-            {renderGridItem('Z-Counter #: ', 1)}
+            {renderGridItem('Z-Counter #: ', report.zCounter ?? 1)}
             {renderGridItem('Reset Counter: ', 0)}
             {/* {renderGridItem('Ending Cash On Hand: ', report.endingCashOnHandTotal || 0)} */}
             {renderDivider()}

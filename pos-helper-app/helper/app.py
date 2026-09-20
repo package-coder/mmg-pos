@@ -511,7 +511,7 @@ def print_report(data: dict = {}):
                 p.row("End. Cancel #: ", str(cancel.get('ending', 0)).zfill(6))
                 p.row("Beg. Refund #: ", str(refund.get('beginning', 0)).zfill(6))
                 p.row("End. Refund #: ", str(refund.get('ending', 0)).zfill(6))
-                p.row("Z-Counter #: ", str(1))
+                p.row("Z-Counter #: ", str(sales.get('zCounter', 1)))
                 p.row("Reset Counter: ", "0")
 
                 p.line()

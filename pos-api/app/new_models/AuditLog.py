@@ -21,6 +21,9 @@ class AuditCode(IntEnum):
     TRANSACTION_CREATE_ERR = 3101
     TRANSACTION_CREATE_ERR_SALES = 3201
     INVOICE_NUMBER_GAP = 3301
+    TRANSACTION_CANCEL = 3401
+    TRANSACTION_REFUND = 3402
+    TRANSACTION_CANCEL_REJECTED = 3403
     CASHIER_REPORT_TIME_IN = 4001
     CASHIER_REPORT_TIME_IN_ERR = 4101
     CASHIER_REPORT_TIME_IN_DUPLICATE = 4102
@@ -56,6 +59,9 @@ DEFAULT_MESSAGES = {
     AuditCode.TRANSACTION_CREATE_ERR: "Failed to create transaction.",
     AuditCode.TRANSACTION_CREATE_ERR_SALES: "Failed to create sales record for transaction.",
     AuditCode.INVOICE_NUMBER_GAP: "A sequential number (invoice or cancel/refund serial) was allocated but the transaction failed to save — gap requires review.",
+    AuditCode.TRANSACTION_CANCEL: "Transaction cancelled.",
+    AuditCode.TRANSACTION_REFUND: "Transaction refunded.",
+    AuditCode.TRANSACTION_CANCEL_REJECTED: "Cancel/refund attempt rejected.",
     AuditCode.CASHIER_REPORT_TIME_IN: "Cashier timed in.",
     AuditCode.CASHIER_REPORT_TIME_IN_ERR: "Failed to time in cashier report.",
     AuditCode.CASHIER_REPORT_TIME_IN_DUPLICATE: "Duplicate time-in attempt blocked — a shift report already exists for this cashier/branch/date.",

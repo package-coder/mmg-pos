@@ -1,11 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Box,
     Typography,
     MenuItem,
-    FormControl,
-    InputLabel,
-    Select,
+    TextField,
     Button,
     Table,
     TableBody,
@@ -13,15 +11,14 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    Paper,
     Stack,
     Checkbox,
     ListItemText,
     Card,
-    CardContent,
-    CircularProgress // Import CircularProgress for loading spinner
+    CircularProgress
 } from '@mui/material';
-import MainCard from 'ui-component/cards/MainCard';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import { useForm, Controller } from 'react-hook-form';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment';
@@ -31,15 +28,30 @@ import { useQuery } from 'react-query';
 import moment from 'moment';
 import { CSVLink } from 'react-csv';
 
+import Currency from 'ui-component/Currency';
+import ReportPagination from 'ui-component/ReportPagination';
+
 // api
 import branch from 'api/branch';
 import report from 'api/report';
 // end
 
+const REPORT_TYPES = [
+    { value: 'comparativeData', label: 'Comparative Data' },
+    { value: 'paymentType', label: 'Payment Type' },
+    { value: 'typesOfClient', label: 'Types of Client' },
+    { value: 'summaryIncome', label: 'Summary Income' },
+    { value: 'packagesReports', label: 'Package Reports' },
+    { value: 'salesJournal', label: 'Sales Journal' },
+    { value: 'cashReceiptsJournal', label: 'Cash Receipts Journal' }
+];
+
 const ExampleTabs = () => {
     const [reportData, setReportData] = useState(null);
     const [typeOfReport, setTypeOfReport] = useState(null);
     const [queryParams, setQueryParams] = useState({ reportType: null, branch: [], startDate: null, endDate: null });
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
 
     // Fetch branch data once and cache it
     const { data: branches } = useQuery('branches', branch.GetAllBranch);
@@ -56,11 +68,10 @@ const ExampleTabs = () => {
         handleSubmit,
         formState: { errors },
         watch,
-        reset // Add reset function
+        reset
     } = useForm({
         resolver: yupResolver(schema),
         defaultValues: {
-            // Define default values for all fields
             reportType: '',
             branch: [],
             startDate: null,
@@ -71,43 +82,31 @@ const ExampleTabs = () => {
     const watchReportType = watch('reportType');
 
     // Query to fetch reports
-    const {
-        refetch,
-        isLoading,
-    } = useQuery(['reports', queryParams], () => report.GetReports(queryParams), {
-        enabled: !!queryParams.reportType && queryParams.branch.length > 0 && !!queryParams.startDate && !!queryParams.endDate, // Only fetch when all parameters are defined
+    const { isLoading, isRefetching } = useQuery(['reports', queryParams], () => report.GetReports(queryParams), {
+        enabled: !!queryParams.reportType && queryParams.branch.length > 0 && !!queryParams.startDate && !!queryParams.endDate,
         onSuccess: (data) => {
             setReportData(data);
             setTypeOfReport(queryParams.reportType);
+            setPage(0);
         }
     });
 
-    // dynamic generation of table
-    // const columns = Object.keys(reportData[0]);
-    // console.log('columns', columns);
+    const loading = isLoading || isRefetching;
 
     const handleGenerateReport = (data) => {
-        const { reportType, branch, startDate, endDate } = data;
+        const { reportType, branch: branchIds, startDate, endDate } = data;
 
-        // Format dates
-        const formatDate = (date, reportType) => {
-            const format = watchReportType === 'comparativeData' ? 'MM/YYYY' : 'MM/DD/YYYY';
+        const formatDate = (date) => {
+            const format = reportType === 'comparativeData' ? 'MM/YYYY' : 'MM/DD/YYYY';
             return moment(date).format(format);
         };
 
-
-        console.log('formatDate', formatDate(startDate))
-
-        // Set query parameters
         setQueryParams({
             reportType,
-            branch,
+            branch: branchIds,
             startDate: formatDate(startDate),
             endDate: formatDate(endDate)
         });
-
-        // Refetch data
-        refetch();
     };
 
     const handleReset = () => {
@@ -118,6 +117,8 @@ const ExampleTabs = () => {
             endDate: null
         });
         setTypeOfReport(null);
+        setReportData(null);
+        setQueryParams({ reportType: null, branch: [], startDate: null, endDate: null });
     };
 
     const getDatePickerProps = (name) => ({
@@ -126,69 +127,75 @@ const ExampleTabs = () => {
         render: ({ field }) => (
             <DatePicker
                 {...field}
-                label={`${name} Date`}
+                label={`${name === 'startDate' ? 'Start' : 'End'} Date`}
                 size="small"
                 views={watchReportType === 'comparativeData' ? ['month', 'year'] : ['year', 'day']}
                 format={watchReportType === 'comparativeData' ? 'MM YYYY' : 'ddd, DD MMM YYYY'}
                 slotProps={{
                     textField: {
-                        fullWidth: true,
+                        size: 'small',
                         error: !!errors[name],
                         helperText: errors[name] ? errors[name].message : '',
-                    },
+                        sx: { minWidth: 180 }
+                    }
                 }}
             />
-        ),
+        )
     });
 
+    const reportTitle = REPORT_TYPES.find((option) => option.value === typeOfReport)?.label;
+    const periodLabel = queryParams.startDate && queryParams.endDate ? `${queryParams.startDate} – ${queryParams.endDate}` : null;
+    const branchLabel = useMemo(() => {
+        if (!branches || !queryParams.branch?.length) return null;
+        return queryParams.branch
+            .map((id) => branches.find((b) => b.id === id)?.name)
+            .filter(Boolean)
+            .join(', ');
+    }, [branches, queryParams.branch]);
+
+    const handlePrint = () => window.print();
 
     const csvData = useMemo(() => {
         if (!reportData || reportData.length === 0) return [];
 
-        console.log('reportData', reportData);
-
         switch (typeOfReport) {
-            case 'comparativeData':
+            case 'comparativeData': {
                 const dateKeys = Object.keys(reportData).filter((key) => key !== 'diff');
                 const uniqueCategories = Array.from(new Set(dateKeys.flatMap((date) => reportData[date].map((item) => item.name))));
 
                 return uniqueCategories.map((categoryName) => ({
                     Details: categoryName,
-                    "Last Year Count": reportData[dateKeys[0]]?.find((item) => item.name === categoryName)?.count || 0,
-                    "Last Year Revenue": reportData[dateKeys[0]]?.find((item) => item.name === categoryName)?.revenue || 0,
-                    "This Year Count": reportData[dateKeys[1]]?.find((item) => item.name === categoryName)?.count || 0,
-                    "This Year Revenue": reportData[dateKeys[1]]?.find((item) => item.name === categoryName)?.revenue || 0,
-                    "% Increase/Decrease": reportData.diff?.find((item) => item.name === categoryName)?.['% INCREASE/DECREASE'] || 'N/A'
+                    'Last Year Count': reportData[dateKeys[0]]?.find((item) => item.name === categoryName)?.count || 0,
+                    'Last Year Revenue': reportData[dateKeys[0]]?.find((item) => item.name === categoryName)?.revenue || 0,
+                    'This Year Count': reportData[dateKeys[1]]?.find((item) => item.name === categoryName)?.count || 0,
+                    'This Year Revenue': reportData[dateKeys[1]]?.find((item) => item.name === categoryName)?.revenue || 0,
+                    '% Increase/Decrease': reportData.diff?.find((item) => item.name === categoryName)?.['% INCREASE/DECREASE'] || 'N/A'
                 }));
-            case 'paymentType':
-                // Create a set of unique category names across all branches
+            }
+            case 'paymentType': {
                 const uniqueCategoriesPType = new Set();
-                reportData.forEach((branch) => {
-                    branch.categories.forEach((category) => uniqueCategoriesPType.add(category.name));
-                });
-
-                // Convert the set to an array for easier mapping
+                reportData.forEach((b) => b.categories.forEach((category) => uniqueCategoriesPType.add(category.name)));
                 const categoryNames = Array.from(uniqueCategoriesPType);
-
-                // Create the header row for the CSV
-                const headerRow = ['Type of Examination', ...reportData.map((branch) => branch.name).flatMap((branchName) => [`${branchName} Cash`, `${branchName} AR`, `${branchName} Total`])];
-
-                // Create the data rows for the CSV
+                const headerRow = [
+                    'Type of Examination',
+                    ...reportData
+                        .map((b) => b.name)
+                        .flatMap((branchName) => [`${branchName} Cash`, `${branchName} AR`, `${branchName} Total`])
+                ];
                 const dataRows = categoryNames.map((categoryName) => {
                     const row = [categoryName];
-                    reportData.forEach((branch) => {
-                        const category = branch.categories.find((cat) => cat.name === categoryName);
+                    reportData.forEach((b) => {
+                        const category = b.categories.find((cat) => cat.name === categoryName);
                         if (category) {
                             row.push(category.Cash, category.AR, category.Cash + category.AR);
                         } else {
-                            row.push(0, 0, 0); // If category doesn't exist for a branch, fill with zeros
+                            row.push(0, 0, 0);
                         }
                     });
                     return row;
                 });
-
-                // Combine header and data rows
                 return [headerRow, ...dataRows];
+            }
             case 'typesOfClient':
                 return reportData.flatMap((location) =>
                     location.types.map((type) => ({
@@ -198,89 +205,63 @@ const ExampleTabs = () => {
                         Count: type.count
                     }))
                 );
-            case 'summaryIncome':
-                // Create a set of unique category names across all branches
+            case 'summaryIncome': {
                 const uniqueCategoriesSumIncome = new Set();
-                reportData.forEach((branch) => {
-                    branch.categories.forEach((category) => uniqueCategoriesSumIncome.add(category.name));
-                });
-
-                // Convert the set to an array for easier mapping
+                reportData.forEach((b) => b.categories.forEach((category) => uniqueCategoriesSumIncome.add(category.name)));
                 const categoryNamesSi = Array.from(uniqueCategoriesSumIncome);
-
-                // Create the header row for the CSV
-                const headerRowSi = ['Services', ...reportData.map((branch) => branch.name).flatMap((branchName) => [`${branchName} Cash`, `${branchName} Charge`, `${branchName} Total`])];
-
-                // Create the data rows for the CSV
+                const headerRowSi = [
+                    'Services',
+                    ...reportData
+                        .map((b) => b.name)
+                        .flatMap((branchName) => [`${branchName} Cash`, `${branchName} Charge`, `${branchName} Total`])
+                ];
                 const dataRowsSi = categoryNamesSi.map((categoryName) => {
                     const row = [categoryName];
-                    reportData.forEach((branch) => {
-                        const category = branch.categories.find((cat) => cat.name === categoryName);
+                    reportData.forEach((b) => {
+                        const category = b.categories.find((cat) => cat.name === categoryName);
                         if (category) {
                             row.push(category.cash, category.charge, category.total);
                         } else {
-                            row.push(0, 0, 0); // If category doesn't exist for a branch, fill with zeros
+                            row.push(0, 0, 0);
                         }
                     });
                     return row;
                 });
-
-                // Combine header and data rows
                 return [headerRowSi, ...dataRowsSi];
-            case 'packagesReports':
-                // Extract unique package names across all branches and months
+            }
+            case 'packagesReports': {
                 const uniquePackageNames = new Set();
-                reportData.forEach((branch) => {
-                    Object.values(branch.table).forEach((monthData) => {
-                        monthData.packages.forEach((pkg) => uniquePackageNames.add(pkg.name));
-                    });
-                });
+                reportData.forEach((b) =>
+                    Object.values(b.table).forEach((monthData) => monthData.packages.forEach((pkg) => uniquePackageNames.add(pkg.name)))
+                );
                 const packageNames = Array.from(uniquePackageNames);
-
-                // Extract branches from the reportData
-                const branches = reportData.map((branch) => branch.name);
-                // Extract unique months across all branches
-                const months = Array.from(new Set(reportData?.flatMap((branch) => Object.keys(branch.table))));
-
-                // Create the header row for the CSV
+                const branchNames = reportData.map((b) => b.name);
+                const months = Array.from(new Set(reportData?.flatMap((b) => Object.keys(b.table))));
                 const headerRowPr = ['Branch Name', 'Package Name', ...months.flatMap((month) => [`${month} Amount`, `${month} Count`])];
-
-                // Create the data rows for the CSV
-                const dataRowsPr = packageNames.flatMap((packageName) => {
-                    return branches.map((branchName) => {
-                        const branchData = reportData.find((branch) => branch.name === branchName);
+                const dataRowsPr = packageNames.flatMap((packageName) =>
+                    branchNames.map((branchName) => {
+                        const branchData = reportData.find((b) => b.name === branchName);
                         const row = [branchName, packageName];
                         months.forEach((month) => {
                             const packageData = branchData?.table[month]?.packages.find((pkg) => pkg.name === packageName);
                             row.push(packageData?.amount || 0, packageData?.count || 0);
                         });
                         return row;
-                    });
-                });
-
-                // Combine header and data rows
+                    })
+                );
                 return [headerRowPr, ...dataRowsPr];
+            }
             case 'salesJournal':
-                return reportData.map((branch) => ({
-                    'Ref No': branch.refNo,
-                    Customer: branch.customer,
-                    Address: branch.address,
-                    Date: moment(branch.date).format('MM/DD/YYYY'),
-                    'Gross Sales': branch.grossSales,
-                    Discount: branch?.discount ? branch?.discount?.toFixed(2) : 0.00,
-                    'Net Sales': branch.netSales,
-                    'Discount Type': branch.discountType ? branch.discountType : 'none'
-                }));
             case 'cashReceiptsJournal':
-                return reportData.map((branch) => ({
-                    'Ref No': branch.refNo,
-                    Customer: branch.customer,
-                    Address: branch.address,
-                    Date: moment(branch.date).format('MM/DD/YYYY'),
-                    'Gross Sales': branch.grossSales,
-                    Discount: branch?.discount ? branch?.discount?.toFixed(2) : 0.00,
-                    'Net Sales': branch.netSales,
-                    'Discount Type': branch.discountType ? branch.discountType : 'none'
+                return reportData.map((b) => ({
+                    'Ref No': b.refNo,
+                    Customer: b.customer,
+                    Address: b.address,
+                    Date: moment(b.date).format('MM/DD/YYYY'),
+                    'Gross Sales': b.grossSales,
+                    Discount: b?.discount ? b?.discount?.toFixed(2) : 0.0,
+                    'Net Sales': b.netSales,
+                    'Discount Type': b.discountType ? b.discountType : 'none'
                 }));
             default:
                 return [];
@@ -289,24 +270,33 @@ const ExampleTabs = () => {
 
     const renderReport = () => {
         switch (typeOfReport) {
-            case 'comparativeData':
+            case 'comparativeData': {
                 const dateKeys = Object.keys(reportData).filter((key) => key !== 'diff');
                 const uniqueCategories = Array.from(new Set(dateKeys.flatMap((date) => reportData[date].map((item) => item.name))));
 
                 return (
-                    <TableContainer component={Paper}>
-                        <Table sx={{ minWidth: 800 }} aria-label="payment type table">
+                    <TableContainer>
+                        <Table sx={{ minWidth: 800 }} aria-label="comparative data table">
                             <TableHead>
-                                <TableRow>
-                                    <TableCell>Type of Examination</TableCell>
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                                        TYPE OF EXAMINATION
+                                    </TableCell>
                                     {dateKeys.map((date) => (
-                                        <TableCell align="center" colSpan={2} key={date}>
+                                        <TableCell
+                                            align="center"
+                                            colSpan={2}
+                                            key={date}
+                                            sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}
+                                        >
                                             {date}
                                         </TableCell>
                                     ))}
-                                    <TableCell align="center">Difference</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                                        DIFFERENCE
+                                    </TableCell>
                                 </TableRow>
-                                <TableRow>
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
                                     <TableCell />
                                     {dateKeys.map((date) => (
                                         <React.Fragment key={date}>
@@ -319,14 +309,16 @@ const ExampleTabs = () => {
                             </TableHead>
                             <TableBody>
                                 {uniqueCategories.map((categoryName) => (
-                                    <TableRow key={categoryName}>
+                                    <TableRow key={categoryName} hover>
                                         <TableCell>{categoryName}</TableCell>
                                         {dateKeys.map((date) => {
                                             const category = reportData[date].find((item) => item.name === categoryName) || {};
                                             return (
                                                 <React.Fragment key={date}>
                                                     <TableCell align="center">{(category.count || 0).toFixed(2)}</TableCell>
-                                                    <TableCell align="center">{(category.revenue || 0).toFixed(2)}</TableCell>
+                                                    <TableCell align="center">
+                                                        <Currency value={category.revenue || 0} />
+                                                    </TableCell>
                                                 </React.Fragment>
                                             );
                                         })}
@@ -339,23 +331,31 @@ const ExampleTabs = () => {
                         </Table>
                     </TableContainer>
                 );
+            }
             case 'paymentType':
                 return (
-                    <TableContainer component={Paper}>
+                    <TableContainer>
                         <Table sx={{ minWidth: 800 }} aria-label="payment type table">
                             <TableHead>
-                                <TableRow>
-                                    <TableCell>Type of Examination</TableCell>
-                                    {reportData.map((branch) => (
-                                        <TableCell align="center" colSpan={3} key={branch.name}>
-                                            {branch.name}
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                                        TYPE OF EXAMINATION
+                                    </TableCell>
+                                    {reportData.map((b) => (
+                                        <TableCell
+                                            align="center"
+                                            colSpan={3}
+                                            key={b.name}
+                                            sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}
+                                        >
+                                            {b.name}
                                         </TableCell>
                                     ))}
                                 </TableRow>
-                                <TableRow>
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
                                     <TableCell />
-                                    {reportData.map((branch) => (
-                                        <React.Fragment key={branch.name}>
+                                    {reportData.map((b) => (
+                                        <React.Fragment key={b.name}>
                                             <TableCell align="center">Cash</TableCell>
                                             <TableCell align="center">AR</TableCell>
                                             <TableCell align="center">Total</TableCell>
@@ -364,44 +364,55 @@ const ExampleTabs = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {Array.from(new Set(reportData.flatMap((branch) => branch.categories.map((cat) => cat.name)))).map(
-                                    (categoryName) => (
-                                        <TableRow key={categoryName}>
-                                            <TableCell>{categoryName}</TableCell>
-                                            {reportData.map((branch) => {
-                                                const category = branch.categories.find((cat) => cat.name === categoryName) || {};
-                                                return (
-                                                    <React.Fragment key={branch.name}>
-                                                        <TableCell align="center">{(category.Cash || 0).toFixed(2)}</TableCell>
-                                                        <TableCell align="center">{(category.AR || 0).toFixed(2)}</TableCell>
-                                                        <TableCell align="center">{((category.Cash + category.AR )|| 0).toFixed(2)}</TableCell>
-                                                    </React.Fragment>
-                                                );
-                                            })}
-                                        </TableRow>
-                                    )
-                                )}
+                                {Array.from(new Set(reportData.flatMap((b) => b.categories.map((cat) => cat.name)))).map((categoryName) => (
+                                    <TableRow key={categoryName} hover>
+                                        <TableCell>{categoryName}</TableCell>
+                                        {reportData.map((b) => {
+                                            const category = b.categories.find((cat) => cat.name === categoryName) || {};
+                                            return (
+                                                <React.Fragment key={b.name}>
+                                                    <TableCell align="center">
+                                                        <Currency value={category.Cash || 0} />
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <Currency value={category.AR || 0} />
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <Currency value={(category.Cash || 0) + (category.AR || 0)} />
+                                                    </TableCell>
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </TableRow>
+                                ))}
                             </TableBody>
                         </Table>
                     </TableContainer>
                 );
             case 'typesOfClient':
                 return (
-                    <TableContainer component={Paper}>
+                    <TableContainer>
                         <Table>
                             <TableHead>
-                                <TableRow>
-                                    <TableCell>Type of Membership</TableCell>
-                                    {reportData.map((branch) => (
-                                        <TableCell align="center" colSpan={2} key={branch.name}>
-                                            {branch.name}
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                                        TYPE OF MEMBERSHIP
+                                    </TableCell>
+                                    {reportData.map((b) => (
+                                        <TableCell
+                                            align="center"
+                                            colSpan={2}
+                                            key={b.name}
+                                            sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}
+                                        >
+                                            {b.name}
                                         </TableCell>
                                     ))}
                                 </TableRow>
-                                <TableRow>
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
                                     <TableCell />
-                                    {reportData.map((branch) => (
-                                        <React.Fragment key={branch.name}>
+                                    {reportData.map((b) => (
+                                        <React.Fragment key={b.name}>
                                             <TableCell align="center">Count</TableCell>
                                             <TableCell align="center">Amount</TableCell>
                                         </React.Fragment>
@@ -409,43 +420,48 @@ const ExampleTabs = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {Array.from(new Set(reportData.flatMap((branch) => branch.types.map((cat) => cat.name)))).map(
-                                    (categoryName) => (
-                                        <TableRow key={categoryName}>
-                                            <TableCell>{categoryName}</TableCell>
-                                            {reportData.map((branch) => {
-                                                const category = branch.types.find((cat) => cat.name === categoryName) || {};
-                                                return (
-                                                    <React.Fragment key={branch.name}>
-                                                        <TableCell align="center">{(category.count || 0).toFixed(2)}</TableCell>
-                                                        <TableCell align="center">{(category.amount || 0).toFixed(2)}</TableCell>
-                                                    </React.Fragment>
-                                                );
-                                            })}
-                                        </TableRow>
-                                    )
-                                )}
+                                {Array.from(new Set(reportData.flatMap((b) => b.types.map((cat) => cat.name)))).map((categoryName) => (
+                                    <TableRow key={categoryName} hover>
+                                        <TableCell>{categoryName}</TableCell>
+                                        {reportData.map((b) => {
+                                            const category = b.types.find((cat) => cat.name === categoryName) || {};
+                                            return (
+                                                <React.Fragment key={b.name}>
+                                                    <TableCell align="center">{(category.count || 0).toFixed(2)}</TableCell>
+                                                    <TableCell align="center">
+                                                        <Currency value={category.amount || 0} />
+                                                    </TableCell>
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </TableRow>
+                                ))}
                             </TableBody>
                         </Table>
                     </TableContainer>
                 );
             case 'summaryIncome':
                 return (
-                    <TableContainer component={Paper}>
+                    <TableContainer>
                         <Table>
                             <TableHead>
-                                <TableRow>
-                                    <TableCell>Services</TableCell>
-                                    {reportData.map((branch) => (
-                                        <TableCell align="center" colSpan={3} key={branch.name}>
-                                            {branch.name}
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>SERVICES</TableCell>
+                                    {reportData.map((b) => (
+                                        <TableCell
+                                            align="center"
+                                            colSpan={3}
+                                            key={b.name}
+                                            sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}
+                                        >
+                                            {b.name}
                                         </TableCell>
                                     ))}
                                 </TableRow>
-                                <TableRow>
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
                                     <TableCell />
-                                    {reportData.map((branch) => (
-                                        <React.Fragment key={branch.name}>
+                                    {reportData.map((b) => (
+                                        <React.Fragment key={b.name}>
                                             <TableCell align="center">Cash</TableCell>
                                             <TableCell align="center">Charge</TableCell>
                                             <TableCell align="center">Total</TableCell>
@@ -454,52 +470,57 @@ const ExampleTabs = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {Array.from(new Set(reportData.flatMap((branch) => branch.categories.map((cat) => cat.name)))).map(
-                                    (categoryName) => (
-                                        <TableRow key={categoryName}>
-                                            <TableCell>{categoryName}</TableCell>
-                                            {reportData.map((branch) => {
-                                                const category = branch.categories.find((cat) => cat.name === categoryName) || {};
-                                                return (
-                                                    <React.Fragment key={branch.id}>
-                                                        <TableCell align="center">{(category.cash || 0).toFixed(2)}</TableCell>
-                                                        <TableCell align="center">{(category.charge || 0).toFixed(2)}</TableCell>
-                                                        <TableCell align="center">{(category.total || 0).toFixed(2)}</TableCell>
-                                                    </React.Fragment>
-                                                );
-                                            })}
-                                        </TableRow>
-                                    )
-                                )}
+                                {Array.from(new Set(reportData.flatMap((b) => b.categories.map((cat) => cat.name)))).map((categoryName) => (
+                                    <TableRow key={categoryName} hover>
+                                        <TableCell>{categoryName}</TableCell>
+                                        {reportData.map((b) => {
+                                            const category = b.categories.find((cat) => cat.name === categoryName) || {};
+                                            return (
+                                                <React.Fragment key={b.id || b.name}>
+                                                    <TableCell align="center">
+                                                        <Currency value={category.cash || 0} />
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <Currency value={category.charge || 0} />
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <Currency value={category.total || 0} />
+                                                    </TableCell>
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </TableRow>
+                                ))}
                             </TableBody>
                         </Table>
                     </TableContainer>
                 );
-            case 'packagesReports':
-                // Extract branches from the reportData
-                const branches = reportData.map((branch) => branch.name);
-                // Extract unique months across all branches
-                const months = Array.from(new Set(reportData?.flatMap((branch) => Object.keys(branch.table))));
-
-                console.log('reportData', reportData);
-                console.log('branches', months);
+            case 'packagesReports': {
+                const months = Array.from(new Set(reportData?.flatMap((b) => Object.keys(b.table))));
 
                 return (
-                    <TableContainer component={Paper}>
+                    <TableContainer>
                         <Table>
                             <TableHead>
-                                <TableRow>
-                                    <TableCell>Branch Name</TableCell>
-                                    <TableCell>Package Name</TableCell>
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                                        BRANCH NAME
+                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                                        PACKAGE NAME
+                                    </TableCell>
                                     {months.map((month) => (
-                                        <React.Fragment key={month}>
-                                            <TableCell align="center" colSpan={2}>
-                                                {month}
-                                            </TableCell>
-                                        </React.Fragment>
+                                        <TableCell
+                                            align="center"
+                                            colSpan={2}
+                                            key={month}
+                                            sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}
+                                        >
+                                            {month}
+                                        </TableCell>
                                     ))}
                                 </TableRow>
-                                <TableRow>
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
                                     <TableCell />
                                     <TableCell />
                                     {months.map((month) => (
@@ -511,17 +532,18 @@ const ExampleTabs = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {/* Iterate over each branch */}
-                                {reportData?.map((branch) =>
-                                    branch?.table[months[0]].packages.map((pkg) => (
-                                        <TableRow key={`${branch.id}-${pkg.id}`}>
-                                            <TableCell>{branch.name}</TableCell>
+                                {reportData?.map((b) =>
+                                    b?.table[months[0]].packages.map((pkg) => (
+                                        <TableRow key={`${b.id}-${pkg.id}`} hover>
+                                            <TableCell>{b.name}</TableCell>
                                             <TableCell>{pkg.name}</TableCell>
                                             {months.map((month) => {
-                                                const packageData = branch.table[month]?.packages.find((p) => p.id === pkg.id) || {};
+                                                const packageData = b.table[month]?.packages.find((p) => p.id === pkg.id) || {};
                                                 return (
                                                     <React.Fragment key={month}>
-                                                        <TableCell align="center">{(packageData.amount || 0).toFixed(2)}</TableCell>
+                                                        <TableCell align="center">
+                                                            <Currency value={packageData.amount || 0} />
+                                                        </TableCell>
                                                         <TableCell align="center">{(packageData.count || 0).toFixed(2)}</TableCell>
                                                     </React.Fragment>
                                                 );
@@ -533,187 +555,258 @@ const ExampleTabs = () => {
                         </Table>
                     </TableContainer>
                 );
+            }
             case 'salesJournal':
+            case 'cashReceiptsJournal': {
+                const paginated = reportData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
                 return (
-                    <TableContainer component={Paper}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Ref No</TableCell>
-                                    <TableCell>Customer</TableCell>
-                                    <TableCell>Address</TableCell>
-                                    <TableCell>Date</TableCell>
-                                    <TableCell>Gross Sales</TableCell>
-                                    <TableCell>Discount</TableCell>
-                                    <TableCell>Net Sales</TableCell>
-                                    <TableCell>Discount Type</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {reportData?.map((branch) => (
-                                    <TableRow key={branch.id}>
-                                        <TableCell>{branch.refNo}</TableCell>
-                                        <TableCell>{branch.customer}</TableCell>
-                                        <TableCell>{branch.address}</TableCell>
-                                        <TableCell>{moment(branch.date).format('MM/DD/YYYY')}</TableCell>
-                                        <TableCell>{branch.grossSales}</TableCell>
-                                        <TableCell>{branch?.discount ? branch?.discount?.toFixed(2) : 0.00}</TableCell>
-                                        <TableCell>{branch.netSales}</TableCell>
-                                        <TableCell>{branch.discountType ? branch.discountType : 'none'}</TableCell>
+                    <>
+                        <TableContainer>
+                            <Table>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                        {[
+                                            'Ref No',
+                                            'Customer',
+                                            'Address',
+                                            'Date',
+                                            'Gross Sales',
+                                            'Discount',
+                                            'Net Sales',
+                                            'Discount Type'
+                                        ].map((head) => (
+                                            <TableCell key={head} sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                                                {head.toUpperCase()}
+                                            </TableCell>
+                                        ))}
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                                </TableHead>
+                                <TableBody>
+                                    {paginated?.map((b) => (
+                                        <TableRow key={b.id} hover>
+                                            <TableCell>{b.refNo}</TableCell>
+                                            <TableCell>{b.customer}</TableCell>
+                                            <TableCell>{b.address}</TableCell>
+                                            <TableCell sx={{ textWrap: 'nowrap' }}>{moment(b.date).format('MM/DD/YYYY')}</TableCell>
+                                            <TableCell>
+                                                <Currency value={b.grossSales} />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Currency value={b?.discount || 0} />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Currency value={b.netSales} />
+                                            </TableCell>
+                                            <TableCell>{b.discountType ? b.discountType : 'none'}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                        <ReportPagination
+                            count={reportData.length}
+                            page={page}
+                            onPageChange={setPage}
+                            rowsPerPage={rowsPerPage}
+                            onRowsPerPageChange={(value) => {
+                                setRowsPerPage(value);
+                                setPage(0);
+                            }}
+                            itemLabel="entries"
+                        />
+                    </>
                 );
-            case 'cashReceiptsJournal':
-                return (
-                    <TableContainer component={Paper}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Ref No</TableCell>
-                                    <TableCell>Customer</TableCell>
-                                    <TableCell>Address</TableCell>
-                                    <TableCell>Date</TableCell>
-                                    <TableCell>Gross Sales</TableCell>
-                                    <TableCell>Discount</TableCell>
-                                    <TableCell>Net Sales</TableCell>
-                                    <TableCell>Discount Type</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {reportData?.map((branch) => (
-                                    <TableRow key={branch.id}>
-                                        <TableCell>{branch.refNo}</TableCell>
-                                        <TableCell>{branch.customer}</TableCell>
-                                        <TableCell>{branch.address}</TableCell>
-                                        <TableCell>{moment(branch.date).format('MM/DD/YYYY')}</TableCell>
-                                        <TableCell>{branch.grossSales}</TableCell>
-                                        <TableCell>{branch?.discount ? branch?.discount?.toFixed(2) : 0.00}</TableCell>
-                                        <TableCell>{branch.netSales}</TableCell>
-                                        <TableCell>{branch.discountType ? branch.discountType : 'none'}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                );
+            }
             default:
                 return null;
         }
     };
 
-    return (
-        <MainCard title="General Reports">
-            <Card>
-                <CardContent>
-                    <LocalizationProvider dateAdapter={AdapterMoment}>
-                        <form onSubmit={handleSubmit(handleGenerateReport)}>
-                            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                                <Stack direction="row" justifyContent="flex-start" alignItems="center" spacing={2}>
-                                    <Controller
-                                        name="reportType"
-                                        control={control}
-                                        render={({ field }) => (
-                                            <FormControl fullWidth error={!!errors.reportType}>
-                                                <InputLabel id="report-type-label">Report Type</InputLabel>
-                                                <Select labelId="report-type-label" {...field} label="Report Type">
-                                                    <MenuItem value="comparativeData">Comparative Data</MenuItem>
-                                                    <MenuItem value="paymentType">Payment Type</MenuItem>
-                                                    <MenuItem value="typesOfClient">Types of Client</MenuItem>
-                                                    <MenuItem value="summaryIncome">Summary Income</MenuItem>
-                                                    <MenuItem value="packagesReports">Package Reports</MenuItem>
-                                                    <MenuItem value="salesJournal">Sales Journal</MenuItem>
-                                                    <MenuItem value="cashReceiptsJournal">Cash Receipts Journal</MenuItem>
-                                                </Select>
-                                                {errors.reportType && <Typography color="error">{errors.reportType.message}</Typography>}
-                                            </FormControl>
-                                        )}
-                                    />
-                                    <Controller
-                                        name="branch"
-                                        control={control}
-                                        defaultValue={[]} // Ensure default value is an array
-                                        render={({ field }) => (
-                                            <FormControl fullWidth error={!!errors.branch}>
-                                                <InputLabel id="branch-label">Branch</InputLabel>
-                                                <Select
-                                                    labelId="branch-label"
-                                                    {...field}
-                                                    label="Branch"
-                                                    multiple={watchReportType !== 'comparativeData'} // Disable multiple selection for comparativeData
-                                                    renderValue={(selected) => {
-                                                        if (branches) {
-                                                            // Check if selected is an array before using map
-                                                            if (Array.isArray(selected)) {
-                                                                return selected
-                                                                    .map((value) => {
-                                                                        const branch = branches.find((b) => b.id === value);
-                                                                        return branch ? branch.name : '';
-                                                                    })
-                                                                    .join(', ');
-                                                            } else {
-                                                                // If selected is not an array, find the branch directly
-                                                                const branch = branches.find((b) => b.id === selected);
-                                                                return branch ? branch.name : '';
-                                                            }
-                                                        }
-                                                        return '';
-                                                    }}
-                                                    onChange={(event) => {
-                                                        // Update the field value with selected items
-                                                        // If multiple is false, only update with a single value
-                                                        field.onChange(watchReportType !== 'comparativeData' ? event.target.value : [event.target.value]);
-                                                    }}
-                                                >
-                                                    {branches?.map((branch) => (
-                                                        <MenuItem key={branch.id} value={branch.id}>
-                                                            <Checkbox checked={field.value.includes(branch.id)} />
-                                                            <ListItemText primary={branch.name} />
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                                {errors.branch && <Typography color="error">{errors.branch.message}</Typography>}
-                                            </FormControl>
-                                        )}
-                                    />
-
-                                    <Controller {...getDatePickerProps('startDate')} />
-                                    <Controller {...getDatePickerProps('endDate')} minDate={watch('startDate')} />
-                                </Stack>
-                                <Stack direction="row" justifyContent="center" alignItems="center" spacing={1}>
-                                    <CSVLink
-                                        data={csvData}
-                                        filename={`${typeOfReport || 'report'}-${moment().format('YYYYMMDDHHmmss')}.csv`}
-                                        style={{ textDecoration: 'none' }}
-                                    >
-                                        <Button variant="outlined" disabled={!csvData.length}>
-                                            Export CSV
-                                        </Button>
-                                    </CSVLink>
-                                    <Button variant="outlined" onClick={handleReset}>
-                                        Reset
-                                    </Button>
-                                    <Button variant="contained" type="submit">
-                                        Generate Report
-                                    </Button>
-                                </Stack>
-                            </Stack>
-                        </form>
-                    </LocalizationProvider>
-                </CardContent>
-            </Card>
-            <Box sx={{ mt: 3 }}>
-                {isLoading ? (
-                    <Stack alignItems="center" my={4}>
-                        <CircularProgress />
-                    </Stack>
-                ) : (
-                    renderReport() // Render the report
-                )}
+    const renderHeader = () => (
+        <Card className="no-print">
+            <Box sx={{ px: 3, py: 2.5 }}>
+                <Typography variant="h2" fontWeight={600}>
+                    General Reports
+                </Typography>
+                <Typography variant="body2" color="text.secondary" mt={0.5}>
+                    Configure parameters to generate branch audits, financial reconciliations, and operational reports.
+                </Typography>
             </Box>
-        </MainCard>
+        </Card>
+    );
+
+    const renderFilters = () => (
+        <Card className="no-print">
+            <Box sx={{ px: 3, py: 2.5 }}>
+                <LocalizationProvider dateAdapter={AdapterMoment}>
+                    <form onSubmit={handleSubmit(handleGenerateReport)}>
+                        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
+                            <Controller
+                                name="reportType"
+                                control={control}
+                                render={({ field }) => (
+                                    <TextField
+                                        {...field}
+                                        select
+                                        size="small"
+                                        label="Report Type"
+                                        error={!!errors.reportType}
+                                        helperText={errors.reportType?.message}
+                                        sx={{ minWidth: 200 }}
+                                    >
+                                        {REPORT_TYPES.map((option) => (
+                                            <MenuItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                )}
+                            />
+                            <Controller
+                                name="branch"
+                                control={control}
+                                defaultValue={[]}
+                                render={({ field }) => (
+                                    <TextField
+                                        {...field}
+                                        select
+                                        size="small"
+                                        label="Branch"
+                                        error={!!errors.branch}
+                                        helperText={errors.branch?.message}
+                                        sx={{ minWidth: 200 }}
+                                        SelectProps={{
+                                            multiple: watchReportType !== 'comparativeData',
+                                            renderValue: (selected) => {
+                                                if (!branches) return '';
+                                                if (Array.isArray(selected)) {
+                                                    return selected
+                                                        .map((value) => branches.find((b) => b.id === value)?.name)
+                                                        .filter(Boolean)
+                                                        .join(', ');
+                                                }
+                                                return branches.find((b) => b.id === selected)?.name || '';
+                                            }
+                                        }}
+                                        onChange={(event) =>
+                                            field.onChange(
+                                                watchReportType !== 'comparativeData' ? event.target.value : [event.target.value]
+                                            )
+                                        }
+                                    >
+                                        {branches?.map((b) => (
+                                            <MenuItem key={b.id} value={b.id}>
+                                                <Checkbox checked={field.value.includes(b.id)} />
+                                                <ListItemText primary={b.name} />
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                )}
+                            />
+                            <Controller {...getDatePickerProps('startDate')} />
+                            <Controller {...getDatePickerProps('endDate')} minDate={watch('startDate')} />
+                            <Box flex={1} />
+                            <CSVLink
+                                data={csvData}
+                                filename={`${typeOfReport || 'report'}-${moment().format('YYYYMMDDHHmmss')}.csv`}
+                                style={{ textDecoration: 'none' }}
+                            >
+                                <Button
+                                    variant="outlined"
+                                    color="inherit"
+                                    startIcon={<DescriptionOutlinedIcon />}
+                                    disabled={!csvData.length}
+                                >
+                                    Export CSV
+                                </Button>
+                            </CSVLink>
+                            <Button variant="outlined" color="inherit" onClick={handleReset}>
+                                Reset
+                            </Button>
+                            <Button variant="contained" type="submit">
+                                Generate Report
+                            </Button>
+                        </Stack>
+                    </form>
+                </LocalizationProvider>
+            </Box>
+        </Card>
+    );
+
+    const renderEmptyState = () => (
+        <Card className="no-print">
+            <Stack alignItems="center" spacing={1} py={6}>
+                <Typography variant="h5" color="text.secondary">
+                    No report generated yet
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                    Select a report type, branch, and date range above, then click Generate Report.
+                </Typography>
+            </Stack>
+        </Card>
+    );
+
+    const renderResult = () => (
+        <Card sx={{ overflow: 'hidden' }}>
+            <Box
+                sx={{
+                    px: 3,
+                    py: 2,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 2,
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottom: '1px solid',
+                    borderColor: 'divider'
+                }}
+            >
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                    <DescriptionOutlinedIcon color="action" />
+                    <Box>
+                        <Typography variant="h4" fontWeight={600}>
+                            {reportTitle}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            {branchLabel ? `Branch: ${branchLabel}` : 'All branches'}
+                            {periodLabel ? ` • Period: ${periodLabel}` : ''}
+                        </Typography>
+                    </Box>
+                </Stack>
+                <Button
+                    className="no-print"
+                    variant="outlined"
+                    color="inherit"
+                    size="small"
+                    startIcon={<PrintOutlinedIcon />}
+                    onClick={handlePrint}
+                >
+                    Print
+                </Button>
+            </Box>
+            {loading ? (
+                <Stack alignItems="center" py={6}>
+                    <CircularProgress size={28} />
+                </Stack>
+            ) : reportData && (Array.isArray(reportData) ? reportData.length === 0 : Object.keys(reportData).length === 0) ? (
+                <Stack alignItems="center" py={6}>
+                    <Typography color="text.secondary" variant="h5">
+                        No data available for this table
+                    </Typography>
+                </Stack>
+            ) : (
+                renderReport()
+            )}
+        </Card>
+    );
+
+    return (
+        <Stack spacing={2.5}>
+            <style>{'@media print { .no-print { display: none !important; } }'}</style>
+            {renderHeader()}
+            {renderFilters()}
+            {typeOfReport && reportData ? renderResult() : renderEmptyState()}
+        </Stack>
     );
 };
 

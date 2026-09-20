@@ -56,8 +56,21 @@ def ensure_indexes(db):
     db.transactions.create_index([("status", ASCENDING), ("cashierId", ASCENDING), ("date", ASCENDING)])
     db.transactions.create_index([("branchId", ASCENDING), ("date", ASCENDING)])
 
-    # branch_reports — queried by branchId+date to check for existing daily report
-    db.branch_reports.create_index([("branchId", ASCENDING), ("date", ASCENDING)])
+    # branch_reports — one Z-Report per branch per day. Previously a plain, non-unique index;
+    # generate_reports() had no existence check at all, so generating twice for the same
+    # branch/date silently inserted two documents, double-counting that day in every downstream
+    # aggregate that sums over branch_reports. Explicitly drop the old auto-named index first —
+    # create_index alone won't convert it to unique in place since the names differ.
+    try:
+        db.branch_reports.drop_index("branchId_1_date_1")
+    except OperationFailure:
+        pass
+    _create_or_replace_index(
+        db.branch_reports,
+        [("branchId", ASCENDING), ("date", ASCENDING)],
+        unique=True,
+        name="unique_branch_report_per_day",
+    )
 
     # audit_logs — typically queried by userId and datetime range
     db.audit_logs.create_index([("userId", ASCENDING)])
@@ -143,9 +156,15 @@ def ensure_indexes(db):
     # for the same logical counter (which would silently defeat the atomic $inc guarantee that
     # _get_next_sequence relies on). One index covers every counter shape in this collection —
     # {type, ptuNumber} for INVOICE_NUMBER/CANCEL_NUMBER/REFUND_NUMBER, {type, cashierId} for
-    # TRANSACTION_NUMBER — since `type` alone keeps the different shapes from ever colliding.
-    db.counters.create_index(
-        [("type", ASCENDING), ("ptuNumber", ASCENDING), ("cashierId", ASCENDING)],
+    # TRANSACTION_NUMBER, {type, branchId} for Z_COUNTER — since `type` alone keeps the different
+    # shapes from ever colliding. branchId must be part of this compound index (not just a bare
+    # {type, branchId} lookup left to collide on the others): a document missing a field indexes
+    # as null, so without branchId here every branch's Z_COUNTER counter would share the same
+    # (Z_COUNTER, null, null) key and collide with each other on the very first Z-Report generated
+    # by a second branch.
+    _create_or_replace_index(
+        db.counters,
+        [("type", ASCENDING), ("ptuNumber", ASCENDING), ("cashierId", ASCENDING), ("branchId", ASCENDING)],
         unique=True,
         name="unique_counter_key",
     )

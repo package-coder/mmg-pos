@@ -16,6 +16,7 @@ from app.repositories.transaction import TransactionRepository
 from app.repositories.transaction_discount import TransactionDiscountRepository
 from app.repositories.transaction_item import TransactionItemRepository
 from app.services.Transaction import TransactionService
+from app.utils.sync import pending_sync
 from app.utils.utils import convert_objectid_to_str, getLocalDateStr, getLocalTimeStr
 
 api = '/v2/transactions'
@@ -44,6 +45,27 @@ def _log_number_gap(user_id, number_type, number, ptu_number, branch_id, error):
                 'branchId': branch_id,
             },
             error=repr(error),
+        ))
+    except Exception:
+        pass
+
+
+def _log_cancel_rejected(user_id, model, message):
+    """A rejected cancel/refund attempt (wrong invoice, already processed, no permission, day
+    closed out) previously left no audit trail at all — only a mid-write crash produced an
+    (unrelated) INVOICE_NUMBER_GAP entry. Never raises: a logging failure must not mask the
+    original response.
+    """
+    try:
+        auditLogRepository.insert_one(AuditLog(
+            action=AuditCode.TRANSACTION_CANCEL_REJECTED,
+            userId=user_id,
+            data={
+                'invoiceNumber': model.invoiceNumber,
+                'branchId': model.branchId,
+                'requestedStatus': model.status,
+            },
+            message=message,
         ))
     except Exception:
         pass
@@ -330,7 +352,13 @@ def v3_cancel_transaction(user_id):
         # status="completed" and each create their own void document for the same invoice.
         transaction = transactionRepository._db[transactionRepository._collection].find_one_and_update(
             claim_query,
-            { "$set": { "status": model.status } },
+            # _sync must be refreshed here, not just on the void document below — this is a raw
+            # pymongo call (bypassing BackupRepository.update_one/update_one_bare, the only methods
+            # that normally do this), and without it the status flip on the ORIGINAL document is
+            # never re-flagged pending, so sync/app.py's push_pending never picks it up again: cloud
+            # would keep showing the original invoice as "completed" forever even though the new
+            # void/mirror document (inserted via insert_one, which does stamp _sync) arrives fine.
+            { "$set": { "status": model.status, "_sync": pending_sync() } },
             return_document=ReturnDocument.AFTER,
         )
 
@@ -342,14 +370,24 @@ def v3_cancel_transaction(user_id):
                 { "invoiceNumber": model.invoiceNumber, "branchId": model.branchId }, agreggate=False
             )
             if not existing:
-                return jsonify({'message': 'No transaction found for this invoice number on this branch.'}), 404
+                message = 'No transaction found for this invoice number on this branch.'
+                _log_cancel_rejected(user_id, model, message)
+                return jsonify({'message': message}), 404
             if existing.get('status') != TransactionStatus.COMPLETED:
-                return jsonify({'message': f"Transaction is already {existing.get('status')} and cannot be cancelled/refunded again."}), 409
+                message = f"Transaction is already {existing.get('status')} and cannot be cancelled/refunded again."
+                _log_cancel_rejected(user_id, model, message)
+                return jsonify({'message': message}), 409
             if not is_privileged and existing.get('cashierId') != user_id:
-                return jsonify({'message': 'You do not have permission to cancel this transaction — only the cashier who completed the sale, or a manager/admin for this branch, can do this.'}), 403
+                message = 'You do not have permission to cancel this transaction — only the cashier who completed the sale, or a manager/admin for this branch, can do this.'
+                _log_cancel_rejected(user_id, model, message)
+                return jsonify({'message': message}), 403
             if existing.get('date') != today:
-                return jsonify({'message': f"This transaction was completed on {existing.get('date')}, which is already closed out — it can no longer be cancelled or refunded from the POS. Contact back-office for a manual adjustment."}), 409
-            return jsonify({'message': 'Transaction could not be claimed — it may have just been processed by another request.'}), 409
+                message = f"This transaction was completed on {existing.get('date')}, which is already closed out — it can no longer be cancelled or refunded from the POS. Contact back-office for a manual adjustment."
+                _log_cancel_rejected(user_id, model, message)
+                return jsonify({'message': message}), 409
+            message = 'Transaction could not be claimed — it may have just been processed by another request.'
+            _log_cancel_rejected(user_id, model, message)
+            return jsonify({'message': message}), 409
 
         original_id = transaction["_id"]
         next_sequence = "CANCEL_NUMBER" if model.status == TransactionStatus.CANCELLED else "REFUND_NUMBER"
@@ -394,12 +432,26 @@ def v3_cancel_transaction(user_id):
             void_doc['reason'] = model.reason
 
             transactionRepository.insert_one(void_doc, refetch=False)
+
+            try:
+                auditLogRepository.insert_one(AuditLog(
+                    action=AuditCode.TRANSACTION_CANCEL if model.status == TransactionStatus.CANCELLED else AuditCode.TRANSACTION_REFUND,
+                    userId=user_id,
+                    data={
+                        'invoiceNumber': model.invoiceNumber,
+                        'branchId': model.branchId,
+                        'serialNumber': void_doc['serialNumber'],
+                        'reason': model.reason,
+                    },
+                ))
+            except Exception:
+                pass
         except Exception as e:
             rollback_error = None
             try:
                 transactionRepository._db[transactionRepository._collection].update_one(
                     { "_id": original_id, "status": model.status },
-                    { "$set": { "status": TransactionStatus.COMPLETED } }
+                    { "$set": { "status": TransactionStatus.COMPLETED, "_sync": pending_sync() } }
                 )
                 discountRepository.update_many_bare({ "transactionId": str(original_id) }, { "status": TransactionStatus.COMPLETED })
             except Exception as rollback_e:

@@ -128,6 +128,10 @@ class TransactionRepository(BackupRepository):
                         'customerId': 0,
                         "discounts._id": 0,
                         "transactionItems._id": 0,
+                        # Internal sync-outbox bookkeeping — stamp_id is a real ObjectId with no
+                        # jsonify() encoder, so leaving it in crashes this endpoint the moment any
+                        # transaction has gone through the sync-stamping path (BackupRepository).
+                        '_sync': 0,
                         'cashier': {
                             'password': 0,
                         }

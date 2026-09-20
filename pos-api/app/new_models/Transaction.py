@@ -253,7 +253,9 @@ class ContinueTransaction(BaseModel):
     cashierId: str
     
 class CreateCancelledTransaction(BaseModel):
-    reason: Optional[str] = None
+    # A BIR-style void/refund document requires a reason on record — this is the accountable
+    # explanation for a serial number appearing in the CANCEL_NUMBER/REFUND_NUMBER range.
+    reason: str = Field(..., min_length=1)
     branchId: str
     invoiceNumber: int
     transactionNumber: Optional[int] = None

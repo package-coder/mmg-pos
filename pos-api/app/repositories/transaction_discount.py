@@ -53,6 +53,9 @@ class TransactionDiscountRepository(Repository):
                         'transactionId': 0,
                         'customerId': 0,
                         'branchId': 0,
+                        # Internal sync-outbox bookkeeping on the joined transaction — stamp_id is
+                        # a real ObjectId with no jsonify() encoder.
+                        'transaction._sync': 0,
                     }
                 },
                 # { '$sort': {"_id":-1} },

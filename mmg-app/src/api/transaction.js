@@ -14,7 +14,12 @@ async function CreateTransactionV2(model) {
 
     let discounts = items
         .filter(s => s.source != 'labTest')
-        .filter(s => s.discount != null)
+        // A package with no discount configured defaults to `discount: 0` (a plain number, set
+        // by PackageForm's defaultValues) rather than null/undefined — `!= null` doesn't catch
+        // that falsy-but-non-null case, so it used to pass this filter and then spread as `{...0}`
+        // (an empty object), producing a discount entry with no type/name/value and a 400 from
+        // the backend's Discount model. Require it to actually be an object with real fields.
+        .filter(s => s.discount && typeof s.discount === 'object' && s.discount.name)
         .map(s => ({
             ...s.discount,
             packageId: s._id,

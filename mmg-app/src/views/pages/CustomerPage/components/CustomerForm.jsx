@@ -64,12 +64,11 @@ const CustomerSchema = Yup.object().shape({
         .min(11, 'Contact number must be at least 11 digits long'),
     age: Yup.number().required('Customer Type is required'),
     customerType: Yup.string().required('Customer Type is required'),
-    customerTypeId: Yup.string()
-        .when('customerType', {
-            is: (val) => val === 'seniorcitizenpwd' || val === 'solo-parent',
-            then: (schema) => schema.required('ID Number is required'),
-            otherwise: (schema) => schema
-        }),
+    customerTypeId: Yup.string().when('customerType', {
+        is: (val) => val === 'seniorcitizenpwd' || val === 'solo-parent',
+        then: (schema) => schema.required('ID Number is required'),
+        otherwise: (schema) => schema
+    }),
     childName: Yup.string().when('customerType', {
         is: 'solo-parent',
         then: (schema) => schema.required('Child Name is required'),
@@ -169,7 +168,7 @@ const SectionHeader = ({ index, title, caption }) => (
     </Box>
 );
 
-const CustomerForm = () => {
+const CustomerForm = ({ onClose }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const queryClient = useQueryClient();
@@ -210,7 +209,6 @@ const CustomerForm = () => {
 
     const [initialData, setInitialData] = useState(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
 
     const [provinces, setProvinces] = useState([]);
     const [municipalities, setMunicipalities] = useState({});
@@ -292,7 +290,14 @@ const CustomerForm = () => {
         }
     }, [childBirthDate, setValue]);
 
+    // When rendered inside a modal (e.g. the POS screen's Add Customer dialog), onClose is
+    // provided and used in place of react-router navigation — navigating away would leave
+    // whatever page embedded this form (the live POS transaction) instead of just closing it.
     const handleNavigation = () => {
+        if (onClose) {
+            onClose();
+            return;
+        }
         navigate('/dashboard/customers');
     };
 
@@ -413,12 +418,16 @@ const CustomerForm = () => {
     };
 
     const handleBack = () => {
+        if (onClose) {
+            onClose();
+            return;
+        }
         navigate(-1);
     };
 
     const handleDelete = () => {
         console.log('Customer deleted:', initialData);
-        navigate(-1);
+        handleBack();
     };
 
     const handleOpenDeleteDialog = () => {
@@ -446,95 +455,110 @@ const CustomerForm = () => {
         <>
             <ToastContainer />
             <Stack spacing={2.5}>
-                {/* Header */}
-                <Card>
-                    <Box sx={{ px: 3, py: 2.5, display: 'flex', flexWrap: 'wrap', gap: 1.5, justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                            <IconButton aria-label="back" onClick={handleBack} sx={{ mt: 0.5 }}>
-                                <ArrowBackIcon />
-                            </IconButton>
-                            <Box>
-                                <Typography variant="h2" fontWeight={600}>
-                                    {initialData ? 'Edit Customer' : 'New Customer Registration'}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" mt={0.5}>
-                                    Enter complete demographic, contact, and residential information to establish a new client account.
-                                </Typography>
-                            </Box>
-                        </Stack>
-                        <Chip
-                            size="small"
-                            label="Fields marked with (*) are strictly required."
-                            sx={{ bgcolor: 'warning.light', color: 'warning.dark', fontWeight: 500 }}
-                        />
-                    </Box>
-                </Card>
+                {/* Header + Customer Type sit closer together than the rest of the sections. */}
+                <Stack spacing={1}>
+                    {/* Header */}
+                    <Card>
+                        <Box
+                            sx={{
+                                px: 3,
+                                py: 2.5,
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 1.5,
+                                justifyContent: 'space-between',
+                                alignItems: 'flex-start'
+                            }}
+                        >
+                            <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                                {!onClose && (
+                                    <IconButton aria-label="back" onClick={handleBack} sx={{ mt: 0.5 }}>
+                                        <ArrowBackIcon />
+                                    </IconButton>
+                                )}
+                                <Box>
+                                    <Typography variant="h2" fontWeight={600}>
+                                        {initialData ? 'Edit Customer' : 'New Customer Registration'}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" mt={0.5}>
+                                        Enter complete demographic, contact, and residential information to establish a new client account.
+                                    </Typography>
+                                </Box>
+                            </Stack>
+                            <Chip
+                                size="small"
+                                label="Fields marked with (*) are strictly required."
+                                sx={{ bgcolor: 'warning.light', color: 'warning.dark', fontWeight: 500 }}
+                            />
+                        </Box>
+                    </Card>
 
-                {/* Customer Type — pill selector */}
-                <Card>
-                    <Box sx={{ px: 3, py: 2.5 }}>
-                        <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="space-between" alignItems="center" mb={2}>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
-                                <Typography variant="overline" fontWeight={700} letterSpacing={0.5} lineHeight={1}>
-                                    Customer Type
-                                    <Box component="span" sx={{ color: 'warning.dark', ml: 0.3 }}>
-                                        *
-                                    </Box>
+                    {/* Customer Type — pill selector */}
+                    <Card>
+                        <Box sx={{ px: 3, py: 2.5 }}>
+                            <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="space-between" alignItems="center" mb={2}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
+                                    <Typography variant="overline" fontWeight={700} letterSpacing={0.5} lineHeight={1}>
+                                        Customer Type
+                                        <Box component="span" sx={{ color: 'warning.dark', ml: 0.3 }}>
+                                            *
+                                        </Box>
+                                    </Typography>
+                                </Stack>
+                                <Typography variant="caption" color="text.secondary">
+                                    Select client membership or institutional role
                                 </Typography>
                             </Stack>
-                            <Typography variant="caption" color="text.secondary">
-                                Select client membership or institutional role
-                            </Typography>
-                        </Stack>
-                        <Controller
-                            name="customerType"
-                            control={control}
-                            render={({ field }) => (
-                                <ToggleButtonGroup
-                                    exclusive
-                                    value={field.value || ''}
-                                    onChange={(e, newValue) => {
-                                        if (newValue !== null) field.onChange(newValue);
-                                    }}
-                                    sx={{ flexWrap: 'wrap', gap: 1 }}
-                                >
-                                    {CUSTOMER_TYPE_OPTIONS.map((option) => (
-                                        <ToggleButton
-                                            key={option.value}
-                                            value={option.value}
-                                            sx={{
-                                                borderRadius: '20px !important',
-                                                border: '1px solid',
-                                                borderColor: 'divider',
-                                                px: 2,
-                                                py: 0.5,
-                                                textTransform: 'none',
-                                                fontSize: '0.8125rem',
-                                                '&.Mui-selected': {
-                                                    bgcolor: 'primary.main',
-                                                    borderColor: 'primary.main',
-                                                    color: 'primary.contrastText',
-                                                    '&:hover': {
-                                                        bgcolor: 'primary.dark'
+                            <Controller
+                                name="customerType"
+                                control={control}
+                                render={({ field }) => (
+                                    <ToggleButtonGroup
+                                        exclusive
+                                        value={field.value || ''}
+                                        onChange={(e, newValue) => {
+                                            if (newValue !== null) field.onChange(newValue);
+                                        }}
+                                        sx={{ flexWrap: 'wrap', gap: 1 }}
+                                    >
+                                        {CUSTOMER_TYPE_OPTIONS.map((option) => (
+                                            <ToggleButton
+                                                key={option.value}
+                                                value={option.value}
+                                                sx={{
+                                                    borderRadius: '20px !important',
+                                                    border: '1px solid',
+                                                    borderColor: 'divider',
+                                                    px: 2,
+                                                    py: 0.5,
+                                                    textTransform: 'none',
+                                                    fontSize: '0.8125rem',
+                                                    '&.Mui-selected': {
+                                                        bgcolor: 'primary.main',
+                                                        borderColor: 'primary.main',
+                                                        color: 'primary.contrastText',
+                                                        '&:hover': {
+                                                            bgcolor: 'primary.dark'
+                                                        }
                                                     }
-                                                }
-                                            }}
-                                        >
-                                            {field.value === option.value && <CheckIcon sx={{ fontSize: 16, mr: 0.5 }} />}
-                                            {option.label}
-                                        </ToggleButton>
-                                    ))}
-                                </ToggleButtonGroup>
+                                                }}
+                                            >
+                                                {field.value === option.value && <CheckIcon sx={{ fontSize: 16, mr: 0.5 }} />}
+                                                {option.label}
+                                            </ToggleButton>
+                                        ))}
+                                    </ToggleButtonGroup>
+                                )}
+                            />
+                            {errors.customerType && (
+                                <FormHelperText error sx={{ mt: 1 }}>
+                                    {errors.customerType.message}
+                                </FormHelperText>
                             )}
-                        />
-                        {errors.customerType && (
-                            <FormHelperText error sx={{ mt: 1 }}>
-                                {errors.customerType.message}
-                            </FormHelperText>
-                        )}
-                    </Box>
-                </Card>
+                        </Box>
+                    </Card>
+                </Stack>
 
                 {/* Section 01 — Personal Information */}
                 <Card sx={{ overflow: 'hidden' }}>

@@ -69,7 +69,9 @@ export default function ({ initialValues, disabled = false }) {
                 >
                     {({ handleSubmit, submitForm, isSubmitting }) => (
                         <form noValidate onSubmit={handleSubmit}>
-                            <DialogTitle sx={{ fontSize: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <DialogTitle
+                                sx={{ fontSize: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                            >
                                 Edit User
                                 <IconButton onClick={handleClose} size="small" aria-label="Close">
                                     <CloseIcon fontSize="small" />
@@ -77,6 +79,11 @@ export default function ({ initialValues, disabled = false }) {
                             </DialogTitle>
                             <DialogContent>
                                 <Grid container spacing={2}>
+                                    <Grid item xs={12}>
+                                        <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                                            Account details
+                                        </Typography>
+                                    </Grid>
                                     <Grid item xs={3}>
                                         <Typography className="required" variant="caption">
                                             Name
@@ -97,7 +104,12 @@ export default function ({ initialValues, disabled = false }) {
                                         <TextField name="username" helperText placeholder="Username" />
                                     </Grid>
                                     <Grid item xs={12}>
-                                        <Divider />
+                                        <Divider sx={{ my: 0.5 }} />
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                        <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                                            Access
+                                        </Typography>
                                     </Grid>
                                     <Grid item xs={3}>
                                         <Typography className="required" variant="caption">
@@ -116,13 +128,13 @@ export default function ({ initialValues, disabled = false }) {
                                         <BranchSelector />
                                     </Grid>
                                     <Grid item xs={12}>
-                                        <Divider />
+                                        <Divider sx={{ my: 0.5 }} />
                                     </Grid>
                                     <Grid item xs={3}>
                                         <Typography variant="caption">Active</Typography>
                                     </Grid>
                                     <Grid item xs={9}>
-                                        <Field name="isActive">{({ field }) => <Switch {...field} />}</Field>
+                                        <Field name="isActive">{({ field }) => <Switch {...field} checked={!!field.value} />}</Field>
                                     </Grid>
                                 </Grid>
                             </DialogContent>

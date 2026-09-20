@@ -18,6 +18,7 @@ build/
 .env
 .env.local
 .env.*.local
+docker-compose.override.yml
 
 # SSH keys — never belong in the repo
 *.pem

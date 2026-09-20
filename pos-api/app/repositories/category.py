@@ -78,6 +78,9 @@ class CategoryRepository(Repository):
                     '$project': {
                         'transactionItems._id': 0,
                         'transactionItems.transactionId': 0,
+                        # Internal sync-outbox bookkeeping on the joined transaction — stamp_id is
+                        # a real ObjectId with no jsonify() encoder.
+                        'transactionItems.transaction._sync': 0,
                     }
                 },
                 # { '$sort': {"_id":-1} },
