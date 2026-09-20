@@ -16,24 +16,30 @@
 services:
 
   app:
-    build: ./mmg-app
+    # Production build served by nginx — NOT the Vite dev server (that's what
+    # docker-compose.yml uses for branch/LAN deployments). The dev server
+    # re-optimizes dependencies on first access to a not-yet-bundled import
+    # and force-reloads every connected browser tab over its HMR websocket;
+    # on a shared UAT box hit by multiple testers that looked like the app
+    # randomly restarting. VITE_* values are baked into the bundle at build
+    # time here (see mmg-app/Dockerfile.uat), not read at container runtime.
+    build:
+      context: ./mmg-app
+      dockerfile: Dockerfile.uat
+      args:
+        - VITE_APP_ENV=internal-production
+        - VITE_APP_BASE_NAME=/
+        - VITE_APP_SERVER_PORT=8001
+        - VITE_ROLE=admin
+        # TEMPORARY — reopens POS routes on this admin instance for testing.
+        # Turn back to false once testing is done; see PosRoutes.jsx.
+        - VITE_ALLOW_POS_ON_ADMIN=true
     image: chrisn0tdev/pos-client
     platform: linux/amd64
     ports:
-      - "80:5173"
+      - "80:80"
     depends_on:
       - server
-    volumes:
-      - ./mmg-app:/app
-      - /app/node_modules
-    environment:
-      - VITE_APP_ENV=internal-production
-      - VITE_APP_BASE_NAME=/
-      - VITE_APP_SERVER_PORT=8001
-      - VITE_ROLE=admin
-      # TEMPORARY — reopens POS routes on this admin instance for testing.
-      # Turn back to false once testing is done; see PosRoutes.jsx.
-      - VITE_ALLOW_POS_ON_ADMIN=true
     restart: always
 
   server:
