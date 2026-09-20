@@ -101,7 +101,12 @@ Symptoms: two "MMG Albay Main" branches, duplicate users or discounts, sales mis
 python sync/reconcile.py            # dry run: prints the plan, writes nothing
 python sync/reconcile.py --apply    # remaps references, backs up and removes duplicates
 python sync/reconcile.py --verify   # read-only check, exit code 1 on any mismatch
+python sync/reconcile.py --status   # when the sync last pushed / pulled (Manila time), what is waiting or rejected
 ```
+
+`--status` reads only the local database, so it works even when the cloud is unreachable. "Last push" and
+"last pull" move only when something really went up or came down; "last successful check" moves every
+cycle in which the cloud answered, and a failed cycle is shown with its error.
 
 It only ever writes to the local database. Needs `LOCAL_DATABASE_URL` and `REMOTE_DATABASE_URL`
 (inside the stack: `docker-compose exec sync python reconcile.py`).

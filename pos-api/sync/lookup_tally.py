@@ -369,17 +369,35 @@ def backup_and_remove_strays(local_db, id_map, lookups_with_strays, apply=False)
 
 # --- Reset -----------------------------------------------------------------
 
-def pending_upload_count(local_db):
-    """Sales/report docs that have not reached central yet (pending or parked
-    as a conflict). Wiping the database while any exist would destroy the only copy."""
+def _upload_queue(local_db, statuses):
     counts = {}
     existing = set(local_db.list_collection_names())
-    for name in UPSTREAM_COLLECTIONS:
+    for name in UPSTREAM_COLLECTIONS + BRANCH_ORIGINATED:
         if name in existing:
-            n = local_db[name].count_documents({'_sync.status': {'$in': ['pending', 'conflict']}})
+            n = local_db[name].count_documents({'_sync.status': {'$in': statuses}})
             if n:
                 counts[name] = n
     return counts
+
+
+def pending_upload_count(local_db):
+    """Sales/report/customer docs that have not reached central yet (pending or
+    parked as a conflict). Wiping the database while any exist would destroy the
+    only copy."""
+    return _upload_queue(local_db, ['pending', 'conflict'])
+
+
+def sync_status(local_db):
+    """Everything `reconcile.py --status` shows, as data: when each direction
+    last ran / succeeded / actually moved something / failed, and what is still
+    waiting to upload."""
+    meta = {d['_id']: d for d in local_db['sync_meta'].find({'_id': {'$in': ['upstream', 'downstream']}})}
+    return {
+        'upstream': meta.get('upstream', {}),
+        'downstream': meta.get('downstream', {}),
+        'waiting_to_upload': _upload_queue(local_db, ['pending']),
+        'conflicts': _upload_queue(local_db, ['conflict']),
+    }
 
 
 def reset_database(local_db):

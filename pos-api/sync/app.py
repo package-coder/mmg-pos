@@ -77,6 +77,28 @@ def get_client(name, url):
     return None
 
 
+_MANILA = datetime.timezone(datetime.timedelta(hours=8))
+
+
+def _stamp():
+  """Human-readable current time (Asia/Manila) for log lines."""
+  return datetime.datetime.now(_MANILA).strftime('%Y-%m-%d %I:%M:%S %p')
+
+
+def _write_meta(local_db, meta_id, fields):
+  """Record sync progress where `python reconcile.py --status` can read it.
+  Never raises: bookkeeping must not be able to break syncing."""
+  try:
+    # Mongo stores dates in UTC. Add a Manila-time text copy next to each one
+    # (last_push_at -> last_push_at_manila) so the raw record reads correctly too.
+    for key, value in list(fields.items()):
+      if key.endswith('_at') and isinstance(value, datetime.datetime):
+        fields[f'{key}_manila'] = value.replace(tzinfo=datetime.timezone.utc).astimezone(_MANILA).strftime('%Y-%m-%d %I:%M:%S %p (Manila)')
+    local_db['sync_meta'].update_one({'_id': meta_id}, {'$set': fields}, upsert=True)
+  except Exception as e:
+    print(f'[sync] Could not record {meta_id} status: {repr(e)}')
+
+
 def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client: pymongo.MongoClient, dest_db_name):
   """Upstream sync: push every doc flagged `_sync.status: pending` (skipping
   ones that already failed within the backoff window) from source to dest,
@@ -86,6 +108,9 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
   update) just overwrites dest with identical content — never a duplicate.
   """
   try:
+    # Prove central is reachable even when nothing is pending, so a quiet cycle
+    # can never look healthy while the cloud is actually unreachable.
+    dest_client.admin.command('ping')
     source_db = source_client[source_db_name]
     dest_db = dest_client[dest_db_name]
     now = datetime.datetime.utcnow()
@@ -181,15 +206,16 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
           level = 'WARNING' if attempts >= ATTEMPTS_WARNING_THRESHOLD else 'error'
           print(f'[upstream-sync] {level}: {collection_name}/{doc_id} attempt {attempts} failed: {repr(e)}')
 
-    source_db['sync_meta'].update_one(
-      {'_id': 'upstream'},
-      {'$set': {'last_run_at': now, 'pushed': pushed, 'failed': failed, 'conflicts': conflicts}},
-      upsert=True,
-    )
-    print(f'[upstream-sync] pushed={pushed} failed={failed} conflicts={conflicts}')
+    fields = {'last_run_at': now, 'last_success_at': now, 'pushed': pushed, 'failed': failed, 'conflicts': conflicts}
+    if pushed:
+      fields['last_push_at'] = now   # only when something really went up
+    _write_meta(source_db, 'upstream', fields)
+    print(f'[upstream-sync] {_stamp()} pushed={pushed} failed={failed} conflicts={conflicts}')
 
   except Exception as e:
-    print('[upstream-sync] Error: ', repr(e))
+    now = datetime.datetime.utcnow()
+    _write_meta(source_client[source_db_name], 'upstream', {'last_run_at': now, 'last_error_at': now, 'last_error': repr(e)[:300]})
+    print(f'[upstream-sync] {_stamp()} Error: ', repr(e))
 
 
 def pull_pending(remote_client: pymongo.MongoClient, remote_db_name, local_client: pymongo.MongoClient, local_db_name):
@@ -213,6 +239,7 @@ def pull_pending(remote_client: pymongo.MongoClient, remote_db_name, local_clien
   against a database with real history.
   """
   try:
+    remote_client.admin.command('ping')   # fail visibly if central is unreachable
     remote_db = remote_client[remote_db_name]
     local_db = local_client[local_db_name]
     now = datetime.datetime.utcnow()
@@ -226,7 +253,11 @@ def pull_pending(remote_client: pymongo.MongoClient, remote_db_name, local_clien
       watermark_doc = local_db['sync_meta'].find_one({'_id': watermark_id})
       last_stamp_id = watermark_doc['last_stamp_id'] if watermark_doc else None
 
-      query = {'_sync.stamp_id': {'$gt': last_stamp_id}} if last_stamp_id else {}
+      # Only STAMPED central docs are tracked by the watermark. With `{}` here, a collection
+      # whose central docs carry no stamp (everything a seeder wrote) never got a watermark,
+      # so every cycle re-copied the whole collection and overwrote local fixes. Unstamped
+      # docs are handled below by lookup_tally.mirror_unstamped, which copies only changes.
+      query = {'_sync.stamp_id': {'$gt': last_stamp_id}} if last_stamp_id else {'_sync.stamp_id': {'$exists': True}}
 
       remote_collection = remote_db[collection_name]
       local_collection = local_db[collection_name]
@@ -262,22 +293,26 @@ def pull_pending(remote_client: pymongo.MongoClient, remote_db_name, local_clien
               f'central does not have, so sales referencing them will not tally. '
               f'Run: python reconcile.py --verify')
 
-    local_db['sync_meta'].update_one(
-      {'_id': 'downstream'},
-      {'$set': {'last_run_at': now, 'pulled': pulled}},
-      upsert=True,
-    )
-    print(f'[downstream-sync] pulled={pulled}')
+    fields = {'last_run_at': now, 'last_success_at': now, 'pulled': pulled}
+    if pulled:
+      fields['last_pull_at'] = now   # only when something really came down
+    _write_meta(local_db, 'downstream', fields)
+    print(f'[downstream-sync] {_stamp()} pulled={pulled}')
 
   except Exception as e:
-    print('[downstream-sync] Error: ', repr(e))
+    now = datetime.datetime.utcnow()
+    _write_meta(local_client[local_db_name], 'downstream', {'last_run_at': now, 'last_error_at': now, 'last_error': repr(e)[:300]})
+    print(f'[downstream-sync] {_stamp()} Error: ', repr(e))
 
 
 def downstream_sync_data():
   remote = get_client('remote', REMOTE_DATABASE_URL)
   local = get_client('local', LOCAL_DATABASE_URL)
   if remote is None or local is None:
-    print('[downstream-sync] Skipping this cycle — a client is unavailable.')
+    print(f'[downstream-sync] {_stamp()} Skipping this cycle — a client is unavailable.')
+    if local is not None:
+      now = datetime.datetime.utcnow()
+      _write_meta(local['pos'], 'downstream', {'last_run_at': now, 'last_error_at': now, 'last_error': 'central client unavailable (check REMOTE_DATABASE_URL)'})
     return
 
   print('\n=========================================================================')
@@ -289,7 +324,10 @@ def upstream_sync_data():
   local = get_client('local', LOCAL_DATABASE_URL)
   remote = get_client('remote', REMOTE_DATABASE_URL)
   if local is None or remote is None:
-    print('[upstream-sync] Skipping this cycle — a client is unavailable.')
+    print(f'[upstream-sync] {_stamp()} Skipping this cycle — a client is unavailable.')
+    if local is not None:
+      now = datetime.datetime.utcnow()
+      _write_meta(local['pos'], 'upstream', {'last_run_at': now, 'last_error_at': now, 'last_error': 'central client unavailable (check REMOTE_DATABASE_URL)'})
     return
 
   print('\n=========================================================================')

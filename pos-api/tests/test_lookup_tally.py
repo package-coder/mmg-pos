@@ -435,3 +435,78 @@ class TestCustomersCreatedAtABranch:
 
         assert local_db["new_transactions"].find_one()["customerId"] == str(central_id)
         assert local_db["customers"].count_documents({"_id": local_id}) == 0
+
+
+class TestSyncTimestamps:
+    """`reconcile.py --status` must be able to answer: when did this last push,
+    when did it last pull, and is it even reaching the cloud?"""
+
+    def _pending(self):
+        return {"status": "pending", "synced_at": None, "attempts": 0, "last_attempt_at": None, "last_error": None, "stamp_id": ObjectId()}
+
+    def _meta(self, db, which):
+        return db["sync_meta"].find_one({"_id": which}) or {}
+
+    def test_quiet_cycle_counts_as_success_but_not_as_a_push(self, sync_module, central_db, local_db):
+        sync_module.push_pending(local_db.client, local_db.name, central_db.client, central_db.name)
+        meta = self._meta(local_db, "upstream")
+        assert meta["last_success_at"] and meta["last_run_at"]
+        assert "last_push_at" not in meta
+
+    def test_last_push_is_recorded_only_when_something_uploaded(self, sync_module, central_db, local_db):
+        local_db["new_transactions"].insert_one({"invoiceNumber": 1, "_sync": self._pending()})
+        sync_module.push_pending(local_db.client, local_db.name, central_db.client, central_db.name)
+        first = self._meta(local_db, "upstream")["last_push_at"]
+
+        sync_module.push_pending(local_db.client, local_db.name, central_db.client, central_db.name)   # nothing new
+        assert self._meta(local_db, "upstream")["last_push_at"] == first
+
+    def test_unreachable_cloud_is_recorded_as_an_error_not_a_success(self, sync_module, unreachable_client, local_db):
+        sync_module.push_pending(local_db.client, local_db.name, unreachable_client, "pos")
+        meta = self._meta(local_db, "upstream")
+        assert meta["last_error_at"] and meta["last_error"]
+        assert "last_success_at" not in meta
+
+    def test_last_pull_is_recorded_when_something_came_down(self, sync_module, central_db, local_db, monkeypatch):
+        monkeypatch.setattr(sync_module, "lookups", ["branches"])
+        central_db["branches"].insert_one({"name": "Main"})
+        sync_module.pull_pending(central_db.client, central_db.name, local_db.client, local_db.name)
+        assert self._meta(local_db, "downstream")["last_pull_at"]
+
+    def test_status_reports_what_is_waiting_and_what_was_rejected(self, tally, local_db):
+        local_db["new_transactions"].insert_one({"_sync": {"status": "pending"}})
+        local_db["customers"].insert_one({"_sync": {"status": "pending"}})
+        local_db["customers"].insert_one({"_sync": {"status": "conflict"}})
+        status = tally.sync_status(local_db)
+        assert status["waiting_to_upload"] == {"new_transactions": 1, "customers": 1}
+        assert status["conflicts"] == {"customers": 1}
+
+    def test_reset_guard_also_protects_customers_not_yet_uploaded(self, tally, local_db):
+        local_db["customers"].insert_one({"_sync": {"status": "pending"}})
+        assert tally.pending_upload_count(local_db) == {"customers": 1}
+
+    def test_every_timestamp_also_has_a_manila_time_copy(self, sync_module, central_db, local_db):
+        import datetime as dt
+        local_db["new_transactions"].insert_one({"invoiceNumber": 1, "_sync": self._pending()})
+        sync_module.push_pending(local_db.client, local_db.name, central_db.client, central_db.name)
+
+        meta = self._meta(local_db, "upstream")
+        utc = meta["last_push_at"].replace(tzinfo=dt.timezone.utc)
+        expected = utc.astimezone(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%d %I:%M:%S %p (Manila)")
+        assert meta["last_push_at_manila"] == expected
+        assert meta["last_push_at_manila"].endswith("(Manila)")
+
+
+class TestPullDoesNotRecopyUnchangedData:
+    def test_unstamped_central_docs_are_not_recopied_every_cycle(self, sync_module, central_db, local_db, monkeypatch):
+        """Seeded central data has no _sync stamp. It used to be re-copied on EVERY cycle
+        (and overwrote local fixes), which also made 'last pull' meaningless."""
+        monkeypatch.setattr(sync_module, "lookups", ["packages"])
+        pkg_id = central_db["packages"].insert_one({"name": "Full Checkup", "lab_test": []}).inserted_id
+
+        sync_module.pull_pending(central_db.client, central_db.name, local_db.client, local_db.name)   # first copy
+        local_db["packages"].update_one({"_id": pkg_id}, {"$set": {"lab_test": [{"name": "CBC"}]}})     # local fix
+        sync_module.pull_pending(central_db.client, central_db.name, local_db.client, local_db.name)   # next cycle
+
+        assert local_db["packages"].find_one({"_id": pkg_id})["lab_test"] == [{"name": "CBC"}]
+        assert local_db["sync_meta"].find_one({"_id": "downstream"})["pulled"] == 0

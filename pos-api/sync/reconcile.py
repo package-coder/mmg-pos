@@ -4,6 +4,7 @@ Make this branch's database tally with the central (cloud) database.
     python reconcile.py            # dry run: prints what WOULD change, writes nothing
     python reconcile.py --apply    # performs the repair on the LOCAL database
     python reconcile.py --verify   # read-only tally, exit code 1 if anything disagrees
+    python reconcile.py --status   # when the sync last pushed / pulled, and what is waiting
 
 Inside the stack:   docker-compose exec sync python reconcile.py
 From a dev machine: LOCAL_DATABASE_URL=mongodb://localhost:8003 python sync/reconcile.py
@@ -21,6 +22,7 @@ What --apply does (local database only — the central database is never written
 Anything that cannot be matched unambiguously is listed and left untouched.
 """
 import argparse
+import datetime
 import os
 import sys
 
@@ -46,6 +48,47 @@ def _connect():
     except Exception as e:
         sys.exit(f'Cannot reach a database, nothing was changed: {e!r}')
     return local[db_name], remote[db_name]
+
+
+_MANILA = datetime.timezone(datetime.timedelta(hours=8))
+
+
+def _when(value):
+    """'2026-09-21 03:10:42 (2 min ago)' for a stored UTC datetime, or 'never'."""
+    if not value:
+        return 'never'
+    utc = value.replace(tzinfo=datetime.timezone.utc)
+    seconds = int((datetime.datetime.now(datetime.timezone.utc) - utc).total_seconds())
+    if seconds < 90:
+        ago = f'{max(seconds, 0)} s ago'
+    elif seconds < 5400:
+        ago = f'{seconds // 60} min ago'
+    elif seconds < 172800:
+        ago = f'{seconds // 3600} h ago'
+    else:
+        ago = f'{seconds // 86400} days ago'
+    return f'{utc.astimezone(_MANILA).strftime("%Y-%m-%d %I:%M:%S %p")} ({ago})'
+
+
+def run_status(local_db):
+    status = lookup_tally.sync_status(local_db)
+    up, down = status['upstream'], status['downstream']
+    print('Times are Asia/Manila.\n')
+    print('UPLOAD (this branch -> cloud)')
+    print(f'  last push (something uploaded) : {_when(up.get("last_push_at"))}')
+    print(f'  last successful check          : {_when(up.get("last_success_at"))}')
+    print(f'  last cycle                     : {_when(up.get("last_run_at"))}  pushed={up.get("pushed", "-")} failed={up.get("failed", "-")} conflicts={up.get("conflicts", "-")}')
+    print('\nDOWNLOAD (cloud -> this branch)')
+    print(f'  last pull (something came down): {_when(down.get("last_pull_at"))}')
+    print(f'  last successful check          : {_when(down.get("last_success_at"))}')
+    print(f'  last cycle                     : {_when(down.get("last_run_at"))}  pulled={down.get("pulled", "-")}')
+    for label, meta in (('upload', up), ('download', down)):
+        if meta.get('last_error_at') and meta.get('last_error_at') >= (meta.get('last_success_at') or meta['last_error_at']):
+            print(f'\n!! LAST {label.upper()} FAILED {_when(meta["last_error_at"])}: {meta.get("last_error")}')
+    print('\nWaiting to upload:', status['waiting_to_upload'] or 'nothing')
+    print('Rejected by the cloud (conflict):', status['conflicts'] or 'none')
+    if not up and not down:
+        print('\nNo sync activity recorded yet. Is the sync container running?  docker-compose ps sync')
 
 
 def _describe(doc):
@@ -119,7 +162,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--apply', action='store_true', help='write the repair to the local database')
     parser.add_argument('--verify', action='store_true', help='read-only tally; exit 1 on mismatch')
+    parser.add_argument('--status', action='store_true', help='when the sync last pushed/pulled, and what is waiting (local only)')
     args = parser.parse_args()
+
+    if args.status:   # needs only the local database, so it works even when the cloud is unreachable
+        if not os.getenv('LOCAL_DATABASE_URL'):
+            sys.exit('LOCAL_DATABASE_URL must be set.')
+        run_status(pymongo.MongoClient(os.getenv('LOCAL_DATABASE_URL'), serverSelectionTimeoutMS=8000)[os.getenv('DATABASE', 'pos')])
+        sys.exit(0)
 
     local_db, remote_db = _connect()
     if args.verify:
