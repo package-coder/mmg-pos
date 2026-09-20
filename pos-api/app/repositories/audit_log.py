@@ -13,8 +13,13 @@ class AuditLogRepository(BackupRepository):
             data = list(self._db[self._collection].aggregate([
                 { '$match': query },
                 {
+                    # onError/onNull: null instead of the $toObjectId shorthand — a login attempt
+                    # against a username that doesn't exist at all has no real user to attribute
+                    # it to, so it's logged with userId='' (see app/routes/users/auth.py). $toObjectId
+                    # throws hard on that, which previously crashed this endpoint for every user,
+                    # for every request, the moment a single such row existed.
                     "$addFields": {
-                        "userId": {"$toObjectId": "$userId"}
+                        "userId": {"$convert": {"input": "$userId", "to": "objectId", "onError": None, "onNull": None}}
                     }
                 },
                 { 
@@ -45,6 +50,7 @@ class AuditLogRepository(BackupRepository):
                     "$project": {
                         'userId': 0,
                         'data._id': 0,
+                        '_sync': 0,
                         'user': {
                             'password': 0,
                         }
