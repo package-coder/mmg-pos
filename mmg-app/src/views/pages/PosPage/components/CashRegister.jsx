@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-    TextField,
     Button,
     Typography,
     Grid,
@@ -11,39 +10,69 @@ import {
     DialogTitle,
     Card,
     Stack,
-    InputAdornment,
-    IconButton
+    Chip,
+    IconButton,
+    Avatar,
+    Divider
 } from '@mui/material';
 import { MdChevronLeft } from 'react-icons/md';
-import HelpIcon from '@mui/icons-material/Help';
-import { useTheme } from '@emotion/react';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import RemoveIcon from '@mui/icons-material/Remove';
+import AddIcon from '@mui/icons-material/Add';
 import { FaPesoSign } from 'react-icons/fa6';
 import { useMutation } from 'react-query';
+import moment from 'moment';
+import { useNavigate } from 'react-router-dom';
 import cashier_report from 'api/cashier_report';
 import { useCashierReport } from '..';
-import SummaryReportDialog from './XReportDialog';
-import { useNavigate } from 'react-router-dom';
 import FooterWatermark from 'ui-component/FooterWatermark';
+import Currency from 'ui-component/Currency';
 import { useAuth } from 'providers/AuthProvider';
 
+// Bills first (largest to smallest), then coins/centavos — matches how a drawer is physically
+// counted and how the two "Paper Bills" / "Coins & Centavos" subtotals below are grouped.
 const denominations = [
-    { label: 'Php 1,000', value: 1000 },
-    { label: 'Php 500', value: 500 },
-    { label: 'Php 200', value: 200 },
-    { label: 'Php 100', value: 100 },
-    { label: 'Php 50', value: 50 },
-    { label: 'Php 20', value: 20 },
-    { label: 'Php 10', value: 10 },
-    { label: 'Php 5', value: 5 },
-    { label: 'Php 1', value: 1 },
-    { label: 'Php 0.25', value: 0.25 },
-    { label: 'Php 0.10', value: 0.10 },
-    { label: 'Php 0.05', value: 0.05 },
+    { value: 1000, label: 'Php 1,000', type: 'Bill', group: 'bills' },
+    { value: 500, label: 'Php 500', type: 'Bill', group: 'bills' },
+    { value: 200, label: 'Php 200', type: 'Bill', group: 'bills' },
+    { value: 100, label: 'Php 100', type: 'Bill', group: 'bills' },
+    { value: 50, label: 'Php 50', type: 'Bill', group: 'bills' },
+    { value: 20, label: 'Php 20', type: 'Bill / Coin', group: 'bills' },
+    { value: 10, label: 'Php 10', type: 'Coin', group: 'coins' },
+    { value: 5, label: 'Php 5', type: 'Coin', group: 'coins' },
+    { value: 1, label: 'Php 1', type: 'Coin', group: 'coins' },
+    { value: 0.25, label: 'Php 0.25', type: '25¢ Centavo', group: 'coins' },
+    { value: 0.1, label: 'Php 0.10', type: '10¢ Centavo', group: 'coins' },
+    { value: 0.05, label: 'Php 0.05', type: '5¢ Centavo', group: 'coins' }
 ];
+
+// Pure convenience shortcuts — fill the same fields a cashier would fill by hand, nothing is
+// submitted until "Confirm Entries" is pressed, and every field stays freely editable afterward.
+const QUICK_PRESETS = [
+    {
+        label: 'Standard',
+        total: 5000,
+        counts: { 500: 5, 100: 15, 50: 20 } // 2500 + 1500 + 1000
+    },
+    {
+        label: 'Heavy Change',
+        total: 3000,
+        counts: { 50: 30, 20: 50, 10: 50 } // 1500 + 1000 + 500
+    }
+];
+
+const getInitials = (name) =>
+    (name || '')
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((word) => word[0])
+        .join('')
+        .toUpperCase();
 
 const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
     const navigate = useNavigate();
-    const { branch } = useAuth()
+    const { branch, user } = useAuth();
     const [entries, setEntries] = useState(initialValues ?? {});
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [isEndingBalance] = useState(isEndingBalanceFlag);
@@ -51,41 +80,52 @@ const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
     const report = cashierReportContext?.report;
     const { refetch } = cashierReportContext || {};
 
-    const [submitting, setSubmitting] = useState(false)
-    const [withdraw, setWithdraw] = useState(null)
+    const [submitting, setSubmitting] = useState(false);
+    const [withdraw, setWithdraw] = useState(0);
     const { mutateAsync: timeOut, isLoading: timeOutLoading } = useMutation(cashier_report.TimeOutCashierReport);
     const { mutateAsync: timeIn, isLoading: timeInLoading } = useMutation(cashier_report.TimeInCashierReport);
-    
-    const loading = timeOutLoading || timeInLoading || submitting
+
+    const loading = timeOutLoading || timeInLoading || submitting;
 
     const total = Object.entries(entries).reduce((sum, [cash, count]) => sum + parseFloat(cash) * parseFloat(count), 0);
+    const billsTotal = denominations
+        .filter((d) => d.group === 'bills')
+        .reduce((sum, d) => sum + d.value * (entries[d.value.toString()] || 0), 0);
+    const coinsTotal = total - billsTotal;
+    const netRetained = total - (withdraw || 0);
 
-    const theme = useTheme();
-
-    const handleChange = (label, value) => {
+    const handleChange = (key, value) => {
         const number = Number(value);
-        if (number < 0) {
-            return;
-        }
+        if (number < 0 || Number.isNaN(number)) return;
 
         const newEntries = { ...entries };
         if (number > 0) {
-            newEntries[label] = number;
+            newEntries[key] = number;
         } else {
-            delete newEntries[label];
+            delete newEntries[key];
         }
         setEntries(newEntries);
     };
 
-    const hasValues = () => {
-        return Object.values(entries).some((entry) => entry > 0);
+    const handleStep = (key, delta) => {
+        const current = Number(entries[key] || 0);
+        handleChange(key, current + delta);
+    };
+
+    const handleResetCounts = () => {
+        setEntries({});
+        setWithdraw(0);
+    };
+
+    const handleApplyPreset = (preset) => {
+        setEntries(Object.fromEntries(Object.entries(preset.counts).map(([value, count]) => [value, count])));
     };
 
     const handleConfirm = () => {
         setConfirmOpen(false);
 
         if (!isEndingBalanceFlag) {
-            setSubmitting(true)
+            setSubmitting(true);
             timeIn({ openingFund: { count: entries }, branchId: branch.id })
                 .then(refetch)
                 .finally(() => setSubmitting(false));
@@ -93,131 +133,298 @@ const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
             return;
         }
 
+        setSubmitting(true);
         timeOut({ endingCashCount: { count: entries }, withdraw, branchId: branch.id, id: report._id })
-            .then(() => navigate('x-report'));
+            .then(() => navigate('x-report'))
+            .finally(() => setSubmitting(false));
+    };
+
+    const renderDenominationRow = (denom) => {
+        const key = denom.value.toString();
+        const count = entries[key] || 0;
+        const value = denom.value * count;
+
+        return (
+            <Stack key={key} direction="row" alignItems="center" spacing={2} sx={{ py: 1.25 }}>
+                <Stack direction="row" alignItems="center" spacing={0.75} sx={{ minWidth: 130 }}>
+                    <FaPesoSign size={14} color="#9e9e9e" />
+                    <Typography variant="subtitle1" fontWeight={600}>
+                        {denom.value.toLocaleString()}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        {denom.type}
+                    </Typography>
+                </Stack>
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                    <IconButton
+                        size="small"
+                        onClick={() => handleStep(key, -1)}
+                        disabled={count <= 0}
+                        sx={{ border: '1px solid', borderColor: 'divider' }}
+                    >
+                        <RemoveIcon fontSize="inherit" />
+                    </IconButton>
+                    <input
+                        id={`denom-elem-${denom.value}`}
+                        type="number"
+                        min={0}
+                        value={count || ''}
+                        placeholder="0"
+                        onChange={(e) => handleChange(key, e.target.value)}
+                        onKeyDown={(event) => {
+                            const index = denominations.findIndex((d) => d.value === denom.value);
+                            if (event.key === 'ArrowUp') {
+                                event.preventDefault();
+                                const prev = denominations[(index - 1 + denominations.length) % denominations.length];
+                                document.getElementById(`denom-elem-${prev.value}`)?.focus();
+                            } else if (event.key === 'Enter' || event.key === 'ArrowDown') {
+                                event.preventDefault();
+                                const next = denominations[(index + 1) % denominations.length];
+                                document.getElementById(`denom-elem-${next.value}`)?.focus();
+                            }
+                        }}
+                        style={{
+                            width: 48,
+                            textAlign: 'center',
+                            border: '1px solid',
+                            borderColor: '#e0e0e0',
+                            borderRadius: 6,
+                            padding: '4px 2px',
+                            fontSize: '0.875rem'
+                        }}
+                    />
+                    <IconButton size="small" onClick={() => handleStep(key, 1)} sx={{ border: '1px solid', borderColor: 'divider' }}>
+                        <AddIcon fontSize="inherit" />
+                    </IconButton>
+                </Stack>
+                <Box flex={1} />
+                <Typography variant="body2" fontWeight={600} sx={{ minWidth: 80, textAlign: 'right' }}>
+                    <Currency value={value} />
+                </Typography>
+            </Stack>
+        );
     };
 
     return (
-        <Stack bgcolor={theme.palette?.primary.light} alignItems="center" justifyContent="center" sx={{ p: 5, height: '100vh' }}>
-            <Card sx={{ p: 6,  width: { lg: '80%', xl: '60%' }, maxWidth: 'xl' }}>
-                <Grid container spacing={10}>
-                    <Grid item xs={7} space={2}>
-                        <Stack direction="column" height='100%'>
-                            <Box>
-                                {isEndingBalance && (
-                                    
-                                    <Button
-                                    size="large"
-                                    startIcon={<MdChevronLeft />}
-                                    sx={{ mb: 4, bgcolor: 'grey.50', alignSelf: 'start' }}
-                                    onClick={handleBack}
-                                >
-                                    Back
-                                </Button>
-                            )}
-                                <Typography variant="h1" fontSize={28} gutterBottom>
-                                    {!isEndingBalance ? 'Openning Fund' : 'Ending Balance Entry'}
-                                </Typography>
-                                <Stack mt={3} direction="row" mb={1.5} spacing={0.5} alignItems="center">
-                                    <Typography variant="h3">Help </Typography>
-                                    <HelpIcon />
-                                </Stack>
-                                <Typography color="gray" variant="h3" fontWeight="regular">
-                                    Enter the number of each denomination in the provided fields. The system will automatically calculate
-                                    the total value of each denomination and the overall balance. Review and confirm the information before
-                                    saving. If you need further assistance, contact support.
-                                </Typography>
-                            </Box>
-                            <Box flex={1}></Box>
-                            <Box>
-                                <Stack  direction="row" alignItems="center" spacing={0.5}>
-                                    <Typography pr={2} variant="h3">
-                                        Total Entry:{' '}
+        <Stack bgcolor="grey.100" alignItems="center" sx={{ p: { xs: 2, md: 4 }, minHeight: '100vh' }}>
+            <Card sx={{ p: { xs: 2.5, md: 4 }, width: '100%', maxWidth: 1200 }}>
+                {/* Header */}
+                <Stack direction="row" flexWrap="wrap" gap={2} justifyContent="space-between" alignItems="center" mb={3}>
+                    <Box>
+                        <Typography variant="h3" fontWeight={600}>
+                            {branch?.name || 'Branch'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Cash Float & Terminal Operations
+                        </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar sx={{ width: 34, height: 34, fontSize: '0.8rem' }}>
+                            {getInitials(`${user?.first_name || ''} ${user?.last_name || ''}`)}
+                        </Avatar>
+                        <Box>
+                            <Typography variant="body2" fontWeight={600} lineHeight={1.2}>
+                                {user?.first_name} {user?.last_name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {(user?.role?.name || '').toUpperCase()}
+                            </Typography>
+                        </Box>
+                    </Stack>
+                </Stack>
+
+                <Divider sx={{ mb: 3 }} />
+
+                {/* Title */}
+                <Stack direction="row" flexWrap="wrap" gap={2} justifyContent="space-between" alignItems="flex-start" mb={3}>
+                    <Box>
+                        {isEndingBalance && (
+                            <Button size="small" startIcon={<MdChevronLeft />} sx={{ mb: 1 }} onClick={handleBack}>
+                                Back
+                            </Button>
+                        )}
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                            <Typography variant="h2" fontWeight={600}>
+                                {!isEndingBalance ? 'Opening Fund' : 'Ending Balance Entry'}
+                            </Typography>
+                            <Chip
+                                size="small"
+                                label={!isEndingBalance ? 'Drawer Float Entry' : 'End of Shift Cash Count'}
+                                sx={{ bgcolor: 'primary.light', color: 'primary.dark', fontWeight: 500 }}
+                            />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary" mt={0.5}>
+                            {!isEndingBalance
+                                ? 'Record and verify physical cash currency before beginning your cashier shift.'
+                                : 'Record and verify physical cash currency before completing your terminal drawer closure.'}
+                        </Typography>
+                    </Box>
+                    <Box textAlign="right">
+                        <Typography variant="body2" color="text.secondary">
+                            Date:{' '}
+                            {moment(report?.date).isValid() ? moment(report?.date).format('MMM DD, YYYY') : moment().format('MMM DD, YYYY')}
+                        </Typography>
+                        {isEndingBalance && report?.timeIn && (
+                            <Typography variant="caption" color="text.secondary">
+                                Time In: {moment(report.timeIn).format('hh:mm A')}
+                            </Typography>
+                        )}
+                    </Box>
+                </Stack>
+
+                <Grid container spacing={4}>
+                    {/* Left column */}
+                    <Grid item xs={12} md={5}>
+                        <Stack spacing={2.5}>
+                            <Card variant="outlined" sx={{ p: 2.5, bgcolor: 'info.light', borderColor: 'info.main' }}>
+                                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                                    <HelpOutlineIcon fontSize="small" color="info" />
+                                    <Typography variant="subtitle2" fontWeight={600}>
+                                        Help & Drawer Guidelines
                                     </Typography>
-                                    <TextField 
-                                        type='number'
-                                        size='small'
-                                        placeholder='0.00'
-                                        value={total.toFixed(2)}
-                                        InputProps={{ readOnly: true }}
-                                    />
                                 </Stack>
-                                {isEndingBalanceFlag && (
-                                    <Stack mt={1.5} direction="row" alignItems="center" spacing={0.5}>
-                                        <Typography pr={2} variant="h3">
-                                            Withdraw:
-                                        </Typography>
-                                        <TextField 
-                                            type='number'
-                                            size='small'
-                                            placeholder='0.00'
-                                            defaultValue={withdraw?.toFixed(2)}
-                                            onChange={(e) => setWithdraw(parseFloat(e.target?.value))}
+                                <Typography variant="body2" color="text.secondary">
+                                    Enter the quantity of each denomination in the fields on the right. The total value updates
+                                    automatically. Review the breakdown before confirming — once submitted, this count is recorded against
+                                    your shift.
+                                </Typography>
+                            </Card>
+
+                            <Card variant="outlined" sx={{ p: 2.5 }}>
+                                <Typography variant="overline" color="text.secondary" fontWeight={700}>
+                                    Total Entry Value
+                                </Typography>
+                                <Typography variant="h1" fontWeight={700} my={0.5}>
+                                    <Currency value={total} />
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    {!isEndingBalance ? 'Calculated drawer opening balance' : 'Sum of counted bills, coins, and centavos'}
+                                </Typography>
+                                <Grid container spacing={1.5} mt={1.5}>
+                                    <Grid item xs={6}>
+                                        <Card variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                Paper Bills
+                                            </Typography>
+                                            <Typography variant="subtitle1" fontWeight={600}>
+                                                <Currency value={billsTotal} />
+                                            </Typography>
+                                        </Card>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Card variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                Coins & Cents
+                                            </Typography>
+                                            <Typography variant="subtitle1" fontWeight={600}>
+                                                <Currency value={coinsTotal} />
+                                            </Typography>
+                                        </Card>
+                                    </Grid>
+                                </Grid>
+                            </Card>
+
+                            {isEndingBalance && (
+                                <Card variant="outlined" sx={{ p: 2.5 }}>
+                                    <Typography variant="overline" color="text.secondary" fontWeight={700} display="block" mb={1}>
+                                        Withdraw
+                                    </Typography>
+                                    <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+                                        <FaPesoSign color="#9e9e9e" />
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            value={withdraw || ''}
+                                            placeholder="0.00"
+                                            onChange={(e) => setWithdraw(Math.max(0, parseFloat(e.target.value) || 0))}
+                                            style={{
+                                                width: '100%',
+                                                border: '1px solid #e0e0e0',
+                                                borderRadius: 6,
+                                                padding: '8px 10px',
+                                                fontSize: '0.9rem'
+                                            }}
                                         />
                                     </Stack>
-                                )}
-                                <Button
-                                    disabled={loading}
-                                    sx={{ mt: 3, px: 3, fontSize: 16 }}
-                                    variant="contained"
-                                    color="primary"
-                                    onClick={() => setConfirmOpen(true)}
-                                >
-                                    {loading ? 'Loading...' : 'Confirm Entries'}
+                                    <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+                                        Bank deposit drop, cashier envelope remittance, or transfer amount
+                                    </Typography>
+                                    <Divider sx={{ mb: 1.5 }} />
+                                    <Stack spacing={0.75}>
+                                        <Stack direction="row" justifyContent="space-between">
+                                            <Typography variant="body2" color="text.secondary">
+                                                Gross Counted Cash:
+                                            </Typography>
+                                            <Typography variant="body2" fontWeight={600}>
+                                                <Currency value={total} />
+                                            </Typography>
+                                        </Stack>
+                                        <Stack direction="row" justifyContent="space-between">
+                                            <Typography variant="body2" color="text.secondary">
+                                                Less Cash Remittance (Withdraw):
+                                            </Typography>
+                                            <Typography variant="body2" fontWeight={600} color="error.main">
+                                                -<Currency value={withdraw || 0} />
+                                            </Typography>
+                                        </Stack>
+                                        <Stack direction="row" justifyContent="space-between">
+                                            <Typography variant="subtitle2" fontWeight={700}>
+                                                Net Retained Float:
+                                            </Typography>
+                                            <Typography variant="subtitle2" fontWeight={700}>
+                                                <Currency value={netRetained} />
+                                            </Typography>
+                                        </Stack>
+                                    </Stack>
+                                </Card>
+                            )}
+
+                            <Stack spacing={1.5}>
+                                <Button disabled={loading} variant="contained" size="large" onClick={() => setConfirmOpen(true)}>
+                                    {loading ? 'Saving...' : !isEndingBalance ? 'Confirm Entries & Open Drawer' : 'Confirm Entries'}
                                 </Button>
-                            </Box>
+                                <Button variant="outlined" color="inherit" onClick={handleResetCounts} disabled={loading}>
+                                    Reset / Clear Counts
+                                </Button>
+                            </Stack>
                         </Stack>
                     </Grid>
-                    <Grid item xs>
-                        <Stack spacing={1} alignItems="end">
-                            {denominations.map((denom, index) => (
-                                <TextField
-                                    key={index}
-                                    type="number"
-                                    id={`denom-elem-${denom?.value}`}
+
+                    {/* Right column — currency breakdown */}
+                    <Grid item xs={12} md={7}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="baseline" mb={1}>
+                            <Typography variant="h4" fontWeight={600}>
+                                Currency Breakdown
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {denominations.length} Philippine Peso (PHP) denominations
+                            </Typography>
+                        </Stack>
+
+                        <Typography variant="overline" color="text.secondary" fontWeight={700}>
+                            Banknotes (Bills)
+                        </Typography>
+                        <Divider sx={{ mb: 0.5 }} />
+                        {denominations.filter((d) => d.group === 'bills').map(renderDenominationRow)}
+
+                        <Typography variant="overline" color="text.secondary" fontWeight={700} display="block" mt={2}>
+                            Coins & Centavos
+                        </Typography>
+                        <Divider sx={{ mb: 0.5 }} />
+                        {denominations.filter((d) => d.group === 'coins').map(renderDenominationRow)}
+
+                        <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" mt={3}>
+                            <Typography variant="caption" color="text.secondary">
+                                Quick fill:
+                            </Typography>
+                            {QUICK_PRESETS.map((preset) => (
+                                <Chip
+                                    key={preset.label}
+                                    size="small"
                                     variant="outlined"
-                                    value={entries[denom?.value.toString()] ?? ''}
-                                    onChange={(e) => handleChange(denom?.value.toString(), e.target?.value)}
-                                    fullWidth
-                                    inputProps={{
-                                        min: 0,
-                                        style: { textAlign: 'end', paddingRight: '20px' },
-                                        onKeyDown:  (event) => {
-                                                  const { key } = event;
-
-                                                  if (key === 'ArrowUp') {
-                                                        const prevIndex = (index - 1) % denominations.length;
-                                                        const prevElement = document.getElementById(
-                                                            `denom-elem-${denominations[prevIndex]?.value}`
-                                                        );
-                                                        prevElement.focus();
-                                                        event.preventDefault()
-                                                        return
-                                                    }
-
-                                                  
-                                                  if (key === 'Enter' || key == 'ArrowDown') {
-                                                    const nextIndex = (index + 1) % denominations.length;
-                                                    const nextElement = document.getElementById(
-                                                        `denom-elem-${denominations[nextIndex]?.value}`
-                                                    );
-                                                    event.preventDefault()
-                                                      nextElement.focus();
-                                                  }
-                                              }
-                                    }}
-                                    InputProps={{
-                                        startAdornment: (
-                                            <InputAdornment position="start">
-                                                <Stack direction="row" alignItems="center">
-                                                    <FaPesoSign color={theme.palette.grey[400]} />
-                                                    <Typography sx={{ mt: '3px' }} color={theme.palette.grey[400]} variant="h5">
-                                                        {denom.value}
-                                                    </Typography>
-                                                </Stack>
-                                            </InputAdornment>
-                                        )
-                                    }}
+                                    label={`${preset.label} ₱${preset.total.toLocaleString()}`}
+                                    onClick={() => handleApplyPreset(preset)}
+                                    sx={{ cursor: 'pointer' }}
                                 />
                             ))}
                         </Stack>
@@ -225,62 +432,49 @@ const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
                 </Grid>
 
                 {/* Confirm Dialog */}
-                <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+                <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs" fullWidth>
                     <DialogTitle sx={{ pt: 3 }}>
-                        <Typography variant="h2">Confirm Entries</Typography>
+                        <Typography variant="h4" fontWeight={600}>
+                            Confirm Entries
+                        </Typography>
                     </DialogTitle>
                     <DialogContent>
-                        <Typography color="gray" variant="h4" mb={2} fontWeight="regular">
+                        <Typography color="text.secondary" variant="body2" mb={2}>
                             Please review the entered denominations and their totals before confirming.
                         </Typography>
-                        <Grid container>
-                            {Object.keys(entries).filter((cash) => entries[cash] > 0).map((cash) => (
-                                <>
-                                    <Grid key={cash} item xs={1.5}>
-                                        <Stack direction="row" alignItems="center">
-                                            <FaPesoSign />
-                                            <Typography key={cash} variant="h3" fontWeight="regular">
-                                                {cash}
-                                            </Typography>
-                                        </Stack>
-                                    </Grid>
-                                    <Grid item xs={1}>
-                                        <Typography key={cash} variant="h3" fontWeight="regular">
-                                            x {entries[cash]} =
+                        <Stack spacing={0.75}>
+                            {denominations
+                                .filter((d) => (entries[d.value.toString()] || 0) > 0)
+                                .map((d) => (
+                                    <Stack key={d.value} direction="row" justifyContent="space-between">
+                                        <Typography variant="body2">
+                                            ₱{d.value.toLocaleString()} × {entries[d.value.toString()]}
                                         </Typography>
-                                    </Grid>
-                                    <Grid item xs={9.5}>
-                                        <Stack direction="row" alignItems="center">
-                                            <FaPesoSign />
-                                            <Typography key={cash} variant="h3" fontWeight="regular">
-                                                {cash * entries[cash]}
-                                            </Typography>
-                                        </Stack>
-                                    </Grid>
-                                </>
-                            ))}
-                        </Grid>
-                        <Stack mt={5} direction="row" alignItems="center" spacing={0.5}>
-                            <Typography pr={2} variant="h3">
-                                Total:{' '}
+                                        <Typography variant="body2" fontWeight={600}>
+                                            <Currency value={d.value * entries[d.value.toString()]} />
+                                        </Typography>
+                                    </Stack>
+                                ))}
+                        </Stack>
+                        <Divider sx={{ my: 1.5 }} />
+                        <Stack direction="row" justifyContent="space-between">
+                            <Typography variant="subtitle1" fontWeight={700}>
+                                Total
                             </Typography>
-                            <FaPesoSign fontSize={18} />
-                            <Typography variant="h3" sx={{ textDecoration: 'underline' }}>
-                                {new Intl.NumberFormat().format(total)}
+                            <Typography variant="subtitle1" fontWeight={700}>
+                                <Currency value={total} />
                             </Typography>
                         </Stack>
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={() => setConfirmOpen(false)} color="primary">
+                        <Button onClick={() => setConfirmOpen(false)} color="inherit">
                             Cancel
                         </Button>
-                        <Button variant="contained" onClick={handleConfirm} color="primary">
+                        <Button variant="contained" onClick={handleConfirm}>
                             Confirm
                         </Button>
                     </DialogActions>
                 </Dialog>
-
-                {/* {isEndingBalance && data && <SummaryReportDialog report={data} open={summaryOpen} />} */}
             </Card>
             <FooterWatermark />
         </Stack>
