@@ -12,14 +12,16 @@ class TransactionDiscountRepository(BackupRepository):
     _transaction_collection = TransactionRepository()._collection
 
 
-    def find(self, query={}, *args):
-        try: 
+    def find(self, query={}, *args, include_dev_test=False):
+        try:
             data = list(self._db[self._collection].aggregate([
                 { '$match': query },
                 # Dev Test Mode discounts (mocked terminal, see
                 # app/blueprints/transaction.py _is_dev_test) must never appear in a real
-                # discount report — applied unconditionally, not left to callers to remember.
-                { '$match': { 'isDevTest': { '$ne': True } } },
+                # discount report, UNLESS the browser generating/viewing it has Dev Test Mode on
+                # (see app/blueprints/reports.py) — applied unconditionally here rather than
+                # left to callers to remember only when it's False.
+                *([{ '$match': { 'isDevTest': { '$ne': True } } }] if not include_dev_test else []),
                 {
                     '$addFields': {
                         'transactionId': {'$toObjectId': '$transactionId' },

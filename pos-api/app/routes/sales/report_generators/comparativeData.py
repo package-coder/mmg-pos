@@ -8,8 +8,9 @@ from app.routes.sales.report_generators._data import (fetch_categories,
 
 def comparativeData(args):
     branch_ids = args.getlist('branchIds')
-    year1 = generateYearReport(branch_ids, args.get('min'))
-    year2 = generateYearReport(branch_ids, args.get('max'))
+    include_dev_test = args.get('includeDevTest') == 'true'
+    year1 = generateYearReport(branch_ids, args.get('min'), include_dev_test)
+    year2 = generateYearReport(branch_ids, args.get('max'), include_dev_test)
 
     categories = [{'id': c['id'], 'name': c['name'], '% INCREASE/DECREASE': 0} for c in year1]
 
@@ -28,11 +29,11 @@ def comparativeData(args):
     }
 
 
-def generateYearReport(branch_ids, month_str):
+def generateYearReport(branch_ids, month_str, include_dev_test=False):
     """Despite the name (kept from the legacy version), this reports on a single
     calendar month — comparativeData calls it once for `min` and once for `max`."""
     start, end = single_month_bounds(month_str)
-    transactions = fetch_completed_transactions(branch_ids, start, end)
+    transactions = fetch_completed_transactions(branch_ids, start, end, include_dev_test=include_dev_test)
 
     categories = [{'id': str(c['_id']), 'name': c['name'], 'count': 0, 'revenue': 0} for c in fetch_categories()]
     by_category_id = {c['id']: c for c in categories}

@@ -33,14 +33,18 @@ logger = AuditLogRepository()
 def get_reports(user_id):
     params = request.args.to_dict()
     branchIds = params.get('branchIds', '').split(',')
+    # Dev Test Mode (mmg-app) is a per-browser toggle the server can't see on its own — the
+    # frontend sends this explicitly while it's on, so a tester's own dev-test sales still show
+    # up in their Z-report. Off by default, matching every other real report.
+    include_dev_test = params.get('includeDevTest') == 'true'
 
     try:
-        model = GetBranchReportQuery(**omit(params, 'branchIds'), branchIds=branchIds)
-        query = { 
-            **omit(model.model_dump(exclude_none=True), 'branchIds'),  
+        model = GetBranchReportQuery(**omit(params, 'branchIds', 'includeDevTest'), branchIds=branchIds)
+        query = {
+            **omit(model.model_dump(exclude_none=True), 'branchIds'),
             "branchId": { "$in": model.branchIds }
         }
-        reports = reportRepository.find(query)
+        reports = reportRepository.find(query, include_dev_test=include_dev_test)
         return jsonify({ 'data': reports })
     except ValidationError as e:
         return jsonify({'message': 'Unable to get reports', 'error': e.errors(include_input=False)}), 500

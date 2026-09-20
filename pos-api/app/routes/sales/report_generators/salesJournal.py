@@ -15,7 +15,7 @@ def getSalesJournal(args, filter):
     start = parse_date(args.get('min'), '%m/%d/%Y')
     end = parse_date(args.get('max'), '%m/%d/%Y')
 
-    transactions = fetch_completed_transactions(branch_ids, start, end)
+    transactions = fetch_completed_transactions(branch_ids, start, end, include_dev_test=args.get('includeDevTest') == 'true')
     if filter and filter.get('tenderType'):
         wanted = filter['tenderType'].lower()
         transactions = [t for t in transactions if (t.get('tender') or {}).get('type') == wanted]

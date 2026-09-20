@@ -52,26 +52,33 @@ def month_range_to_dates(min_arg, max_arg):
     return start, end
 
 
-def fetch_completed_transactions(branch_ids, start_date, end_date):
+def fetch_completed_transactions(branch_ids, start_date, end_date, include_dev_test=False):
     """start_date/end_date are date objects; `date` on the document is the
     plain 'YYYY-MM-DD' business-date string (see app/utils/utils.py:getLocalDateStr) —
     comparing it as a string is safe since it's zero-padded and lexicographically
-    ordered the same as chronological order."""
+    ordered the same as chronological order.
+
+    Dev Test Mode transactions (mocked terminal, see app/blueprints/transaction.py
+    _is_dev_test) never count toward a real sales/income report UNLESS the browser
+    generating it has Dev Test Mode on (each report_generators/*.py caller reads
+    `includeDevTest` from its own `args` and passes it through here)."""
     query = {
         'status': 'completed',
         'branchId': {'$in': branch_ids},
         'date': {'$gte': str(start_date), '$lte': str(end_date)},
-        # Dev Test Mode transactions (mocked terminal, see app/blueprints/transaction.py
-        # _is_dev_test) must never count toward a real sales/income report.
-        'isDevTest': {'$ne': True},
     }
+    if not include_dev_test:
+        query['isDevTest'] = {'$ne': True}
     return list(new_transactions.find(query))
 
 
-def fetch_all_completed_transactions():
+def fetch_all_completed_transactions(include_dev_test=False):
     """No branch/date scoping — used by the older, unfiltered mancom/municipality/
     package-monitoring/products reports (not currently linked from mmg-app, but kept working)."""
-    return list(new_transactions.find({'status': 'completed', 'isDevTest': {'$ne': True}}))
+    query = {'status': 'completed'}
+    if not include_dev_test:
+        query['isDevTest'] = {'$ne': True}
+    return list(new_transactions.find(query))
 
 
 def fetch_items_by_transaction(transaction_ids):

@@ -10,6 +10,7 @@ import { IoMdPrint } from 'react-icons/io';
 import { usePrinter } from 'providers/PrinterProvider';
 import { useDevTestMode } from 'utils/devTestMode';
 import { usePrinterTrialMode } from 'utils/printerTrialMode';
+import { APP_ROLE } from 'api';
 
 
 const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPrint, receipt, transaction, forceShow }) => {
@@ -23,6 +24,10 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPri
     // switchable for a real branch that just wants to save paper every day.
     const trialMode = usePrinterTrialMode()
     const singlePrintOnly = devTestMode || trialMode
+    // Same restriction PrinterProvider/api/print.js enforce — disabled here too so the button
+    // doesn't just fail with an error on the admin/cloud portal (no real printer attached there)
+    // unless Dev Test Mode is on.
+    const printDisabled = APP_ROLE === 'admin' && !devTestMode
 
     useEffect(() => {
         if (open) {
@@ -83,7 +88,14 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPri
                     <Button startIcon={<DownloadIcon />} variant="contained" color="primary" onClick={() => toPDF({ resolution: 0.5 })}>
                         Download
                     </Button>
-                    <Button startIcon={<IoMdPrint />} variant="contained" color="primary" onClick={handlePrint2} disabled={printing}>
+                    <Button
+                        startIcon={<IoMdPrint />}
+                        variant="contained"
+                        color="primary"
+                        onClick={handlePrint2}
+                        disabled={printing || printDisabled}
+                        title={printDisabled ? 'Printing is disabled on this admin/cloud instance. Turn on Dev Test Mode in Settings to enable it.' : undefined}
+                    >
                         {printing ? 'Printing...' : 'Print'}
                     </Button>
                     {/* <SplitButton 

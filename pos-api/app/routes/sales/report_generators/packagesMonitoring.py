@@ -29,7 +29,7 @@ def generatePackagesReports(args):
     month_list = getMonthList(min_date, max_date)
 
     start, end = month_range_to_dates(args.get('min'), args.get('max'))
-    transactions = fetch_completed_transactions(branch_ids, start, end)
+    transactions = fetch_completed_transactions(branch_ids, start, end, include_dev_test=args.get('includeDevTest') == 'true')
     items_by_transaction = fetch_items_by_transaction([t['_id'] for t in transactions])
 
     package_template = [{'id': str(p['_id']), 'name': p['name'], 'count': 0, 'amount': 0} for p in packages_collection.find()]

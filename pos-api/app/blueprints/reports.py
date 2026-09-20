@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request, send_file
 import openpyxl
 import io
 from pydantic import ValidationError
-from pydash import start_case
+from pydash import omit, start_case
 
 from app.filters.date_filter import DateFilter, compare_date_filter
 from app.middlewares.authorized_attribute import authorized
@@ -29,13 +29,16 @@ def get_discount_reports(user_id):
     custom_date = request.args.get('customDate')
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
-    
+    # Dev Test Mode (mmg-app) is a per-browser toggle the server can't see on its own — the
+    # frontend sends this explicitly while it's on. Off by default, matching every other report.
+    include_dev_test = request.args.get('includeDevTest') == 'true'
+
     try:
-        query = TransactionDiscountQuery(**request.args.to_dict())
+        query = TransactionDiscountQuery(**omit(request.args.to_dict(), 'includeDevTest'))
         discount = discountRepository.find({
             'memberType': {"$ne": None},
             **query.model_dump(exclude_unset=True)
-        })
+        }, include_dev_test=include_dev_test)
 
         filtered_reports = [
             transaction for transaction in discount 
@@ -61,10 +64,11 @@ def download_discount_reports(user_id):
     custom_date = request.args.get('customDate')
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
-    
+    include_dev_test = request.args.get('includeDevTest') == 'true'
+
     try:
-        query = TransactionDiscountQuery(**request.args.to_dict())
-        discount = discountRepository.find(query.model_dump(exclude_unset=True))
+        query = TransactionDiscountQuery(**omit(request.args.to_dict(), 'includeDevTest'))
+        discount = discountRepository.find(query.model_dump(exclude_unset=True), include_dev_test=include_dev_test)
 
         filtered_reports = [
             transaction for transaction in discount 
@@ -101,9 +105,10 @@ def get_sales_reports(user_id):
     custom_date = request.args.get('customDate')
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
+    include_dev_test = request.args.get('includeDevTest') == 'true'
 
     try:
-        reports = branchReportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date)
+        reports = branchReportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date, include_dev_test=include_dev_test)
 
         return jsonify({ 'data': reports })
     except ValidationError as e:
@@ -118,9 +123,10 @@ def download_sales_reports(user_id):
     custom_date = request.args.get('customDate')
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
+    include_dev_test = request.args.get('includeDevTest') == 'true'
 
     try:
-        reports = branchReportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date)
+        reports = branchReportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date, include_dev_test=include_dev_test)
         workbook = load_sheet('annex_template.xlsx')
         output = export_sales_reports(workbook, reports, user_id)
 

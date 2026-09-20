@@ -21,7 +21,12 @@ class CashierReportRepository(BackupRepository):
     _transaction_discount_collection = TransactionDiscountRepository()._collection
 
 
-    def find(self, query={}, *args):
+    def find(self, query={}, *args, include_dev_test=False):
+        # Dev Test Mode (mmg-app) is a per-browser toggle the server has no way to see on its
+        # own — the frontend passes `includeDevTest=true` (see app/blueprints/cashier_report.py)
+        # while it's on, so a tester's own dev-test sales still show up in their drawer balance
+        # for that shift. Off by default, matching every other real report.
+        dev_test_filter = [] if include_dev_test else [{ "$ne": ["$isDevTest", True] }]
 
         try:
             data = list(self._db[self._collection].aggregate([
@@ -118,10 +123,7 @@ class CashierReportRepository(BackupRepository):
                                                 { "$eq": ["$$timeOut", None] },
                                                 { "$lte": ["$transactionDate", "$$timeOut"] },
                                             ]},
-                                            # Dev Test Mode transactions (mocked terminal, see
-                                            # app/blueprints/transaction.py _is_dev_test) must
-                                            # never count toward a real shift's X-report.
-                                            { "$ne": ["$isDevTest", True] },
+                                            *dev_test_filter,
                                         ]
                                     }
                                 }
@@ -153,7 +155,7 @@ class CashierReportRepository(BackupRepository):
                                                 { "$lte": ["$transactionDate", "$$timeOut"] },
                                             ]},
                                             { "$in": [ "$status", ['completed', 'refunded'] ]},
-                                            { "$ne": ["$isDevTest", True] },
+                                            *dev_test_filter,
                                         ]
                                     }
                                 }
@@ -193,7 +195,7 @@ class CashierReportRepository(BackupRepository):
                                         "$and": [
                                             { "$eq": ["$branchId", "$$branchId"] },
                                             { "$eq": ["$cashierId", "$$cashierId"] },
-                                            { "$ne": ["$isDevTest", True] },
+                                            *dev_test_filter,
                                         ]
                                     }
                                 },
@@ -344,8 +346,8 @@ class CashierReportRepository(BackupRepository):
         except Exception as e:
             raise e
    
-    def find_by_date_and(self, date_filter: DateFilter, start_date=None, end_date=None, custom_date=None, query={}):
-        reports = self.find(query)
+    def find_by_date_and(self, date_filter: DateFilter, start_date=None, end_date=None, custom_date=None, query={}, include_dev_test=False):
+        reports = self.find(query, include_dev_test=include_dev_test)
 
         if(date_filter == DateFilter.CUSTOM_DATE and custom_date is None):
             return []

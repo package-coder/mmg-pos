@@ -34,15 +34,19 @@ def get_reports(user_id):
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
     params = pick(request.args.to_dict(), ['date', 'cashierId'])
-    
+    # Dev Test Mode (mmg-app) is a per-browser toggle the server can't see on its own — the
+    # frontend sends this explicitly while it's on, so a tester's own dev-test sales still
+    # count toward their drawer balance/X-report for that shift. Off by default.
+    include_dev_test = request.args.get('includeDevTest') == 'true'
+
 
     try:
-        previous_report = reportRepository.find_one({ 
-            'cashierId': user_id, 
+        previous_report = reportRepository.find_one({
+            'cashierId': user_id,
         })
 
         # query = {} if cashierId is None else { 'cashierId': cashierId }
-        reports = reportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date, params)
+        reports = reportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date, params, include_dev_test=include_dev_test)
 
         return jsonify({
             'data': {

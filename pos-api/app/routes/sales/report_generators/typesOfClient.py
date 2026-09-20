@@ -12,7 +12,7 @@ def typesOfClient(args):
     start = parse_date(args.get('min'), '%m/%d/%Y')
     end = parse_date(args.get('max'), '%m/%d/%Y')
 
-    transactions = fetch_completed_transactions(branch_ids, start, end)
+    transactions = fetch_completed_transactions(branch_ids, start, end, include_dev_test=args.get('includeDevTest') == 'true')
     customers_by_id = fetch_customers_by_id([t.get('customerId') for t in transactions])
 
     customer_types = customers_collection.distinct('customer_type')

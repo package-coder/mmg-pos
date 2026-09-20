@@ -22,30 +22,33 @@ class BranchReportRepository(BackupRepository):
     _cashier_report_collection = CashierReportRepository()._collection
     _cash_count_collection = CashCountRepository()._collection
 
-    _defaultFilter = {
+    def _default_filter(self, include_dev_test=False):
+        """Shared by the "transactions" (new_transactions) and "discounts" (transaction_discounts)
+        lookups, and by the branch_reports/cashier_reports self-lookups (which don't carry
+        isDevTest at all — the clause simply never matches anything there, harmless either way).
+        Dev Test Mode sales must never count toward a real branch's Z-report UNLESS the browser
+        generating/viewing it has Dev Test Mode on (see app/blueprints/branch_report.py)."""
+        dev_test_filter = [] if include_dev_test else [{ "$ne": ["$isDevTest", True] }]
+        return {
                 "$match": {
                     "$expr": {
                         "$and": [
                             { "$eq": ["$branchId", "$$branchId"] },
                             { "$eq": ["$date", "$$date"] },
-                            # Shared by both the "transactions" (new_transactions) and
-                            # "discounts" (transaction_discounts) lookups below — both
-                            # collections carry this field, stamped the same way (see
-                            # app/blueprints/transaction.py _is_dev_test). Dev Test Mode sales
-                            # must never count toward a real branch's Z-report.
-                            { "$ne": ["$isDevTest", True] },
+                            *dev_test_filter,
                         ]
                     }
                 }
             }
 
 
-    def find(self, query={}, *args):
+    def find(self, query={}, *args, include_dev_test=False):
+        dev_test_match = {} if include_dev_test else { "isDevTest": { "$ne": True } }
 
         try:
             data = list(self._db[self._transaction_collection].aggregate([
                 { '$match': query },
-                { '$match': { "status": { "$in": [TransactionStatus.COMPLETED, TransactionStatus.REFUNDED] }, "isDevTest": { "$ne": True } } },
+                { '$match': { "status": { "$in": [TransactionStatus.COMPLETED, TransactionStatus.REFUNDED] }, **dev_test_match } },
                 {
                     "$group": {
                         "_id": { "branchId": "$branchId", "date": "$date"  },
@@ -63,9 +66,9 @@ class BranchReportRepository(BackupRepository):
                 *self._create_branch_query(),
                 *self._create_cash_count_query("openingFund", "opening"),
                 *self._create_cash_count_query("endingCashCount", "ending"),
-                *self._create_serial_number_range_query("cancelledNumber", TransactionStatus.CANCELLED),
-                *self._create_serial_number_range_query("refundedNumber", TransactionStatus.REFUNDED),
-                
+                *self._create_serial_number_range_query("cancelledNumber", TransactionStatus.CANCELLED, include_dev_test),
+                *self._create_serial_number_range_query("refundedNumber", TransactionStatus.REFUNDED, include_dev_test),
+
                 *self._create_cashier_report_query(),
                 *self._create_branch_report_query(),
                 *self._create_this_report_query(),
@@ -79,7 +82,7 @@ class BranchReportRepository(BackupRepository):
                             "date": "$date"
                         },
                         "pipeline": [
-                            self._defaultFilter,
+                            self._default_filter(include_dev_test),
                             {
                                 "$addFields": {
                                     "_id": { "$toString": "$_id" },
@@ -97,7 +100,7 @@ class BranchReportRepository(BackupRepository):
                             "date": "$date"
                         },
                         "pipeline": [
-                            self._defaultFilter,
+                            self._default_filter(include_dev_test),
                             {
                                 "$addFields": {
                                     "transactionId": {"$toObjectId": "$transactionId"}
@@ -197,8 +200,8 @@ class BranchReportRepository(BackupRepository):
                     transactionSummary[key] = total
                 item['transactionSummary'] = transactionSummary
 
-                item['presentAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), True)
-                item['previousAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), False)
+                item['presentAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), True, include_dev_test)
+                item['previousAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), False, include_dev_test)
 
                 # item['presentAccumulatedSales'] = get(item, 'presentAccumulatedSales.totalSales', 0)
                 # item['previousAccumulatedSales'] = get(item, 'previousAccumulatedSales.totalSales', 0)
@@ -215,8 +218,8 @@ class BranchReportRepository(BackupRepository):
         except Exception as e:
             raise e
 
-    def find_by_date_and(self, date_filter: DateFilter, start_date=None, end_date=None, custom_date=None, query={}):
-        reports = self.find(query)
+    def find_by_date_and(self, date_filter: DateFilter, start_date=None, end_date=None, custom_date=None, query={}, include_dev_test=False):
+        reports = self.find(query, include_dev_test=include_dev_test)
 
         if(date_filter == DateFilter.CUSTOM_DATE and custom_date is None):
             return []
@@ -238,17 +241,18 @@ class BranchReportRepository(BackupRepository):
 
         return filtered_reports
 
-    def calculate_accumulated_sales(self, branchId: str, date: datetime, present: bool = True):
+    def calculate_accumulated_sales(self, branchId: str, date: datetime, present: bool = True, include_dev_test: bool = False):
         queryDate = date if present else (date - timedelta(days=1))
+        dev_test_match = {} if include_dev_test else { "isDevTest": { "$ne": True } }
 
         try:
             data = list(self._db[self._transaction_collection].aggregate([
-                { 
+                {
                     '$match': {
                         "branchId": { "$eq": branchId },
                         "status": { "$in": [TransactionStatus.COMPLETED, TransactionStatus.REFUNDED] },
                         "date": { "$lte": str(queryDate.date()) },
-                        "isDevTest": { "$ne": True }
+                        **dev_test_match
                     }
                 },
                 {
@@ -314,7 +318,7 @@ class BranchReportRepository(BackupRepository):
                             "$match": {
                                 "$expr": {
                                     "$and": [
-                                        *self._defaultFilter['$match']['$expr']['$and'],
+                                        *self._default_filter()['$match']['$expr']['$and'],
                                         { "$eq": ["$status", TransactionStatus.COMPLETED] },
                                         { "$lte": [ "$date", "$$date" ] },
                                         # { "$gte": [ "$date", str(startDate.date()) ] },
@@ -394,7 +398,7 @@ class BranchReportRepository(BackupRepository):
                         "date": "$date"
                     },
                     "pipeline": [
-                        self._defaultFilter,
+                        self._default_filter(),
                         { "$project": { "_id": 0, "zCounter": 1 } }
                     ],
                     "as": name
@@ -406,7 +410,8 @@ class BranchReportRepository(BackupRepository):
             }},
         ]
 
-    def _create_serial_number_range_query(self, name, type):
+    def _create_serial_number_range_query(self, name, type, include_dev_test=False):
+        dev_test_filter = [] if include_dev_test else [{ "$ne": ["$isDevTest", True] }]
         return [
             {
                     "$lookup": {
@@ -423,7 +428,7 @@ class BranchReportRepository(BackupRepository):
                                             { "$eq": ["$branchId", "$$branchId"] },
                                             { "$eq": ["$date", "$$date"] },
                                             {"$eq": ["$status", type]},
-                                            { "$ne": ["$isDevTest", True] },
+                                            *dev_test_filter,
                                         ]
                                     }
                                 }
@@ -455,8 +460,8 @@ class BranchReportRepository(BackupRepository):
                             "date": "$date"
                         },
                         "pipeline": [
-                            self._defaultFilter,
-                           { 
+                            self._default_filter(),
+                           {
                                 '$group': {
                                     "_id": None,
                                     "timeIn": { "$min": "$serialNumber" },

@@ -14,7 +14,7 @@ def getMancomPaymentType(args):
     start = parse_date(args.get('min'), '%m/%d/%Y')
     end = parse_date(args.get('max'), '%m/%d/%Y')
 
-    transactions = fetch_completed_transactions(branch_ids, start, end)
+    transactions = fetch_completed_transactions(branch_ids, start, end, include_dev_test=args.get('includeDevTest') == 'true')
     items_by_transaction = fetch_items_by_transaction([t['_id'] for t in transactions])
 
     category_template = [{'id': str(c['_id']), 'name': c['name'], 'Cash': 0, 'AR': 0, 'Count': 0} for c in fetch_categories()]
