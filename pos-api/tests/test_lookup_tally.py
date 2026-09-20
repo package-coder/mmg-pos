@@ -370,3 +370,68 @@ class TestBackupCollectionsNeverUpload:
 
         assert central_db["new_transactions"].count_documents({}) == 1
         assert "_removed_sale_new_transactions_20260920" not in central_db.list_collection_names()
+
+
+class TestCustomersCreatedAtABranch:
+    """A customer created at a POS must reach central and every other branch, and
+    one person must never become two records."""
+
+    def _person(self, **over):
+        doc = {"first_name": "Juan", "middle_name": "Santos", "last_name": "Dela Cruz",
+               "birthDate": "1980-05-01T00:00:00.000Z", "_sync": {"status": "pending", "synced_at": None, "attempts": 0,
+                                                                 "last_attempt_at": None, "last_error": None, "stamp_id": ObjectId()}}
+        doc.update(over)
+        return doc
+
+    def test_customer_created_at_a_branch_uploads_to_central(self, sync_module, central_db, local_db):
+        local_db["customers"].insert_one(self._person())
+        sync_module.push_pending(local_db.client, local_db.name, central_db.client, central_db.name)
+
+        assert central_db["customers"].count_documents({"first_name": "Juan"}) == 1
+        assert local_db["customers"].find_one()["_sync"]["status"] == "synced"
+        assert "_sync" not in central_db["customers"].find_one()
+
+    def test_other_lookups_still_never_upload(self, sync_module, central_db, local_db):
+        local_db["branches"].insert_one({"name": "Local Only", "_sync": self._person()["_sync"]})
+        sync_module.push_pending(local_db.client, local_db.name, central_db.client, central_db.name)
+        assert central_db["branches"].count_documents({}) == 0
+
+    def test_customer_reaches_a_second_branch(self, tally, central_db, local_db):
+        central_db["customers"].insert_one({"first_name": "Juan", "last_name": "Dela Cruz", "birthDate": "1980-05-01"})
+        assert tally.mirror_unstamped(central_db, local_db, "customers") == 1
+
+    def test_pending_local_edit_is_not_overwritten_by_an_older_central_copy(self, tally, central_db, local_db):
+        cid = central_db["customers"].insert_one({"first_name": "Juan", "address": "old"}).inserted_id
+        tally.bootstrap_from_central(central_db, local_db, tally.LOOKUPS)
+        central_db["customers"].update_one({"_id": cid}, {"$set": {"contact_number": "0999"}})   # central changed too
+        local_db["customers"].update_one({"_id": cid}, {"$set": {"address": "new", "_sync": self._person()["_sync"]}})
+
+        tally.mirror_unstamped(central_db, local_db, "customers")
+
+        assert local_db["customers"].find_one({"_id": cid})["address"] == "new"
+
+    def test_same_person_created_at_two_branches_is_parked_not_duplicated(self, sync_module, central_db, local_db):
+        from customer_identity import identity_key  # sibling module in sync/
+        central_db["customers"].create_index("identityKey", unique=True, partialFilterExpression={"identityKey": {"$type": "string"}})
+        person = self._person()
+        key = identity_key(person)
+        central_db["customers"].insert_one({**{k: v for k, v in person.items() if k != "_sync"}, "identityKey": key})
+        local_db["customers"].insert_one({**person, "identityKey": key})
+
+        sync_module.push_pending(local_db.client, local_db.name, central_db.client, central_db.name)
+
+        assert central_db["customers"].count_documents({}) == 1
+        assert local_db["customers"].find_one()["_sync"]["status"] == "conflict"
+
+    def test_reconcile_merges_a_local_duplicate_into_the_central_record(self, tally, central_db, local_db):
+        central_id = central_db["customers"].insert_one({"first_name": "Juan", "middle_name": "Santos", "last_name": "Dela Cruz", "birthDate": "1980-05-01"}).inserted_id
+        local_id = local_db["customers"].insert_one({"first_name": "JUAN", "middle_name": "santos", "last_name": "dela  cruz", "birthDate": "1980-05-01T00:00:00Z"}).inserted_id
+        local_db["new_transactions"].insert_one({"customerId": str(local_id), "invoiceNumber": 1})
+
+        id_map, _, _ = tally.build_id_map(central_db, local_db)
+        assert id_map == {str(local_id): str(central_id)}
+        tally.rewrite_references(local_db, id_map, apply=True)
+        tally.backup_and_remove_strays(local_db, id_map, list(tally.NATURAL_KEYS), apply=True)
+
+        assert local_db["new_transactions"].find_one()["customerId"] == str(central_id)
+        assert local_db["customers"].count_documents({"_id": local_id}) == 0

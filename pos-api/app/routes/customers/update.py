@@ -11,6 +11,7 @@ from app.database.config import customers
 from app.database.store import update_one as store_update_one
 from app.new_models.AuditLog import AuditCode, AuditLog
 from app.repositories.audit_log import AuditLogRepository
+from app.utils.customer_identity import identity_key as customer_identity_key
 
 update_customer = Blueprint("/customer/edit", __name__)
 logger = AuditLogRepository()
@@ -67,6 +68,22 @@ def _update_customer():
             'code': 25
         }, 200
    filter = { '_id': ObjectId(id) }
+
+   # Editing a name / birthday / ID must not turn this customer into someone who is
+   # already on file. Recompute the identity from the stored record plus the edit.
+   current = customers.find_one(filter)
+   if current is not None:
+      new_key = customer_identity_key({**current, **update_val})
+      if new_key != current.get('identityKey'):
+         clash = customers.find_one({"identityKey": new_key, "_id": {"$ne": current["_id"]}}, {"_id": 1}) if new_key else None
+         if clash:
+            return {
+               'message': 'Another customer with the same details already exists.',
+               'code': 31,
+               'customerId': str(clash["_id"]),
+            }, 409
+         update_val['identityKey'] = new_key
+
    new_val = { "$set": update_val }
    #array_filt = {"arrayFilters": [{'[0].id': '1'}]}
 

@@ -11,7 +11,10 @@ from flask import Blueprint, g, request
 from app.database.config import customers
 from app.database.store import insert_one
 from app.new_models.AuditLog import AuditCode, AuditLog
+from pymongo.errors import DuplicateKeyError
+
 from app.repositories.audit_log import AuditLogRepository
+from app.utils.customer_identity import identity_key as customer_identity_key
 from app.utils.utils import getLocalTime
 
 create_customer = Blueprint("/customer/create", __name__)
@@ -53,7 +56,7 @@ def _create_customer():
    #          'code': 23
    #      }, 401
 
-   doc = insert_one('customers', {
+   new_customer = {
       "first_name": f_name,
       "middle_name": m_name,
       "last_name": l_name,
@@ -72,8 +75,29 @@ def _create_customer():
       "created_by": created_by,
       "created_at": created_at,
       "birthDate": birthDate
-   })
-   
+   }
+
+   # Same person already on file (here, or copied down from another branch)? Refuse
+   # instead of creating a second record. The unique index on identityKey backs this
+   # up for two creates racing each other.
+   identity_key = customer_identity_key(new_customer)
+   duplicate_response = lambda existing_id: ({
+      'message': 'This customer already exists.',
+      'code': 31,
+      'customerId': str(existing_id),
+   }, 409)
+   if identity_key:
+      existing = customers.find_one({"identityKey": identity_key}, {"_id": 1})
+      if existing:
+         return duplicate_response(existing["_id"])
+      new_customer["identityKey"] = identity_key
+
+   try:
+      doc = insert_one('customers', new_customer)
+   except DuplicateKeyError:
+      existing = customers.find_one({"identityKey": identity_key}, {"_id": 1})
+      return duplicate_response(existing["_id"] if existing else '')
+
    if doc.inserted_id:
       logger.insert_one(AuditLog(action=AuditCode.CUSTOMER_CREATE, userId=g.user_id, data=request_data))
 

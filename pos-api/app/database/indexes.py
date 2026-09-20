@@ -99,6 +99,19 @@ def ensure_indexes(db):
     for collection_name in ['branches', 'users', 'customers', 'discounts', 'doctors', 'corporates', 'roles', 'items', 'audit_logs_lookup', 'products', 'packages', 'product_categories']:
         db[collection_name].create_index([("_sync.stamp_id", ASCENDING)])
 
+    # customers — one person, one record. `identityKey` is computed by sync/customer_identity.py
+    # (ID number if present, else first+middle+last name and birth date). The unique index makes
+    # the API's own duplicate check race-proof when two cashiers save the same person at once.
+    # Partial, so legacy customers with no key are unaffected. Best-effort: legacy databases that
+    # already hold duplicates cannot build a unique index, and that must not stop the server booting.
+    _create_or_replace_index(
+        db.customers,
+        [("identityKey", ASCENDING)],
+        unique=True,
+        partialFilterExpression={"identityKey": {"$type": "string"}},
+        name="unique_customer_identity",
+    )
+
     # new_transactions — BIR compliance guardrail: invoice numbers (and cancel/refund serial
     # numbers) must be unique per accredited terminal (PTU), not per branch or per cashier — see
     # "Invoice Number" in CLAUDE.md. The atomic counter in `counters` already prevents duplicates

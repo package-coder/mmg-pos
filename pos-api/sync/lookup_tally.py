@@ -27,10 +27,29 @@ shipped in the `sync` container image and also imported by `seed.py`.
 """
 import datetime
 import hashlib
+import importlib.util
 import json
+import os
 import re
 
 from bson import ObjectId
+from pymongo.errors import DuplicateKeyError
+
+
+def _load_sibling(name):
+    """Import a module that sits next to this file, whatever the import path is
+    (the tests load this file by path, and `import customer_identity` would fail)."""
+    spec = importlib.util.spec_from_file_location(name, os.path.join(os.path.dirname(os.path.abspath(__file__)), f'{name}.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+customer_identity = _load_sibling('customer_identity')
+
+# Lookup collections that are ALSO created at a branch and must therefore upload
+# (everything else in LOOKUPS flows central -> branch only).
+BRANCH_ORIGINATED = ['customers']
 
 # Central -> branch collections. The single definition: sync/app.py, seed.py
 # and reconcile.py all use this list so they can never disagree about what
@@ -54,6 +73,8 @@ LOOKUPS = [
 # databases. A local-only doc is only auto-matched when exactly one central
 # doc has the same key (and vice versa); anything else is reported, not guessed.
 NATURAL_KEYS = {
+    # one person = one record; the rule lives in customer_identity.py (ID number, else name + birthday)
+    'customers': customer_identity.identity_key,
     'branches': ['name', 'tin'],
     'roles': ['name'],
     'users': ['username'],
@@ -149,10 +170,18 @@ def mirror_unstamped(remote_db, local_db, collection_name):
         current = local_collection.find_one({'_id': doc['_id']})
         if current is not None and hashes.get(key) == digest:
             continue  # central unchanged since we last copied it: keep whatever is here
+        if current is not None and (current.get('_sync') or {}).get('status') == 'pending':
+            continue  # a local edit is waiting to upload; do not overwrite it with an older copy
         if current is None or _strip_sync(current) != payload:
             if current is not None and '_sync' in current:
                 payload['_sync'] = current['_sync']
-            local_collection.replace_one({'_id': doc['_id']}, payload, upsert=True)
+            try:
+                local_collection.replace_one({'_id': doc['_id']}, payload, upsert=True)
+            except DuplicateKeyError as e:
+                # e.g. the same person was also created here: leave both, retry next cycle,
+                # and let `reconcile.py` merge them. One bad doc must not stop the cycle.
+                print(f'[mirror] {collection_name}/{doc["_id"]} not copied (duplicate of a local record): {e.details.get("errmsg", e) if getattr(e, "details", None) else e}')
+                continue
             written += 1
         hashes[key] = digest
         dirty = True
@@ -198,6 +227,8 @@ def bootstrap_from_central(remote_db, local_db, lookups):
 # --- Reconciliation --------------------------------------------------------
 
 def _natural_key(doc, fields):
+    if callable(fields):
+        return fields(doc)
     values = tuple(doc.get(f) for f in fields)
     return None if any(v in (None, '') for v in values) else tuple(str(v).strip().lower() for v in values)
 

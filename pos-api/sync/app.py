@@ -104,7 +104,9 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
     conflicts = 0
 
     for collection_name in source_db.list_collection_names():
-      if collection_name in lookups:
+      # Lookups flow central -> branch only, except the ones also created at a branch
+      # (customers), which must upload or their sales vanish from central reports.
+      if collection_name in lookups and collection_name not in lookup_tally.BRANCH_ORIGINATED:
         continue
 
       # `_`-prefixed collections are local backups/scratch (reconcile and reset copy

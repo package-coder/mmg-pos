@@ -316,7 +316,8 @@ const CustomerForm = ({ onClose }) => {
             if (context?.previousCustomers) {
                 queryClient.setQueryData('customers', context.previousCustomers);
             }
-            toast.error('Error creating customer.');
+            // 409 = the same person is already on file: say so instead of a generic error.
+            toast.error(err?.response?.data?.message || 'Error creating customer.');
         },
         onSuccess: () => {
             toast.success('Customer created successfully.', { autoClose: 1500 });
@@ -343,7 +344,7 @@ const CustomerForm = ({ onClose }) => {
             if (context?.previousCustomers) {
                 queryClient.setQueryData('customers', context.previousCustomers);
             }
-            toast.error('Error editing customer.');
+            toast.error(err?.response?.data?.message || 'Error editing customer.');
         },
         onSuccess: () => {
             toast.success('Customer edited successfully.', { autoClose: 1500 });

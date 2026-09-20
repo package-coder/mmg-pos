@@ -124,6 +124,10 @@ It only ever writes to the local database. Needs `LOCAL_DATABASE_URL` and `REMOT
   197 products point at the *other* set of ids defined in `product_categories.py`. As a result, all 197
   products reference a category that does not exist. Central was evidently seeded with an older
   version of the category seeder. Needs a decision on which set is correct, then a fix on central.
-- **Customers are not seeded and only sync downward.** A customer created at a branch never uploads, so a
-  sale to that customer disappears from the cloud transactions page (the list joins each sale to its
-  customer). Not addressed yet.
+- **(Fixed) Customers created at a branch used to stay there.** A sale to such a customer disappeared from the
+  cloud transactions page (the list joins each sale to its customer). Customers now upload like sales do, and
+  reach every other branch through the normal pull. One person is one record: the rule is in
+  `sync/customer_identity.py` (an ID number if present, otherwise first + middle + last name + birthday,
+  ignoring case, spacing and accents). The API refuses a duplicate with HTTP 409, a unique index on
+  `identityKey` backs that up when two branches save the same person at once (the second upload is parked as
+  a `conflict`), and `python sync/reconcile.py` merges duplicates that already exist. Customers are not seeded.
