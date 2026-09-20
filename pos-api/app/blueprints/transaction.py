@@ -283,6 +283,7 @@ def v3_create_transaction(user_id):
                 'customerId': result['customer']['_id'],
                 'memberId': result['customer'].get('customer_type_id'),
                 'isDevTest': data['isDevTest'],
+                'isLocal': model.isLocal,
                 **model.model_dump(
                     include={
                         'cashierId',
@@ -303,6 +304,7 @@ def v3_create_transaction(user_id):
                 **i.model_dump(exclude='id'),
                 'transactionId': result['_id'],
                 'isDevTest': data['isDevTest'],
+                'isLocal': model.isLocal,
                 **model.model_dump(include={'date'})
             },
             model.transactionItems

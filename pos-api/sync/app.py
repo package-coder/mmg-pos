@@ -125,6 +125,12 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
 
     query = {
       '_sync.status': 'pending',
+      # Automated/manual test data (any collection) marked isLocal=True is never pushed, full
+      # stop — regardless of APP_ENV. Unlike the APP_ENV check in upstream_sync_data() (which
+      # only blocks local-development/development), this catches a stack deliberately
+      # configured to look like a real branch for testing purposes. Left permanently pending;
+      # nothing else in the app cares about a local document's sync status.
+      'isLocal': {'$ne': True},
       '$or': [
         {'_sync.last_attempt_at': None},
         {'_sync.last_attempt_at': {'$lt': retry_cutoff}},

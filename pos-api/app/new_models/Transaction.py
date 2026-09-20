@@ -226,6 +226,15 @@ class CreateTransaction(BaseTransaction):
     # terminal's actual MIN/SN header instead of a permanent "---" placeholder.
     min: Optional[str] = None
     sn: Optional[str] = None
+    # NEVER set by the real app — for automated/manual API testing only (curl, scripts, etc.)
+    # against a stack whose sync service is actually running and configured with a real
+    # REMOTE_DATABASE_URL. Sync (sync/app.py push_pending) refuses to push any document with
+    # isLocal=True upstream, regardless of APP_ENV — the APP_ENV-based guard there only blocks
+    # local-development/development, so a stack deliberately configured to look like a real
+    # branch (APP_ENV=internal-production, as this repo's docker-compose.yml is) would otherwise
+    # sync test data straight to production. Set this on every document an automated test
+    # creates when there's any chance sync is running.
+    isLocal: Optional[bool] = False
     # Client-generated key (one per Pay/Hold click), unique across new_transactions (see
     # app/database/indexes.py: unique_idempotency_key). Lets a double-click or a retried request
     # after a dropped response be recognized as the same submission instead of creating a second
