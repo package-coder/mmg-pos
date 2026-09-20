@@ -13,7 +13,23 @@ const REPLY_TIMEOUT_MS = 30000
 // VITE_APP_SKIP_TERMINAL_CHECK=true (docker-compose.yml only — NEVER docker-compose.prod.yml or
 // a real branch deployment) to fake a terminal response so checkout isn't blocked in dev.
 const SKIP_TERMINAL_CHECK = import.meta.env.VITE_APP_SKIP_TERMINAL_CHECK === 'true'
-const DEV_MOCK_TERMINAL_INFO = { MIN: 'DEV-MIN', SN: 'DEV-SN', PTU_NO: 'DEV-PTU-LOCAL' }
+// The PTU must be unique per install, not a shared constant. Invoice numbers are counted per
+// ptuNumber and the central DB has a unique (ptuNumber, invoiceNumber) index, so every dev stack
+// sharing one fake PTU restarted at invoice 1 and the second machine's sales were rejected on sync.
+function devPtuNo() {
+    const fresh = () => `DEV-PTU-${Math.random().toString(16).slice(2, 10).toUpperCase()}`
+    try {
+        let id = localStorage.getItem('devPtuNo')
+        if (!id) {
+            id = fresh()
+            localStorage.setItem('devPtuNo', id)
+        }
+        return id
+    } catch {
+        return fresh()
+    }
+}
+const DEV_MOCK_TERMINAL_INFO = { MIN: 'DEV-MIN', SN: 'DEV-SN', PTU_NO: devPtuNo() }
 
 const PrinterProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);

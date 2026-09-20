@@ -26,6 +26,8 @@ This file must stay importable on its own (no Flask/app imports): it is
 shipped in the `sync` container image and also imported by `seed.py`.
 """
 import datetime
+import hashlib
+import json
 import re
 
 from bson import ObjectId
@@ -108,27 +110,54 @@ def _strip_sync(doc):
 
 # --- Downstream: mirror ----------------------------------------------------
 
+def _content_hash(doc):
+    return hashlib.sha1(json.dumps(_strip_sync(doc), sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _load_hashes(local_db, collection_name):
+    meta = local_db['sync_meta'].find_one({'_id': f'mirror_hashes_{collection_name}'}) or {}
+    return dict(meta.get('hashes', {}))
+
+
+def _save_hashes(local_db, collection_name, hashes):
+    local_db['sync_meta'].update_one(
+        {'_id': f'mirror_hashes_{collection_name}'}, {'$set': {'hashes': hashes}}, upsert=True)
+
+
 def mirror_unstamped(remote_db, local_db, collection_name):
     """Copy central docs that carry no `_sync.stamp_id`.
 
     The downstream watermark only sees stamped documents, so anything written
     centrally through a path that does not stamp (seeders, scripts, manual
     edits) would never reach a branch once a watermark exists. Lookup
-    collections are small, so comparing these directly each cycle is cheap and
-    removes that blind spot. Returns the number of documents written.
+    collections are small, so comparing these directly each cycle is cheap.
+
+    Central wins only when central actually CHANGED: the hash of each central
+    doc as of the last copy is remembered in `sync_meta`, and a doc whose
+    central content is unchanged is left alone. So a deliberate local fix to a
+    central-owned record is not reverted every cycle, while a genuine central
+    edit still overwrites it. Returns the number of documents written.
     """
     written = 0
     remote_collection = remote_db[collection_name]
     local_collection = local_db[collection_name]
+    hashes = _load_hashes(local_db, collection_name)
+    dirty = False
     for doc in remote_collection.find({'_sync.stamp_id': {'$exists': False}}):
+        key, digest = str(doc['_id']), _content_hash(doc)
         payload = _strip_sync(doc)
         current = local_collection.find_one({'_id': doc['_id']})
-        if current is not None and _strip_sync(current) == payload:
-            continue
-        if current is not None and '_sync' in current:
-            payload['_sync'] = current['_sync']
-        local_collection.replace_one({'_id': doc['_id']}, payload, upsert=True)
-        written += 1
+        if current is not None and hashes.get(key) == digest:
+            continue  # central unchanged since we last copied it: keep whatever is here
+        if current is None or _strip_sync(current) != payload:
+            if current is not None and '_sync' in current:
+                payload['_sync'] = current['_sync']
+            local_collection.replace_one({'_id': doc['_id']}, payload, upsert=True)
+            written += 1
+        hashes[key] = digest
+        dirty = True
+    if dirty:
+        _save_hashes(local_db, collection_name, hashes)
     return written
 
 
@@ -151,13 +180,17 @@ def bootstrap_from_central(remote_db, local_db, lookups):
         if name not in names:
             continue
         copied = 0
+        hashes = _load_hashes(local_db, name)
         for doc in remote_db[name].find({}):
             current = local_db[name].find_one({'_id': doc['_id']}, {'_sync': 1})
             payload = _strip_sync(doc)
             if current is not None and '_sync' in current:
                 payload['_sync'] = current['_sync']
             local_db[name].replace_one({'_id': doc['_id']}, payload, upsert=True)
+            if '_sync' not in doc or 'stamp_id' not in (doc.get('_sync') or {}):
+                hashes[str(doc['_id'])] = _content_hash(doc)  # so a later local fix is not "reverted"
             copied += 1
+        _save_hashes(local_db, name, hashes)
         counts[name] = copied
     return counts
 
@@ -303,12 +336,45 @@ def backup_and_remove_strays(local_db, id_map, lookups_with_strays, apply=False)
     return removed
 
 
+# --- Reset -----------------------------------------------------------------
+
+def pending_upload_count(local_db):
+    """Sales/report docs that have not reached central yet (pending or parked
+    as a conflict). Wiping the database while any exist would destroy the only copy."""
+    counts = {}
+    existing = set(local_db.list_collection_names())
+    for name in UPSTREAM_COLLECTIONS:
+        if name in existing:
+            n = local_db[name].count_documents({'_sync.status': {'$in': ['pending', 'conflict']}})
+            if n:
+                counts[name] = n
+    return counts
+
+
+def reset_database(local_db):
+    """Empty every collection, keeping the indexes (they are created once at
+    server start and would otherwise be gone until the next restart). A full
+    copy goes to `<db>_backup_<timestamp>` on the same server first.
+    Returns (backup_db_name, {collection: docs_removed})."""
+    client = local_db.client
+    backup_name = f'{local_db.name}_backup_{_now().strftime("%Y%m%d%H%M%S")}'
+    removed = {}
+    for name in local_db.list_collection_names():
+        if name.startswith('system.'):
+            continue
+        docs = list(local_db[name].find({}))
+        if docs:
+            client[backup_name][name].insert_many(docs)
+        removed[name] = local_db[name].delete_many({}).deleted_count
+    return backup_name, removed
+
+
 # --- Verification ----------------------------------------------------------
 
 def verify(remote_db, local_db, lookups):
     """Read-only tally. Empty lists / zeros everywhere means the branch and
     central agree."""
-    report = {'local_only_lookups': {}, 'orphan_references': {}, 'unstamped_upstream': {}}
+    report = {'local_only_lookups': {}, 'orphan_references': {}, 'unstamped_upstream': {}, 'sync_conflicts': {}}
     for name in lookups:
         stray = local_only_ids(remote_db, local_db, name)
         if stray:
@@ -335,4 +401,9 @@ def verify(remote_db, local_db, lookups):
             n = local_db[name].count_documents({'_sync': {'$exists': False}})
             if n:
                 report['unstamped_upstream'][name] = n
+            # Parked by the upstream sync because a unique index on central rejected them
+            # (e.g. a duplicate invoice number for the same terminal). Never uploaded.
+            c = local_db[name].count_documents({'_sync.status': 'conflict'})
+            if c:
+                report['sync_conflicts'][name] = c
     return report

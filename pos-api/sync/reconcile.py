@@ -59,6 +59,7 @@ def run_verify(local_db, remote_db):
         ('Local-only lookup records (not in central)', report['local_only_lookups']),
         ('References to ids central does not have', report['orphan_references']),
         ('Sales/report docs never flagged for upload', report['unstamped_upstream']),
+        ('Docs central rejected (unique-index conflict, NOT uploaded; fix, then set _sync.status back to pending)', report['sync_conflicts']),
     ):
         print(f'\n{title}:')
         if not section:

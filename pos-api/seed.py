@@ -17,6 +17,12 @@ sales recorded against the local id never tallied with central. So:
     fall back to standalone with a warning; every other APP_ENV refuses to
     guess and exits, because seeding then would recreate the id split.
 
+Start over (dev/test only):
+    python seed.py --reset            # shows what would be wiped, changes nothing
+    python seed.py --reset --yes      # backs up to <db>_backup_<time>, empties, re-seeds
+  Refuses if sales have not uploaded yet (--discard-unsynced overrides) and refuses
+  outside local-development/development (--force-production overrides).
+
 Already seeded a branch the old way? Run `python sync/reconcile.py` to repair it.
 
 Usage (inside Docker):
@@ -120,13 +126,14 @@ def seed_all():
         print("\n━━ Product Categories ━━", flush=True)
         product_categories.seed(log)
 
-        # 5. Packages
-        print("\n━━ Packages ━━", flush=True)
-        packages.seed(log)
-
-        # 6. Products (depends on categories existing)
+        # 5. Products (depends on categories existing)
         print("\n━━ Products ━━", flush=True)
         products.seed(log)
+
+        # 6. Packages — must come AFTER products: a package looks its lab tests up in
+        # `products` by name, so seeding it first left every package with no lab tests.
+        print("\n━━ Packages ━━", flush=True)
+        packages.seed(log)
 
         # 7. Audit log action display names
         print("\n━━ Audit Log Lookup ━━", flush=True)
@@ -140,9 +147,40 @@ def seed_all():
         raise
 
 
+def reset_local(args):
+    """--reset: empty this database (after backing it up) so it can be re-seeded
+    from scratch. Guarded, because it also resets the invoice counters."""
+    if os.getenv("APP_ENV", "local-development") not in _DEV_ENVS and "--force-production" not in args:
+        print("\n✗ --reset is for dev/test databases only (APP_ENV is not local-development/development).")
+        print("  Resetting also restarts invoice numbering, which would reuse real invoice numbers.")
+        print("  Pass --force-production only if you are certain.")
+        sys.exit(1)
+
+    pending = lookup_tally.pending_upload_count(db)
+    counts = {n: c for n in db.list_collection_names() if not n.startswith("system.") and (c := db[n].count_documents({}))}
+    print(f"\n  Database '{DATABASE_NAME}' currently holds: {counts or 'nothing'}")
+    if pending:
+        print(f"  WARNING: not yet uploaded to central: {pending}")
+        if "--discard-unsynced" not in args:
+            print("  Refusing to reset: that would destroy the only copy. Wait for the sync,")
+            print("  or pass --discard-unsynced to throw them away (a backup is still made).")
+            sys.exit(1)
+    if "--yes" not in args:
+        print("\n  Nothing was changed. Re-run with --yes to back up and wipe this database.")
+        sys.exit(0)
+
+    backup_name, removed = lookup_tally.reset_database(db)
+    print(f"\n  Backed up to database '{backup_name}' and emptied {sum(removed.values())} document(s).")
+    print("  Afterwards: restart the server container (it recreates indexes only at startup),")
+    print("  sign out/in, and clear the browser's 'devPtuNo' local-storage key so the new")
+    print("  invoice numbering does not reuse a PTU that central already has invoices for.\n")
+
+
 if __name__ == "__main__":
     try:
         mode, remote_db = choose_mode("--standalone" in sys.argv[1:])
+        if "--reset" in sys.argv[1:]:
+            reset_local(sys.argv[1:])
         if mode == "bootstrap":
             bootstrap_from_central(remote_db)
         else:

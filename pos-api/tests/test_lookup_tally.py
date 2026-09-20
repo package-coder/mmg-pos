@@ -210,7 +210,7 @@ class TestBackfillAndVerify:
         tally.backfill_upstream_stamps(local_db)
 
         after = tally.verify(central_db, local_db, tally.LOOKUPS)
-        assert after == {"local_only_lookups": {}, "orphan_references": {}, "unstamped_upstream": {}}
+        assert after == {"local_only_lookups": {}, "orphan_references": {}, "unstamped_upstream": {}, "sync_conflicts": {}}
 
 
 class TestDownstreamPullIntegration:
@@ -236,3 +236,124 @@ class TestDownstreamPullIntegration:
     def test_connection_strings_are_redacted_in_logs(self, sync_module):
         assert "hunter2" not in sync_module._redact("mongodb://admin:hunter2@host:27017/pos")
         assert sync_module._redact("mongodb://localhost:27017") == "mongodb://localhost:27017"
+
+
+class TestUniqueIndexConflict:
+    """Two dev stacks sharing one fake PTU both issued invoice 1. Central's unique
+    (ptuNumber, invoiceNumber) index rejected the second machine's sale, and the
+    sync retried it every minute forever while its log claimed only 'failed'."""
+
+    @pytest.fixture
+    def dest_with_unique_invoice(self, central_db):
+        central_db["new_transactions"].create_index(
+            [("ptuNumber", 1), ("invoiceNumber", 1)], unique=True, name="unique_invoice_number_per_terminal")
+        return central_db
+
+    def _pending(self):
+        from bson import ObjectId as O
+        return {"status": "pending", "synced_at": None, "attempts": 0, "last_attempt_at": None, "last_error": None, "stamp_id": O()}
+
+    def test_conflicting_sale_is_parked_not_retried_forever(self, sync_module, dest_with_unique_invoice, local_db):
+        dest_with_unique_invoice["new_transactions"].insert_one({"ptuNumber": "DEV-PTU-LOCAL", "invoiceNumber": 1})
+        local_db["new_transactions"].insert_one({"ptuNumber": "DEV-PTU-LOCAL", "invoiceNumber": 1, "_sync": self._pending()})
+
+        sync_module.push_pending(local_db.client, local_db.name, dest_with_unique_invoice.client, dest_with_unique_invoice.name)
+
+        doc = local_db["new_transactions"].find_one()
+        assert doc["_sync"]["status"] == "conflict"
+        assert "DuplicateKeyError" in doc["_sync"]["last_error"]
+        # a second cycle must not touch it again
+        sync_module.push_pending(local_db.client, local_db.name, dest_with_unique_invoice.client, dest_with_unique_invoice.name)
+        assert local_db["new_transactions"].find_one()["_sync"]["attempts"] == 0
+
+    def test_one_conflict_does_not_block_the_rest(self, sync_module, dest_with_unique_invoice, local_db):
+        dest_with_unique_invoice["new_transactions"].insert_one({"ptuNumber": "DEV-PTU-LOCAL", "invoiceNumber": 1})
+        local_db["new_transactions"].insert_many([
+            {"ptuNumber": "DEV-PTU-LOCAL", "invoiceNumber": 1, "_sync": self._pending()},
+            {"ptuNumber": "DEV-PTU-OTHER", "invoiceNumber": 1, "_sync": self._pending()},
+        ])
+
+        sync_module.push_pending(local_db.client, local_db.name, dest_with_unique_invoice.client, dest_with_unique_invoice.name)
+
+        assert dest_with_unique_invoice["new_transactions"].count_documents({"ptuNumber": "DEV-PTU-OTHER"}) == 1
+        assert local_db["new_transactions"].count_documents({"_sync.status": "conflict"}) == 1
+
+    def test_conflict_can_be_requeued_after_the_cause_is_fixed(self, sync_module, dest_with_unique_invoice, local_db):
+        dest_with_unique_invoice["new_transactions"].insert_one({"ptuNumber": "DEV-PTU-LOCAL", "invoiceNumber": 1})
+        local_db["new_transactions"].insert_one({"ptuNumber": "DEV-PTU-LOCAL", "invoiceNumber": 1, "_sync": self._pending()})
+        sync_module.push_pending(local_db.client, local_db.name, dest_with_unique_invoice.client, dest_with_unique_invoice.name)
+
+        local_db["new_transactions"].update_one({}, {"$set": {"ptuNumber": "DEV-PTU-FIXED", "_sync": self._pending()}})
+        sync_module.push_pending(local_db.client, local_db.name, dest_with_unique_invoice.client, dest_with_unique_invoice.name)
+
+        assert dest_with_unique_invoice["new_transactions"].count_documents({"ptuNumber": "DEV-PTU-FIXED"}) == 1
+        assert local_db["new_transactions"].find_one()["_sync"]["status"] == "synced"
+
+    def test_verify_reports_conflicts(self, tally, central_db, local_db):
+        local_db["new_transactions"].insert_one({"_sync": {"status": "conflict"}})
+        assert tally.verify(central_db, local_db, tally.LOOKUPS)["sync_conflicts"] == {"new_transactions": 1}
+
+
+class TestReset:
+    def test_backs_up_then_empties_but_keeps_indexes(self, tally, local_db):
+        local_db["new_transactions"].create_index("invoiceNumber", unique=True, name="uq_invoice")
+        local_db["new_transactions"].insert_one({"invoiceNumber": 1})
+        local_db["counters"].insert_one({"type": "INVOICE_NUMBER", "seq": 1})
+
+        backup_name, removed = tally.reset_database(local_db)
+        try:
+            assert local_db["new_transactions"].count_documents({}) == 0
+            assert local_db["counters"].count_documents({}) == 0
+            assert "uq_invoice" in local_db["new_transactions"].index_information()
+            assert removed == {"new_transactions": 1, "counters": 1}
+            assert local_db.client[backup_name]["new_transactions"].count_documents({}) == 1
+        finally:
+            local_db.client.drop_database(backup_name)
+
+    def test_pending_uploads_are_reported_so_reset_can_refuse(self, tally, local_db):
+        local_db["new_transactions"].insert_one({"_sync": {"status": "pending"}})
+        local_db["new_transactions"].insert_one({"_sync": {"status": "conflict"}})
+        local_db["new_transactions"].insert_one({"_sync": {"status": "synced"}})
+        assert tally.pending_upload_count(local_db) == {"new_transactions": 2}
+
+    def test_nothing_pending_when_everything_synced(self, tally, local_db):
+        local_db["new_transactions"].insert_one({"_sync": {"status": "synced"}})
+        assert tally.pending_upload_count(local_db) == {}
+
+    def test_fresh_database_can_be_rebootstrapped_from_central(self, tally, central_db, local_db):
+        branch_id, _ = _seed_central(central_db)
+        _seed_branch_the_old_way(local_db)
+
+        backup_name, _ = tally.reset_database(local_db)
+        try:
+            tally.bootstrap_from_central(central_db, local_db, tally.LOOKUPS)
+        finally:
+            local_db.client.drop_database(backup_name)
+
+        assert [d["_id"] for d in local_db["branches"].find()] == [branch_id]
+        assert tally.verify(central_db, local_db, tally.LOOKUPS)["local_only_lookups"] == {}
+
+
+class TestLocalFixSurvivesMirror:
+    """A deliberate local fix to a central-owned record must not be reverted every
+    cycle, but a real central edit must still win."""
+
+    def test_local_fix_is_kept_while_central_is_unchanged(self, tally, central_db, local_db):
+        pkg_id = central_db["packages"].insert_one({"name": "Full Checkup", "lab_test": []}).inserted_id
+        tally.bootstrap_from_central(central_db, local_db, tally.LOOKUPS)
+
+        local_db["packages"].update_one({"_id": pkg_id}, {"$set": {"lab_test": [{"name": "CBC"}]}})
+        tally.mirror_unstamped(central_db, local_db, "packages")
+
+        assert local_db["packages"].find_one({"_id": pkg_id})["lab_test"] == [{"name": "CBC"}]
+
+    def test_central_edit_still_overwrites_the_local_fix(self, tally, central_db, local_db):
+        pkg_id = central_db["packages"].insert_one({"name": "Full Checkup", "lab_test": []}).inserted_id
+        tally.bootstrap_from_central(central_db, local_db, tally.LOOKUPS)
+        local_db["packages"].update_one({"_id": pkg_id}, {"$set": {"lab_test": [{"name": "CBC"}]}})
+
+        central_db["packages"].update_one({"_id": pkg_id}, {"$set": {"name": "Full Checkup v2"}})
+        tally.mirror_unstamped(central_db, local_db, "packages")
+
+        doc = local_db["packages"].find_one({"_id": pkg_id})
+        assert doc["name"] == "Full Checkup v2" and doc["lab_test"] == []

@@ -101,6 +101,7 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
 
     pushed = 0
     failed = 0
+    conflicts = 0
 
     for collection_name in source_db.list_collection_names():
       if collection_name in lookups:
@@ -142,6 +143,22 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
                   f'gets synced on the next cycle instead of being marked synced by mistake.')
           else:
             pushed += 1
+        except pymongo.errors.DuplicateKeyError as e:
+          # Central's unique index (e.g. one invoice number per terminal) rejects this
+          # document. Retrying can never succeed, so instead of failing every minute
+          # forever, park it as a visible conflict. It is NOT dropped: fix the cause,
+          # then set `_sync.status` back to 'pending' to re-queue it.
+          source_collection.update_one(
+            {'_id': doc_id, '_sync': original_sync},
+            {'$set': {
+              '_sync.status': 'conflict',
+              '_sync.last_attempt_at': now,
+              '_sync.last_error': repr(e),
+            }}
+          )
+          conflicts += 1
+          print(f'[upstream-sync] CONFLICT: {collection_name}/{doc_id} rejected by a unique index on central '
+                f'and parked (status=conflict, not retried): {e.details.get("errmsg", repr(e)) if getattr(e, "details", None) else repr(e)}')
         except Exception as e:
           attempts = original_sync.get('attempts', 0) + 1 if original_sync else 1
           source_collection.update_one(
@@ -158,10 +175,10 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
 
     source_db['sync_meta'].update_one(
       {'_id': 'upstream'},
-      {'$set': {'last_run_at': now, 'pushed': pushed, 'failed': failed}},
+      {'$set': {'last_run_at': now, 'pushed': pushed, 'failed': failed, 'conflicts': conflicts}},
       upsert=True,
     )
-    print(f'[upstream-sync] pushed={pushed} failed={failed}')
+    print(f'[upstream-sync] pushed={pushed} failed={failed} conflicts={conflicts}')
 
   except Exception as e:
     print('[upstream-sync] Error: ', repr(e))
