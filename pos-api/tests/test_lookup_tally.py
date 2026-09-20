@@ -357,3 +357,16 @@ class TestLocalFixSurvivesMirror:
 
         doc = local_db["packages"].find_one({"_id": pkg_id})
         assert doc["name"] == "Full Checkup v2" and doc["lab_test"] == []
+
+
+class TestBackupCollectionsNeverUpload:
+    def test_underscore_collections_are_not_pushed(self, sync_module, central_db, local_db):
+        from bson import ObjectId as O
+        pending = {"status": "pending", "synced_at": None, "attempts": 0, "last_attempt_at": None, "last_error": None, "stamp_id": O()}
+        local_db["_removed_sale_new_transactions_20260920"].insert_one({"invoiceNumber": 1, "_sync": pending})
+        local_db["new_transactions"].insert_one({"invoiceNumber": 2, "_sync": pending})
+
+        sync_module.push_pending(local_db.client, local_db.name, central_db.client, central_db.name)
+
+        assert central_db["new_transactions"].count_documents({}) == 1
+        assert "_removed_sale_new_transactions_20260920" not in central_db.list_collection_names()

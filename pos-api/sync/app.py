@@ -107,6 +107,12 @@ def push_pending(source_client: pymongo.MongoClient, source_db_name, dest_client
       if collection_name in lookups:
         continue
 
+      # `_`-prefixed collections are local backups/scratch (reconcile and reset copy
+      # documents there with their `_sync` stamp intact). They must never upload:
+      # a backup copy of a sale would otherwise arrive on central as junk.
+      if collection_name.startswith('_'):
+        continue
+
       source_collection = source_db[collection_name]
       dest_collection = dest_db[collection_name]
 

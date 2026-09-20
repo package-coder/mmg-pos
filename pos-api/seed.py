@@ -38,7 +38,9 @@ import sys
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "sync"))
+# APPEND, never insert: pos-api/sync contains an app.py that would shadow the `app`
+# package (app.seeders, app.database...) if it came first on the import path.
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sync"))
 import lookup_tally
 
 # Import all seeders
