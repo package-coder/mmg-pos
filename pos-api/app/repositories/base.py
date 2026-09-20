@@ -125,6 +125,25 @@ class BackupRepository(Repository):
             print(f"Backup insert failed: {e}")
         return result
 
+    # The bulk writers must stamp too. insert_many/update_many(_bare) were
+    # inherited unstamped from Repository, so every transaction's line items and
+    # discounts (written with insert_many) and every status change applied to
+    # many docs at once never carried `_sync` and never uploaded — central had
+    # transactions with no items.
+    def insert_many(self, data):
+        data = list(data)
+        for doc in data:
+            doc['_sync'] = pending_sync()
+        return self._db[self._collection].insert_many(data)
+
+    def update_many(self, query, data: BaseModel, *args, **kwargs):
+        payload = data.model_dump(exclude_none=True)
+        payload['_sync'] = pending_sync()
+        return self._db[self._collection].update_many(query, {'$set': payload}, *args, **kwargs)
+
+    def update_many_bare(self, query, data, *args, **kwargs):
+        return self._db[self._collection].update_many(query, {'$set': {**data, '_sync': pending_sync()}}, *args, **kwargs)
+
     # A document that already synced and is now edited must be re-flagged —
     # otherwise the edit never leaves this branch. Resets attempts too: this
     # is a fresh sync task, not a continuation of a previous failure.

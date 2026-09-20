@@ -2,33 +2,31 @@ import datetime
 import os
 import time
 
+import sys
+
 import pymongo
 import schedule
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import lookup_tally  # noqa: E402
 
 REMOTE_DATABASE_URL = os.getenv('REMOTE_DATABASE_URL')
 LOCAL_DATABASE_URL = os.getenv('LOCAL_DATABASE_URL')
 
-print('REMOTE_DATABASE_URL: ', REMOTE_DATABASE_URL)
-print('LOCAL_DATABASE_URL: ', LOCAL_DATABASE_URL)
+def _redact(url):
+  """Hide user:password in a connection string before it reaches the logs."""
+  if not url or '@' not in url:
+    return url
+  scheme, _, rest = url.partition('://')
+  return f"{scheme}://***@{rest.rsplit('@', 1)[1]}"
 
-# Downstream (central -> branch) lookup/master-data collections. These are not
-# yet stamped with `_sync` on write (only collections behind BackupRepository
-# are — see app/repositories/base.py), so this list still gets a full mirror
-# every cycle, same as before. Upstream is the part rebuilt here.
-lookups = [
-  'branches',
-  'users',
-  'customers',
-  'discounts',
-  'doctors',
-  'corporates',
-  'roles',
-  'items',
-  'audit_logs_lookup',
-  'products',
-  'packages',
-  'product_categories'
-]
+
+print('REMOTE_DATABASE_URL: ', _redact(REMOTE_DATABASE_URL))
+print('LOCAL_DATABASE_URL: ', _redact(LOCAL_DATABASE_URL))
+
+# Downstream (central -> branch) lookup/master-data collections. Single source
+# of truth is lookup_tally.LOOKUPS (shared with seed.py and reconcile.py).
+lookups = list(lookup_tally.LOOKUPS)
 
 # A doc that failed to push isn't retried again until this many seconds have
 # passed, so a persistently-unreachable remote doesn't spin the CPU re-trying
@@ -224,6 +222,21 @@ def pull_pending(remote_client: pymongo.MongoClient, remote_db_name, local_clien
           upsert=True,
         )
 
+      # The watermark only ever sees docs carrying `_sync.stamp_id`. Anything
+      # central wrote without one (seeders, scripts, manual edits) would never
+      # arrive, so branch and central would quietly drift apart.
+      pulled += lookup_tally.mirror_unstamped(remote_db, local_db, collection_name)
+
+    # Central is the only source of lookup ids. A local record central does not
+    # have is exactly how a branch ends up with a second "Main" branch whose
+    # sales never show up centrally, so make it loud instead of silent.
+    for collection_name in lookups:
+      strays = lookup_tally.local_only_ids(remote_db, local_db, collection_name)
+      if strays:
+        print(f'[downstream-sync] WARNING: {collection_name} has {len(strays)} local-only record(s) '
+              f'central does not have, so sales referencing them will not tally. '
+              f'Run: python reconcile.py --verify')
+
     local_db['sync_meta'].update_one(
       {'_id': 'downstream'},
       {'$set': {'last_run_at': now, 'pulled': pulled}},
@@ -259,6 +272,17 @@ def upstream_sync_data():
   push_pending(local, "pos", remote, "pos")
 
 
+def backfill_upstream_stamps_job():
+  """Documents written before `_sync` stamping existed (or by a repository that
+  did not stamp) are invisible to the outbox and would never upload."""
+  local = get_client('local', LOCAL_DATABASE_URL)
+  if local is None:
+    return
+  flagged = lookup_tally.backfill_upstream_stamps(local['pos'])
+  if flagged:
+    print(f'[sync] Flagged never-stamped documents for upload: {flagged}')
+
+
 def run_safely(job_name, fn):
   """Last line of defense: nothing a scheduled job does should ever be able
   to kill the process. An uncaught exception here previously took down the
@@ -275,6 +299,9 @@ if __name__ == '__main__':
   print('Auto-Sync starting...')
   schedule.every(3).minutes.do(run_safely, 'downstream', downstream_sync_data)
   schedule.every(20).seconds.do(run_safely, 'upstream', upstream_sync_data)
+
+  schedule.every(1).hours.do(run_safely, 'backfill', backfill_upstream_stamps_job)
+  run_safely('backfill', backfill_upstream_stamps_job)
 
   run_safely('downstream', downstream_sync_data)
   while True:

@@ -1,11 +1,13 @@
 
 
 
-from app.repositories.base import Repository
+from app.repositories.base import BackupRepository
 from app.repositories.transaction import TransactionRepository
 
 
-class TransactionItemRepository(Repository):
+# BackupRepository (not Repository): line items are sales data and must carry the
+# `_sync` stamp or the upstream sync never uploads them.
+class TransactionItemRepository(BackupRepository):
     _collection = 'transaction_items'
     _transaction_collection = TransactionRepository()._collection
 

@@ -12,7 +12,9 @@ from app.repositories.report_cash_count import CashCountRepository
 from app.repositories.transaction import TransactionRepository
 from app.repositories.transaction_discount import TransactionDiscountRepository
 
-class CashierReportRepository(Repository):
+# BackupRepository (not Repository): cashier reports are per-shift financial records
+# and must carry the `_sync` stamp or the upstream sync never uploads them.
+class CashierReportRepository(BackupRepository):
     _collection = 'cashier_reports'
     _transaction_collection = TransactionRepository()._collection
     _cash_count_collection = CashCountRepository()._collection

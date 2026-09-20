@@ -1,11 +1,13 @@
 
 
 
-from app.repositories.base import Repository
+from app.repositories.base import BackupRepository
 from app.repositories.transaction import TransactionRepository
 
 
-class TransactionDiscountRepository(Repository):
+# BackupRepository (not Repository): discounts are sales data and must carry the
+# `_sync` stamp or the upstream sync never uploads them.
+class TransactionDiscountRepository(BackupRepository):
     _collection = 'transaction_discounts'
     _transaction_collection = TransactionRepository()._collection
 
