@@ -31,6 +31,9 @@ services:
       - VITE_APP_BASE_NAME=/
       - VITE_APP_SERVER_PORT=8001
       - VITE_ROLE=admin
+      # TEMPORARY — reopens POS routes on this admin instance for testing.
+      # Turn back to false once testing is done; see PosRoutes.jsx.
+      - VITE_ALLOW_POS_ON_ADMIN=true
     restart: always
 
   server:
