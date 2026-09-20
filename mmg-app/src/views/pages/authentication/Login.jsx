@@ -6,7 +6,6 @@ import Button from '@mui/material/Button';
 import FormHelperText from '@mui/material/FormHelperText';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
-import Alert from '@mui/material/Alert';
 import * as Yup from 'yup';
 import { Formik } from 'formik';
 import Visibility from '@mui/icons-material/Visibility';
@@ -53,17 +52,6 @@ const Login = () => {
                         <Grid item sx={{ mb: 1 }}>
                             <img style={{ height: 60 }} src={logo} loading="lazy" />
                         </Grid>
-                        {/* Admin/cloud instance only — this login screen looks identical to a branch's,
-                            so this is the first place to head off a cashier/admin mistaking it for a
-                            real POS terminal (a sale here would have no accredited PTU behind it). */}
-                        {APP_ROLE === 'admin' && (
-                            <Grid item xs={12}>
-                                <Alert severity="error" sx={{ fontWeight: 600 }}>
-                                    This is the Admin / Reporting portal — not a point-of-sale terminal.
-                                    Cashier transactions must be done on a branch's own POS terminal.
-                                </Alert>
-                            </Grid>
-                        )}
                         <Grid item xs={12}>
                             <Grid container direction={{ xs: 'column-reverse', md: 'row' }} alignItems="center" justifyContent="center">
                                 <Grid item>
@@ -144,6 +132,20 @@ const Login = () => {
                                             If you forgot your password, Please Contact System Admin. <br />
                                             {import.meta.env.VITE_APP_VERSION}
                                         </Stack>
+                                        {/* Admin/cloud instance only — informational, not alarming: this
+                                            screen looks identical to a branch's, so a quiet reminder here
+                                            is enough to head off mistaking it for a real POS terminal. */}
+                                        {APP_ROLE === 'admin' && (
+                                            <Typography
+                                                variant="caption"
+                                                color="textSecondary"
+                                                textAlign="center"
+                                                display="block"
+                                                sx={{ mt: 1 }}
+                                            >
+                                                Admin / Reporting portal — not a point-of-sale terminal.
+                                            </Typography>
+                                        )}
                                     </form>
                                 )}
                             </Formik>

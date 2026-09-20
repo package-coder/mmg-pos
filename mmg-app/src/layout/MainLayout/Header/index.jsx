@@ -82,11 +82,11 @@ const Header = ({ handleLeftDrawerToggle }) => {
                 terminals must never be mistaken for this reporting instance. */}
             {APP_ROLE === 'admin' && (
                 <Chip
-                    label="ADMIN / REPORTING PORTAL"
-                    color="error"
+                    label="Admin / Reporting Portal"
+                    color="info"
                     variant="filled"
                     size="small"
-                    sx={{ fontWeight: 700, letterSpacing: 0.3, mr: 2 }}
+                    sx={{ fontWeight: 500, mr: 2 }}
                 />
             )}
             {/* notification & profile */}
