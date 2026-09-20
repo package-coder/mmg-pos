@@ -32,12 +32,15 @@ def convert_to_bytes(workbook: openpyxl.Workbook):
     return output
 
 def append_base_header(worksheet, user_id, data):
-
+    # No rows to report (a real, common case — e.g. no senior-citizen discounts fell in the
+    # selected period) means there's no branch to read the address/TIN from; write the header
+    # without those two cells rather than crashing the whole export over an empty result set.
     branch = data[0]['branch'] if len(data) > 0 else None
 
     worksheet.cell(1, 1, "MMG-ALBAY")
-    worksheet.cell(2, 1, upper_case(branch['streetAddress']))
-    worksheet.cell(3, 1, 'NON-VAT REG TIN ' + branch['tin'])
+    if branch:
+        worksheet.cell(2, 1, upper_case(branch['streetAddress']))
+        worksheet.cell(3, 1, 'NON-VAT REG TIN ' + branch['tin'])
     worksheet.cell(9, 1, datetime.now().isoformat())
     worksheet.cell(5, 1, os.getenv('APP_VERSION'))
 
@@ -45,15 +48,7 @@ def append_base_header(worksheet, user_id, data):
     worksheet.cell(10, 1, start_case(user['first_name'] + ' ' + user['last_name']))
 
 
-def export_discount_reports(type: MemberType, reports, user_id):
-    templateName = get_template_name(type)
-    workbook = load_sheet(templateName)
-    
-    return export_discount_reports(workbook, reports, user_id)
-
 def export_discount_reports(workbook: openpyxl.Workbook, type: MemberType, reports, user_id):
-    # templateName = get_template_name(type)
-    # workbook = load_sheet(templateName)
     worksheet = workbook.active
 
     append_base_header(worksheet, user_id, reports)
@@ -130,7 +125,7 @@ def append_sales_reports(worksheet, sales):
         worksheet.cell(row, col + 2, str(sale['invoiceStartNumber']).zfill(6))
         worksheet.cell(row, col + 3, str(sale['invoiceEndNumber']).zfill(6))
         worksheet.cell(row, col + 4, clip(get(sale, 'endingCashCount.total', 0)))
-        worksheet.cell(row, col + 5, clip(get(sale, 'openingFundd.total', 0)))
+        worksheet.cell(row, col + 5, clip(get(sale, 'openingFund.total', 0)))
         worksheet.cell(row, col + 7, clip(sale['totalSalesWithoutMemberDiscount']))
         
         discountSummary = sale['discountSummary']

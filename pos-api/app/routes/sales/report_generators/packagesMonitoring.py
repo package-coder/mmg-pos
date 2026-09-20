@@ -1,100 +1,78 @@
 import copy
+from datetime import date
 
-import moment
-from bson.objectid import ObjectId
+from app.database.config import packages as packages_collection
+from app.routes.sales.report_generators._data import (fetch_branches,
+                                                        fetch_completed_transactions,
+                                                        fetch_items_by_transaction,
+                                                        item_amount,
+                                                        month_range_to_dates,
+                                                        parse_date)
 
-from app.database.config import (branches, packages, product_categories,
-                                 transactions)
+MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-months = ['January', 'February', 'March','April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-def getMonthList(min, max):
-   month1, month2 = min.month - 1, max.month - 1
-   year1, year2 = min.year, max.year
-   ret = []
-   while year1 <= year2:
-      month2 = 11 if abs(year2 - year1) > 0 else max.month - 1
-      while month1 <= month2:
-         ret.append(months[month1] + " " + str(year1))
-         month1 += 1
-      month1 = 0
-      year1 += 1
+def getMonthList(min_date, max_date):
+    months = []
+    cursor = min_date.replace(day=1)
+    end = max_date.replace(day=1)
+    while cursor <= end:
+        months.append(f'{MONTH_NAMES[cursor.month - 1]} {cursor.year}')
+        cursor = date(cursor.year + 1, 1, 1) if cursor.month == 12 else date(cursor.year, cursor.month + 1, 1)
+    return months
 
-   return ret
 
 def generatePackagesReports(args):
-   branchIds = args.getlist('branchIds')
+    branch_ids = args.getlist('branchIds')
+    min_date = parse_date(args.get('min'), '%m/%Y')
+    max_date = parse_date(args.get('max'), '%m/%Y')
+    month_list = getMonthList(min_date, max_date)
 
-   _branches = []
-   objectIds = []
-   min = moment.date(args.get('min'), 'MM/YYYY')
-   max = moment.date(args.get('max'), 'MM/YYYY')
-   month_list = getMonthList(min, max)
-   min = min.format('YYYY/MM')
-   max = max.format('YYYY/MM')
-   res = transactions.find({
-      "services.source": 'package',
-      "status": "Completed",
-      "branchId": {"$in": branchIds},
-   })
-   res_copy = []
-   if res:
-        for transaction in res:
-        
-         if (str(moment.date(transaction['transactionDate']).format("YYYY/MM")) >= str(min)) and (str(moment.date(transaction['transactionDate']).format("YYYY/MM")) <= str(max)):
-                res_copy.append(transaction)
-   res_packages = packages.find()
-   _packages = []
-   table = dict()
+    start, end = month_range_to_dates(args.get('min'), args.get('max'))
+    transactions = fetch_completed_transactions(branch_ids, start, end)
+    items_by_transaction = fetch_items_by_transaction([t['_id'] for t in transactions])
 
-   if res_packages:
-        for package in res_packages:
-            _packages.append({
-                'id': str(package['_id']),
-                'name': package['name'],
-                'count': 0,
-                'amount': 0
-            })  
+    package_template = [{'id': str(p['_id']), 'name': p['name'], 'count': 0, 'amount': 0} for p in packages_collection.find()]
+    table_template = {month: {'packages': copy.deepcopy(package_template), 'total': 0} for month in month_list}
 
-   for month in month_list:
-      table[month] = {
-        'packages': copy.deepcopy(_packages),
-        "total": 0
-      }
-   
-   _branches = []
-
-   for branchId in branchIds:
-      objectIds.append(ObjectId(branchId))
-   
-   res_branch = branches.find({
-      "_id": {"$in": objectIds}
-   })
-   
-   if res_branch:
-      for branch in res_branch:
-         _branches.append({
+    result_branches = []
+    for branch in fetch_branches(branch_ids):
+        result_branches.append({
             'id': str(branch['_id']),
             'name': branch['name'],
-            'table': copy.deepcopy(table),
-            'total': 0
-         })
-   if res_copy:
-      for transaction in res_copy:
-        key = str(moment.date(transaction['transactionDate']).format("MMMM YYYY"))
-        for branch in _branches:
-          if branch['id'] == transaction['branchId']:
-            for service in transaction['services']:
-                if service['source'] == 'package':
-                    for col in branch['table'][key]['packages']:
-                        if col['id'] == service['_id']:
-                            total = 0
-                            for item in service['items']:
-                                total += item['amount']
-                            col['count'] += 1
-                            col['amount'] += total
-                            branch["total"] += total
-                            break
-   return _branches
+            'table': copy.deepcopy(table_template),
+            'total': 0,
+        })
+    by_branch_id = {b['id']: b for b in result_branches}
 
+    for transaction in transactions:
+        branch = by_branch_id.get(transaction['branchId'])
+        if not branch:
+            continue
+        transaction_date = parse_date(transaction['date'], '%Y-%m-%d')
+        month_key = f'{MONTH_NAMES[transaction_date.month - 1]} {transaction_date.year}'
+        month_table = branch['table'].get(month_key)
+        if not month_table:
+            continue
 
+        # A package/promo sale is spread across one transaction_items row per lab test, all
+        # sharing the same embedded `package` object — group them back into one package count.
+        seen_packages_this_transaction = set()
+        for item in items_by_transaction.get(str(transaction['_id']), []):
+            package_info = item.get('package')
+            if not package_info:
+                continue
+            package_id = package_info.get('id')
+            package_entry = next((p for p in month_table['packages'] if p['id'] == package_id), None)
+            if not package_entry:
+                continue
+
+            amount = item_amount(item)
+            package_entry['amount'] += amount
+            month_table['total'] += amount
+            branch['total'] += amount
+            if package_id not in seen_packages_this_transaction:
+                package_entry['count'] += 1
+                seen_packages_this_transaction.add(package_id)
+
+    return result_branches

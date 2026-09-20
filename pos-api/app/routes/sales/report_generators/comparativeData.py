@@ -1,102 +1,58 @@
-import copy
-from pprint import pprint
-
-import moment
-from bson.objectid import ObjectId
-
-from app.database.config import branches, product_categories, transactions
+from app.routes.sales.report_generators._data import (fetch_categories,
+                                                        fetch_completed_transactions,
+                                                        fetch_items_by_transaction,
+                                                        item_amount,
+                                                        item_category_id,
+                                                        single_month_bounds)
 
 
 def comparativeData(args):
-    year1 = generateYearReport(args.getlist('branchIds'), args.get('min'))
-    year2 = generateYearReport(args.getlist('branchIds'), args.get('max'))
-    categories = []
-    res_categories = product_categories.find()
-    if res_categories:
-      for category in res_categories:
-         categories.append({
-            'id': str(category['_id']),
-            'name': category['name'],
-            '% INCREASE/DECREASE': 0,
-         })
-  
-      categories.append({
-            'id': None,
-            'name': 'NO. OF CLIENTS',
-            '% INCREASE/DECREASE': 0,
-      })
-   #(currnt year rev - last year rev) / last year rev * 100
-    pprint(year1)
+    branch_ids = args.getlist('branchIds')
+    year1 = generateYearReport(branch_ids, args.get('min'))
+    year2 = generateYearReport(branch_ids, args.get('max'))
+
+    categories = [{'id': c['id'], 'name': c['name'], '% INCREASE/DECREASE': 0} for c in year1]
+
+    # (current - previous) / current * 100 — matches the original formula (not a standard
+    # increase/decrease calc, but kept as-is since that's the figure this report has always shown).
     for i, x in enumerate(year1):
-       if x['revenue'] <= 0:
-           if year2[i]['revenue'] <= 0:
-               categories[i]['% INCREASE/DECREASE'] = 0
-               continue
-           categories[i]['% INCREASE/DECREASE'] = 100
-           continue
-       percent = abs(x['revenue'] - year2[i]['revenue']) / x['revenue'] * 100
-  
-       categories[i]['% INCREASE/DECREASE'] = percent
+        if x['revenue'] <= 0:
+            categories[i]['% INCREASE/DECREASE'] = 100 if year2[i]['revenue'] > 0 else 0
+            continue
+        categories[i]['% INCREASE/DECREASE'] = abs(x['revenue'] - year2[i]['revenue']) / x['revenue'] * 100
 
     return {
-      'diff': categories,
-      args.get('min'): year1,
-      args.get('max'): year2,
+        'diff': categories,
+        args.get('min'): year1,
+        args.get('max'): year2,
     }
 
-def generateYearReport(branchIds, year):
-   
-   categories = []
-   objectIds = []
-   total = 0
-   min = moment.date(year).format('YYYY/MM')
-   max = moment.date(year).add(month=1).format('YYYY/MM')
 
-   res = transactions.find({
-      "status": "Completed",
-      "branchId": {"$in": branchIds},
-   })
-   res_copy = []
-   if res:
-      for transaction in res:
-         transaction_date = str(moment.date(transaction['transactionDate']).format('YYYY/MM'))
-         if (transaction_date >= str(min)) and transaction_date < str(max):
-                res_copy.append(transaction)
+def generateYearReport(branch_ids, month_str):
+    """Despite the name (kept from the legacy version), this reports on a single
+    calendar month — comparativeData calls it once for `min` and once for `max`."""
+    start, end = single_month_bounds(month_str)
+    transactions = fetch_completed_transactions(branch_ids, start, end)
 
-   for branchId in branchIds:
-      objectIds.append(ObjectId(branchId))
-   
-   res_categories = product_categories.find()
-   if res_categories:
-      for category in res_categories:
-         categories.append({
-            'id': str(category['_id']),
-            'name': category['name'],
-            'count': 0,
-            'revenue': 0,
-         })
-   if res_copy:
-      for transaction in res_copy:
-        for service in transaction['services']:
-           if service['source'] == 'package':
-              for item in service['items']:
-                for category in categories:
-                    if category['id'] == item['category']['id']:
-                         category['count'] += 1
-                         category['revenue'] += item['amount']
-                         total += item['amount']
-                    break
-           else:
-                   for category in categories:
-                      if category['id'] == service['category']['id']:
-                          category['count'] += 1
-                          category['revenue'] += service['amount']
-                          total += service['amount']
-      
-   categories.append({
-         'id': None,
-         'name': 'NO. OF CLIENTS',
-         'count': len(res_copy),
-         'revenue': total,
-   })
-   return categories
+    categories = [{'id': str(c['_id']), 'name': c['name'], 'count': 0, 'revenue': 0} for c in fetch_categories()]
+    by_category_id = {c['id']: c for c in categories}
+
+    items_by_transaction = fetch_items_by_transaction([t['_id'] for t in transactions])
+    total_revenue = 0
+
+    for transaction in transactions:
+        for item in items_by_transaction.get(str(transaction['_id']), []):
+            category = by_category_id.get(item_category_id(item))
+            amount = item_amount(item)
+            total_revenue += amount
+            if category:
+                category['count'] += 1
+                category['revenue'] += amount
+
+    categories.append({
+        'id': None,
+        'name': 'NO. OF CLIENTS',
+        'count': len(transactions),
+        'revenue': total_revenue,
+    })
+    return categories
