@@ -5,6 +5,7 @@ import { useTheme } from '@mui/material/styles';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
+import Chip from '@mui/material/Chip';
 
 // project imports
 import LogoSection from '../LogoSection';
@@ -17,6 +18,7 @@ import { IconMenu2 } from '@tabler/icons-react';
 import ConnectionSection from './ConnectionSection';
 import { useQuery } from 'react-query';
 import connection from 'api/connection';
+import { APP_ROLE } from 'api';
 
 // ==============================|| MAIN NAVBAR / HEADER ||============================== //
 
@@ -76,6 +78,17 @@ const Header = ({ handleLeftDrawerToggle }) => {
             {/* <SearchSection /> */}
             <Box sx={{ flexGrow: 1 }} />
             {/* {isInternalProduction && <ConnectionSection isLoading={isLoading} isConnected={isConnected}/>} */}
+            {/* Always shown on the admin/cloud instance, regardless of Dev Test Mode — BIR-relevant
+                terminals must never be mistaken for this reporting instance. */}
+            {APP_ROLE === 'admin' && (
+                <Chip
+                    label="ADMIN / REPORTING PORTAL"
+                    color="error"
+                    variant="filled"
+                    size="small"
+                    sx={{ fontWeight: 700, letterSpacing: 0.3, mr: 2 }}
+                />
+            )}
             {/* notification & profile */}
             {/* <NotificationSection /> */}
             <ProfileSection />

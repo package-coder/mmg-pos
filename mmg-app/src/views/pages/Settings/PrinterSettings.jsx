@@ -3,6 +3,8 @@ import { Button, Typography, FormControlLabel, Switch, Stack, Grid, Divider, Tex
 import PrintIcon from '@mui/icons-material/Print';
 import { usePrinter } from 'providers/PrinterProvider';
 import MainCard from 'ui-component/cards/MainCard';
+import { APP_ROLE } from 'api';
+import { useDevTestMode } from 'utils/devTestMode';
 
 const PrinterSettings = () => {
     const [printerIP, setPrinterIP] = useState('192.168.192.168');
@@ -12,6 +14,10 @@ const PrinterSettings = () => {
     const [statusType, setStatusType] = useState('');
     const [trialMode, setTrialMode] = useState(false);
     const { print, status, printing } = usePrinter()
+    const devTestMode = useDevTestMode();
+    // Same restriction PrinterProvider/api/print.js enforce — disabled here too so a click
+    // doesn't just fail with an error, and the reason is spelled out (Dev Test Mode) upfront.
+    const printDisabled = APP_ROLE === 'admin' && !devTestMode;
 
     useEffect(() => {
         const savedPrinterIP = localStorage.getItem('printerIP') || '192.168.192.168';
@@ -127,7 +133,7 @@ const PrinterSettings = () => {
                         variant="contained"
                         color="primary"
                         onClick={handlePrintTest}
-                        disabled={printing}
+                        disabled={printing || printDisabled}
                         startIcon={<PrintIcon />}
                     >
                         Send Test Print
@@ -171,11 +177,18 @@ const PrinterSettings = () => {
                         variant="outlined"
                         color="primary"
                         onClick={handlePrintEjournal}
-                        disabled={printing}
+                        disabled={printing || printDisabled}
                     >
                         Print Electronic Journal
                     </Button>
                 </Stack>
+
+                {printDisabled && (
+                    <Alert severity="warning">
+                        Printing is disabled on this admin/cloud instance. Turn on Dev Test Mode in{' '}
+                        <a href="/dashboard/dev-test-mode-settings">Settings</a> to enable it.
+                    </Alert>
+                )}
 
                 {/* Status Message */}
                 {statusMessage && (

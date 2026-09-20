@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { canPrint } from 'utils/devTestMode'
 
 export const PrinterContext = createContext()
 
@@ -123,6 +124,13 @@ const PrinterProvider = ({ children }) => {
     // Printer jobs are blocking: while one is in flight, further printer jobs are refused
     // ({ busy: true }) so a cashier clicking repeatedly cannot print the same receipt many times.
     async function print(device, type, data) {
+        // Real printing (ESC/POS receipts/reports/ejournal) is disabled on the admin/cloud
+        // instance unless Dev Test Mode is on — no real printer is ever attached there, and
+        // anything printed from it would not be a real BIR-journaled transaction.
+        if (device === 'printer' && !canPrint()) {
+            return { error: 'Printing is disabled on this admin/cloud instance. Turn on Dev Test Mode in Settings to enable it.' }
+        }
+
         const blocking = device === 'printer'
         if (blocking && [...pendingRef.current.values()].some(p => p.blocking)) {
             console.warn('Print ignored: another print is still in progress')

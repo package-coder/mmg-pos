@@ -6,6 +6,7 @@ import Button from '@mui/material/Button';
 import FormHelperText from '@mui/material/FormHelperText';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
+import Alert from '@mui/material/Alert';
 import * as Yup from 'yup';
 import { Formik } from 'formik';
 import Visibility from '@mui/icons-material/Visibility';
@@ -19,6 +20,7 @@ import { Link, TextField } from '@mui/material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from 'providers/AuthProvider';
 import FooterWatermark from 'ui-component/FooterWatermark';
+import { APP_ROLE } from 'api';
 
 const validationSchema = Yup.object().shape({
     username: Yup.string().max(255).required('Username is required'),
@@ -51,6 +53,17 @@ const Login = () => {
                         <Grid item sx={{ mb: 1 }}>
                             <img style={{ height: 60 }} src={logo} loading="lazy" />
                         </Grid>
+                        {/* Admin/cloud instance only — this login screen looks identical to a branch's,
+                            so this is the first place to head off a cashier/admin mistaking it for a
+                            real POS terminal (a sale here would have no accredited PTU behind it). */}
+                        {APP_ROLE === 'admin' && (
+                            <Grid item xs={12}>
+                                <Alert severity="error" sx={{ fontWeight: 600 }}>
+                                    This is the Admin / Reporting portal — not a point-of-sale terminal.
+                                    Cashier transactions must be done on a branch's own POS terminal.
+                                </Alert>
+                            </Grid>
+                        )}
                         <Grid item xs={12}>
                             <Grid container direction={{ xs: 'column-reverse', md: 'row' }} alignItems="center" justifyContent="center">
                                 <Grid item>

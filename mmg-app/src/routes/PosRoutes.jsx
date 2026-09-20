@@ -7,6 +7,7 @@ import MinimalLayout from 'layout/MinimalLayout';
 import AuthorizeRoute from './components/AuthorizeRoute';
 import Role from 'utils/Role';
 import { APP_ROLE } from 'api';
+import { useDevTestMode } from 'utils/devTestMode';
 
 const PosPage = Loadable(lazy(() => import('views/pages/PosPage')));
 const PosXReportPage = Loadable(lazy(() => import('views/pages/PosPage/pages/XReport')));
@@ -17,14 +18,14 @@ const PosPageAr = Loadable(lazy(() => import('views/pages/PosPage/components/Pos
 // ==============================|| AUTHENTICATION ROUTING ||============================== //
 
 // Centralized/admin instance (VITE_ROLE=admin) never exposes POS/cashier routes,
-// regardless of the logged-in user's role — except when VITE_ALLOW_POS_ON_ADMIN=true,
-// a deliberately explicit, temporary testing override (see .env.example). This is
-// NOT meant to be left on: it exists so an admin can exercise POS routes for testing
-// without permanently reopening a boundary that exists for real data-integrity reasons.
-const ALLOW_POS_ON_ADMIN_FOR_TESTING = import.meta.env.VITE_ALLOW_POS_ON_ADMIN === 'true';
-
+// regardless of the logged-in user's role — except while Dev Test Mode is switched on
+// (Settings > Dev Test Mode), a deliberately explicit, per-browser, runtime-only override
+// (see utils/devTestMode.js). This is NOT meant to be left on: it exists so an admin can
+// exercise POS routes for testing without permanently reopening a boundary that exists for
+// real data-integrity reasons (invoice numbering, sync assumptions).
 const PosGuard = () => {
-    if (APP_ROLE === 'admin' && !ALLOW_POS_ON_ADMIN_FOR_TESTING) return <Navigate to="/404" replace />;
+    const devTestMode = useDevTestMode();
+    if (APP_ROLE === 'admin' && !devTestMode) return <Navigate to="/404" replace />;
     return <AuthorizeRoute roles={[Role.ADMIN, Role.CASHIER]} />;
 };
 

@@ -19,6 +19,9 @@ import { drawerWidth } from 'store/constant';
 // assets
 import { IconChevronRight } from '@tabler/icons-react';
 import FooterWatermark from 'ui-component/FooterWatermark';
+import DevTestModeBanner, { DEV_TEST_MODE_BANNER_HEIGHT } from 'ui-component/DevTestModeBanner';
+import { APP_ROLE } from 'api';
+import { useDevTestMode } from 'utils/devTestMode';
 
 const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' && prop !== 'theme' })(({ theme, open }) => ({
     ...theme.typography.mainContent,
@@ -65,9 +68,17 @@ const MainLayout = () => {
         dispatch({ type: SET_MENU, opened: !leftDrawerOpened });
     };
 
+    // Fixed AppBar/Sidebar normally sit at the viewport top; the banner is also fixed, on top
+    // of them, so both need to be pushed down by its height while it's showing or it would
+    // cover the top of the header/menu instead of appearing above them.
+    const devTestMode = useDevTestMode();
+    const showDevTestModeBanner = APP_ROLE === 'admin' && devTestMode;
+    const bannerOffset = showDevTestModeBanner ? DEV_TEST_MODE_BANNER_HEIGHT : 0;
+
     return (
         <Box sx={{ display: 'flex' }}>
             <CssBaseline />
+            <DevTestModeBanner />
             {/* header */}
             <AppBar
                 enableColorOnDark
@@ -75,6 +86,7 @@ const MainLayout = () => {
                 color="inherit"
                 elevation={0}
                 sx={{
+                    top: bannerOffset,
                     bgcolor: theme.palette.background.default,
                     transition: leftDrawerOpened ? theme.transitions.create('width') : 'none'
                 }}
@@ -85,10 +97,14 @@ const MainLayout = () => {
             </AppBar>
 
             {/* drawer */}
-            <Sidebar drawerOpen={!matchDownMd ? leftDrawerOpened : !leftDrawerOpened} drawerToggle={handleLeftDrawerToggle} />
+            <Sidebar
+                drawerOpen={!matchDownMd ? leftDrawerOpened : !leftDrawerOpened}
+                drawerToggle={handleLeftDrawerToggle}
+                topOffset={bannerOffset}
+            />
 
             {/* main content */}
-            <Main theme={theme} open={leftDrawerOpened}>
+            <Main theme={theme} open={leftDrawerOpened} sx={{ mt: `calc(74px + ${bannerOffset}px)` }}>
                 {/* breadcrumb */}
                 {/* <Breadcrumbs separator={IconChevronRight} navigation={navigation} icon title rightAlign /> */}
                 <Outlet />

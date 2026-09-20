@@ -21,7 +21,7 @@ import { drawerWidth } from 'store/constant';
 
 // ==============================|| SIDEBAR DRAWER ||============================== //
 
-const Sidebar = ({ drawerOpen, drawerToggle, window }) => {
+const Sidebar = ({ drawerOpen, drawerToggle, window, topOffset = 0 }) => {
     const theme = useTheme();
     const matchUpMd = useMediaQuery(theme.breakpoints.up('md'));
 
@@ -36,7 +36,7 @@ const Sidebar = ({ drawerOpen, drawerToggle, window }) => {
                 <PerfectScrollbar
                     component="div"
                     style={{
-                        height: !matchUpMd ? 'calc(100vh - 56px)' : 'calc(100vh - 88px)',
+                        height: !matchUpMd ? `calc(100vh - ${56 + topOffset}px)` : `calc(100vh - ${88 + topOffset}px)`,
                         paddingLeft: '16px',
                         paddingRight: '16px'
                     }}
@@ -89,7 +89,7 @@ const Sidebar = ({ drawerOpen, drawerToggle, window }) => {
                         color: theme.palette.text.primary,
                         borderRight: 'none',
                         [theme.breakpoints.up('md')]: {
-                            top: '88px'
+                            top: `${88 + topOffset}px`
                         }
                     }
                 }}
@@ -105,7 +105,8 @@ const Sidebar = ({ drawerOpen, drawerToggle, window }) => {
 Sidebar.propTypes = {
     drawerOpen: PropTypes.bool,
     drawerToggle: PropTypes.func,
-    window: PropTypes.object
+    window: PropTypes.object,
+    topOffset: PropTypes.number
 };
 
 export default Sidebar;

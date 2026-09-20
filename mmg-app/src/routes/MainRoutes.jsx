@@ -34,6 +34,7 @@ const DiscountReportPage = Loadable(lazy(() => import('views/pages/discount-repo
 const CustomerPage = Loadable(lazy(() => import('views/pages/CustomerPage')));
 const CustomerForm = Loadable(lazy(() => import('views/pages/CustomerPage/components/CustomerForm')));
 const PrinterSettings = Loadable(lazy(() => import('views/pages/Settings/PrinterSettings')));
+const DevTestModeSettings = Loadable(lazy(() => import('views/pages/Settings/DevTestModeSettings')));
 const GenReports = Loadable(lazy(() => import('views/pages/reports/GenReports')));
 const BookingPage = Loadable(lazy(() => import('views/pages/BookingPage')));
 const HomePage = Loadable(lazy(() => import('views/pages/HomePage')));
@@ -94,6 +95,7 @@ const MainRoutes = {
                         { path: 'bookings', element: <BookingPage /> },
                         { path: 'audit-logs', element: <AuditLogPage /> },
                         { path: 'printer-settings', element: <PrinterSettings /> },
+                        { path: 'dev-test-mode-settings', element: <DevTestModeSettings /> },
                         // { path: 'sales-deposits', element: <SalesDepositsPage /> },
                         {
                             path: 'cashier-reports',
