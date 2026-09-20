@@ -17,9 +17,14 @@ const PosPageAr = Loadable(lazy(() => import('views/pages/PosPage/components/Pos
 // ==============================|| AUTHENTICATION ROUTING ||============================== //
 
 // Centralized/admin instance (VITE_ROLE=admin) never exposes POS/cashier routes,
-// regardless of the logged-in user's role.
+// regardless of the logged-in user's role — except when VITE_ALLOW_POS_ON_ADMIN=true,
+// a deliberately explicit, temporary testing override (see .env.example). This is
+// NOT meant to be left on: it exists so an admin can exercise POS routes for testing
+// without permanently reopening a boundary that exists for real data-integrity reasons.
+const ALLOW_POS_ON_ADMIN_FOR_TESTING = import.meta.env.VITE_ALLOW_POS_ON_ADMIN === 'true';
+
 const PosGuard = () => {
-    if (APP_ROLE === 'admin') return <Navigate to="/404" replace />;
+    if (APP_ROLE === 'admin' && !ALLOW_POS_ON_ADMIN_FOR_TESTING) return <Navigate to="/404" replace />;
     return <AuthorizeRoute roles={[Role.ADMIN, Role.CASHIER]} />;
 };
 
