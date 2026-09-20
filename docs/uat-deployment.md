@@ -112,7 +112,7 @@ cp pos-api/.env.example pos-api/.env
 
 Edit `pos-api/.env`:
 - Set `JWT_SECRET_KEY` to a real random secret (e.g. `openssl rand -hex 32`) — do **not** reuse a branch's or production's secret.
-- Leave `REMOTE_DATABASE_URL` as the placeholder. This instance is the top of the sync hierarchy — it has nothing further upstream to sync to. `sync` will crash-loop on this placeholder, which is harmless (see the main [CLAUDE.md](../CLAUDE.md)).
+- Leave `REMOTE_DATABASE_URL` as the placeholder. This instance is the top of the sync hierarchy — it has nothing further upstream to sync to. `sync` logs "client unavailable" and skips each cycle cleanly on this placeholder — no crash, no restart loop (see the main [CLAUDE.md](../CLAUDE.md)).
 
 ## 5. Deploy
 

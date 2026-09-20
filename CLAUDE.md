@@ -77,7 +77,7 @@ Flask 3.0 REST API backed by MongoDB (PyMongo).
 - `app/middlewares/token_validator.py` — JWT validation as `@app.before_request`; excluded paths include `/login`, `/booking/create`, `/branches`
 - `app/config.py` — reads `APP_ENV`; valid values: `local-development`, `development`, `internal-production`, `production`
 - `proxy/app.py` — Flask reverse proxy (port 5001) that forwards requests to the local server; also has legacy HTTP print/display endpoints
-- `sync/app.py` — scheduled background process syncing MongoDB between local and remote (every 20s upstream, every 3 min downstream). **Will crash-loop on a fresh install if `REMOTE_DATABASE_URL` is a placeholder** — this is harmless and only affects cloud sync; the core POS stack works without it.
+- `sync/app.py` — scheduled background process syncing MongoDB between local and remote (every 20s upstream, every 3 min downstream). Uses an embedded `_sync` outbox field per document (`status`/`synced_at`/`attempts`/`stamp_id`) rather than blindly mirroring whole collections. **A placeholder or unreachable `REMOTE_DATABASE_URL` no longer crashes the process** — it logs "client unavailable" and skips the cycle cleanly, retrying automatically once the URL becomes valid; this only affects cloud sync, the core POS stack works without it either way.
 - `seed.py` — idempotent seeder: inserts default branch, admin role, and admin user; safe to re-run
 - `docker-compose.yml` — five services: `app` (React, :8000), `server` (Flask, :8001), `proxy` (:8002), `sync`, `mongo` (:8003)
 
