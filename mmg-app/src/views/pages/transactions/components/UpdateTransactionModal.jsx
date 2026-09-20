@@ -207,10 +207,12 @@ export default function ({ initialValues: receipt }) {
             </Dialog>
             <WithPrintMutation>
                 {(props) => (
-                    <ReceiptModal 
+                    <ReceiptModal
                         {...props}
-                        open={receiptOpen} 
-                        onClose={() => setReceiptOpen(false)} 
+                        open={receiptOpen}
+                        onClose={() => setReceiptOpen(false)}
+                        reprint
+                        transaction={receipt}
                         receipt={{
                             combinedData: newData, // Pass the transaction data to the Receipt component
                             amountGiven: receipt?.paymentDetails?.tenderAmount, // Pass the tender amount
