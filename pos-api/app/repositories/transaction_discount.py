@@ -16,6 +16,10 @@ class TransactionDiscountRepository(BackupRepository):
         try: 
             data = list(self._db[self._collection].aggregate([
                 { '$match': query },
+                # Dev Test Mode discounts (mocked terminal, see
+                # app/blueprints/transaction.py _is_dev_test) must never appear in a real
+                # discount report — applied unconditionally, not left to callers to remember.
+                { '$match': { 'isDevTest': { '$ne': True } } },
                 {
                     '$addFields': {
                         'transactionId': {'$toObjectId': '$transactionId' },

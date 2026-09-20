@@ -61,6 +61,9 @@ def fetch_completed_transactions(branch_ids, start_date, end_date):
         'status': 'completed',
         'branchId': {'$in': branch_ids},
         'date': {'$gte': str(start_date), '$lte': str(end_date)},
+        # Dev Test Mode transactions (mocked terminal, see app/blueprints/transaction.py
+        # _is_dev_test) must never count toward a real sales/income report.
+        'isDevTest': {'$ne': True},
     }
     return list(new_transactions.find(query))
 
@@ -68,7 +71,7 @@ def fetch_completed_transactions(branch_ids, start_date, end_date):
 def fetch_all_completed_transactions():
     """No branch/date scoping — used by the older, unfiltered mancom/municipality/
     package-monitoring/products reports (not currently linked from mmg-app, but kept working)."""
-    return list(new_transactions.find({'status': 'completed'}))
+    return list(new_transactions.find({'status': 'completed', 'isDevTest': {'$ne': True}}))
 
 
 def fetch_items_by_transaction(transaction_ids):

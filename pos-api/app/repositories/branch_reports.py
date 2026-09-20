@@ -28,6 +28,12 @@ class BranchReportRepository(BackupRepository):
                         "$and": [
                             { "$eq": ["$branchId", "$$branchId"] },
                             { "$eq": ["$date", "$$date"] },
+                            # Shared by both the "transactions" (new_transactions) and
+                            # "discounts" (transaction_discounts) lookups below — both
+                            # collections carry this field, stamped the same way (see
+                            # app/blueprints/transaction.py _is_dev_test). Dev Test Mode sales
+                            # must never count toward a real branch's Z-report.
+                            { "$ne": ["$isDevTest", True] },
                         ]
                     }
                 }
@@ -35,11 +41,11 @@ class BranchReportRepository(BackupRepository):
 
 
     def find(self, query={}, *args):
-     
+
         try:
             data = list(self._db[self._transaction_collection].aggregate([
                 { '$match': query },
-                { '$match': { "status": { "$in": [TransactionStatus.COMPLETED, TransactionStatus.REFUNDED] } } },
+                { '$match': { "status": { "$in": [TransactionStatus.COMPLETED, TransactionStatus.REFUNDED] }, "isDevTest": { "$ne": True } } },
                 {
                     "$group": {
                         "_id": { "branchId": "$branchId", "date": "$date"  },
@@ -238,11 +244,12 @@ class BranchReportRepository(BackupRepository):
         try:
             data = list(self._db[self._transaction_collection].aggregate([
                 { 
-                    '$match': { 
+                    '$match': {
                         "branchId": { "$eq": branchId },
                         "status": { "$in": [TransactionStatus.COMPLETED, TransactionStatus.REFUNDED] },
-                        "date": { "$lte": str(queryDate.date()) }
-                    } 
+                        "date": { "$lte": str(queryDate.date()) },
+                        "isDevTest": { "$ne": True }
+                    }
                 },
                 {
                     "$group": {
@@ -415,7 +422,8 @@ class BranchReportRepository(BackupRepository):
                                         "$and": [
                                             { "$eq": ["$branchId", "$$branchId"] },
                                             { "$eq": ["$date", "$$date"] },
-                                            {"$eq": ["$status", type]}
+                                            {"$eq": ["$status", type]},
+                                            { "$ne": ["$isDevTest", True] },
                                         ]
                                     }
                                 }

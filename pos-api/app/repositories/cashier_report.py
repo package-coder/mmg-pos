@@ -118,6 +118,10 @@ class CashierReportRepository(BackupRepository):
                                                 { "$eq": ["$$timeOut", None] },
                                                 { "$lte": ["$transactionDate", "$$timeOut"] },
                                             ]},
+                                            # Dev Test Mode transactions (mocked terminal, see
+                                            # app/blueprints/transaction.py _is_dev_test) must
+                                            # never count toward a real shift's X-report.
+                                            { "$ne": ["$isDevTest", True] },
                                         ]
                                     }
                                 }
@@ -148,7 +152,8 @@ class CashierReportRepository(BackupRepository):
                                                 { "$eq": ["$$timeOut", None] },
                                                 { "$lte": ["$transactionDate", "$$timeOut"] },
                                             ]},
-                                            { "$in": [ "$status", ['completed', 'refunded'] ]}
+                                            { "$in": [ "$status", ['completed', 'refunded'] ]},
+                                            { "$ne": ["$isDevTest", True] },
                                         ]
                                     }
                                 }
@@ -188,6 +193,7 @@ class CashierReportRepository(BackupRepository):
                                         "$and": [
                                             { "$eq": ["$branchId", "$$branchId"] },
                                             { "$eq": ["$cashierId", "$$cashierId"] },
+                                            { "$ne": ["$isDevTest", True] },
                                         ]
                                     }
                                 },
