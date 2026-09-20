@@ -20,6 +20,11 @@ const ReceiptContent = ({ combinedData, amountGiven, change, tenderType, showAdd
 
     return (
         <Box sx={{ p: 3, border: '1px solid #000' }}>
+            {combinedData?.isDevTest && (
+                <Box sx={{ bgcolor: '#161616', color: '#fff', textAlign: 'center', py: 0.5, mb: 2, fontWeight: 700 }}>
+                    DEV TEST — NOT A REAL RECEIPT
+                </Box>
+            )}
             <Typography variant="h3" align="center" mb={1}>
                 MMG ALBAY
             </Typography>
@@ -47,11 +52,15 @@ const ReceiptContent = ({ combinedData, amountGiven, change, tenderType, showAdd
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography variant="subtitle2">MIN:</Typography>
-                    <Typography variant="h5">---</Typography>
+                    <Typography variant="h5">{combinedData?.min || '---'}</Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography variant="subtitle2">SN:</Typography>
-                    <Typography variant="h5">---</Typography>
+                    <Typography variant="h5">{combinedData?.sn || '---'}</Typography>
+                </Stack>
+                <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="subtitle2">PTU No:</Typography>
+                    <Typography variant="h5">{combinedData?.ptuNumber || '---'}</Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography variant="subtitle2">Date & Time:</Typography>

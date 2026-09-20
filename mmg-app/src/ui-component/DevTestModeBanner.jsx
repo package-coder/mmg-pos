@@ -1,17 +1,17 @@
 import Box from '@mui/material/Box';
-import { APP_ROLE } from 'api';
 import { useDevTestMode } from 'utils/devTestMode';
 
 // Fixed height so layouts that need to offset their own fixed AppBar/Sidebar around this
 // banner (see MainLayout) have a single constant to add, instead of a magic number.
 export const DEV_TEST_MODE_BANNER_HEIGHT = 32;
 
-// Persistent, impossible-to-miss reminder that POS routes and printing are only open here
-// because Dev Test Mode is on for this browser — this is the admin/cloud instance, not a
-// real branch, and none of what happens on it is a real sale. Renders nothing otherwise.
+// Persistent, impossible-to-miss reminder that Dev Test Mode is on for this browser — on the
+// admin/cloud instance that means POS routes and printing are open; on a branch it means
+// terminal info (MIN/SN/PTU_NO) is mocked instead of coming from the real helper app. Renders
+// nothing otherwise.
 const DevTestModeBanner = () => {
     const devTestMode = useDevTestMode();
-    if (APP_ROLE !== 'admin' || !devTestMode) return null;
+    if (!devTestMode) return null;
 
     return (
         <Box
@@ -32,7 +32,7 @@ const DevTestModeBanner = () => {
                 zIndex: (theme) => theme.zIndex.drawer + 10
             }}
         >
-            DEV TEST MODE — POS routes and printing are open for testing only. This is not real sale data.
+            DEV TEST MODE — terminal/PTU info is mocked and not from a real accredited terminal. This is not a real sale.
         </Box>
     );
 };

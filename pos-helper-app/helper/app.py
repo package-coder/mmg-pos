@@ -266,6 +266,14 @@ def print_receipt(request_data: dict = {}):
 
     try:
         with ReceiptWriter(request_data.get('settings', {}), journal=not reprint) as p:
+            # Dev Test Mode (mmg-app) mocks the terminal that issued this transaction — flagged
+            # server-side (pos-api) as `isDevTest`, not something this app decides on its own.
+            # Printed AND journaled (this write goes through the same p.write() as everything
+            # else, so it lands in ejournal.txt too) so a dev-test entry is never mistaken for a
+            # real BIR-relevant one on either the paper copy or the audit trail.
+            if transaction.get('isDevTest'):
+                p.set(align='center', bold=True)
+                p.write('*** DEV TEST — NOT A REAL RECEIPT ***\n\n')
             p.set(align='center', bold=True)
             p.write(f'MMG-ALBAY {companyLabel}\n\n')
             p.set(align='center', bold=False)

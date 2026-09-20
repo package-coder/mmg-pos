@@ -253,6 +253,8 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                 ...newData,
                 branchId: branch.id,
                 ptuNumber: terminalInfo.PTU_NO,
+                min: terminalInfo.MIN,
+                sn: terminalInfo.SN,
                 idempotencyKey: idempotencyKeyRef.current
             });
 

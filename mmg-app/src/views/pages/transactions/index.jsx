@@ -110,7 +110,8 @@ function TransactionsPage() {
             'Tender Type',
             'Tender Amount',
             'Reason',
-            'Date'
+            'Date',
+            'Dev Test'
         ];
 
         const data = transactions.map((item) => {
@@ -147,7 +148,8 @@ function TransactionsPage() {
                 item.tender?.type,
                 item.tender?.amount,
                 item.reason,
-                moment(item.transactionDate).format('YYYY-MM-DD hh:mmA')
+                moment(item.transactionDate).format('YYYY-MM-DD hh:mmA'),
+                item.isDevTest ? 'Yes' : 'No'
             ];
         });
 
@@ -361,14 +363,24 @@ function TransactionsPage() {
                                             : null}
                                     </TableCell>
                                     <TableCell>
-                                        <Chip
-                                            label={upperCase(transaction.status)}
-                                            size="small"
-                                            variant="outlined"
-                                            color={
-                                                transaction.status === 'completed' ? 'success' : transaction.status === 'hold' ? 'info' : 'error'
-                                            }
-                                        />
+                                        <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                                            <Chip
+                                                label={upperCase(transaction.status)}
+                                                size="small"
+                                                variant="outlined"
+                                                color={
+                                                    transaction.status === 'completed' ? 'success' : transaction.status === 'hold' ? 'info' : 'error'
+                                                }
+                                            />
+                                            {transaction.isDevTest && (
+                                                <Chip
+                                                    label="DEV TEST"
+                                                    size="small"
+                                                    variant="filled"
+                                                    sx={{ bgcolor: '#161616', color: '#fff', fontWeight: 600 }}
+                                                />
+                                            )}
+                                        </Stack>
                                     </TableCell>
                                     {filterByUser && (
                                         <>

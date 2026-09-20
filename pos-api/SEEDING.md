@@ -125,8 +125,9 @@ Given a database that already has data (empty or not doesn't matter — the sequ
    reachable this means **bootstrap**: lookup collections come back from central with their original
    `_id`s — the branch ends up looking freshly provisioned, not standalone-seeded.
 6. **Restart + manual browser cleanup (not automatic).** Restart the `server` container (it recreates
-   indexes only at startup), sign out and back in, and clear the browser's `devPtuNo` local-storage key —
-   otherwise the restarted invoice numbering can reuse a PTU that central already has invoices for.
+   indexes only at startup), sign out and back in, and clear the browser's `devPtuNo:*` local-storage keys
+   (one per branch+user combination tested in that browser, e.g. `devPtuNo:6ab...c:6ab...f`) — otherwise the
+   restarted invoice numbering can reuse a PTU that central already has invoices for.
 7. **Nothing from the old data comes back on its own.** It only exists in the `_backup_<timestamp>`
    database from step 3 — recovering anything from it (a customer or product that existed only locally) is
    a manual `mongodump`/`mongorestore`, `--reset` does not do this for you.

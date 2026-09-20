@@ -22,6 +22,11 @@ export default function ({ transaction }) {
 
     return (
         <Box sx={{ p: 3, border: '1px solid #000' }}>
+            {transaction.isDevTest && (
+                <Box sx={{ bgcolor: '#161616', color: '#fff', textAlign: 'center', py: 0.5, mb: 2, fontWeight: 700 }}>
+                    DEV TEST — NOT A REAL RECEIPT
+                </Box>
+            )}
             <Typography variant="h3" align="center" mb={1}>
                 MMG ALBAY
             </Typography>
@@ -63,11 +68,15 @@ export default function ({ transaction }) {
                 )}
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>MIN:</Typography>
-                    <Typography >---</Typography>
+                    <Typography >{transaction?.min || '---'}</Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>SN:</Typography>
-                    <Typography>---</Typography>
+                    <Typography>{transaction?.sn || '---'}</Typography>
+                </Stack>
+                <Stack direction="row" justifyContent="space-between">
+                    <Typography>PTU No:</Typography>
+                    <Typography>{transaction?.ptuNumber || '---'}</Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Date:</Typography>

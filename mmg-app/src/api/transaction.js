@@ -78,6 +78,8 @@ async function CreateTransactionV2(model) {
         customerId: model.customerData.id,
         status: model.status.toLowerCase(),
         ptuNumber: model.ptuNumber,
+        min: model.min,
+        sn: model.sn,
         idempotencyKey: model.idempotencyKey,
         // Present only when paying a transaction restored from a hold (see
         // PosComponent.jsx: handleRestoreTransaction) — tells the backend to convert that hold

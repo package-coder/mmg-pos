@@ -1,26 +1,38 @@
 import { useEffect, useState } from 'react';
 import { APP_ROLE } from 'api';
 
-// The admin/UAT instance (VITE_ROLE=admin) is a centralized, read-mostly reporting deployment:
-// no real printer/VFD/helper-app hardware attached, no per-terminal PTU accreditation. POS
-// routes are hidden there and print actions are disabled by default for real data-integrity
-// reasons (invoice numbering, sync assumptions) — see PosRoutes.jsx and PrinterProvider.jsx.
+// A single runtime toggle (persisted per-browser in localStorage, NOT an env/build flag), used
+// on both deployment roles for different things:
 //
-// Dev Test Mode is a single runtime toggle (persisted per-browser in localStorage, NOT an env/
-// build flag — it replaced the old build-time VITE_ALLOW_POS_ON_ADMIN escape hatch) that
-// re-opens both of those on this instance, for this browser only, so a tester can exercise POS
-// flows without redeploying. It has no effect at all on a branch deployment, where POS and
-// printing are already fully available.
+// - Admin/cloud instance (VITE_ROLE=admin): a centralized, read-mostly reporting deployment
+//   with no real printer/VFD/helper-app hardware attached and no per-terminal PTU accreditation.
+//   POS routes are hidden and print actions are disabled by default there for real
+//   data-integrity reasons (invoice numbering, sync assumptions) — this toggle re-opens both,
+//   for this browser only, replacing the old build-time VITE_ALLOW_POS_ON_ADMIN escape hatch.
+//   See PosRoutes.jsx and PrinterProvider.jsx.
+// - Branch deployment: replaces the old build-time VITE_APP_SKIP_TERMINAL_CHECK env flag for
+//   mocking terminal info (MIN/SN/PTU_NO) instead of querying the real helper app over
+//   WebSocket, so checkout works without hardware attached. See getTerminalInfo() in
+//   PrinterProvider.jsx.
+//
+// Deliberately NOT restricted by APP_ENV — it works the same on a live branch/production
+// server as it does locally. Turning it on there means completed sales use a mocked PTU
+// instead of a real accredited terminal's, so treat it as a real, consequential switch, not
+// just a local dev convenience.
 const STORAGE_KEY = 'devTestMode';
 const CHANGE_EVENT = 'devtestmode-change';
 
 export function isDevTestModeEnabled() {
-    if (APP_ROLE !== 'admin') return false;
     try {
-        return localStorage.getItem(STORAGE_KEY) === 'true';
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored !== null) return stored === 'true';
     } catch {
         return false;
     }
+    // No explicit choice made yet in this browser — fall back to the build-time default, so
+    // the branch/LAN dev compose stack (which sets VITE_APP_SKIP_TERMINAL_CHECK=true) keeps
+    // working out of the box until someone opens Settings and picks explicitly.
+    return import.meta.env.VITE_APP_SKIP_TERMINAL_CHECK === 'true';
 }
 
 export function setDevTestMode(enabled) {

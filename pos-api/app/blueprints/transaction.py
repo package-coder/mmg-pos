@@ -26,6 +26,16 @@ discountRepository = TransactionDiscountRepository()
 itemRepository = TransactionItemRepository()
 auditLogRepository = AuditLogRepository()
 
+# Dev Test Mode (mmg-app/src/utils/devTestMode.js) mocks terminal info with a PTU of this
+# form instead of querying the real helper app — see PrinterProvider.jsx devMockTerminalInfo().
+# Deriving the tag from the PTU itself (rather than trusting a client-sent boolean) means it
+# can't be spoofed independently of the one signal that's already required to produce it.
+DEV_PTU_PREFIX = 'DEV-PTU-'
+
+
+def _is_dev_test(ptu_number):
+    return bool(ptu_number) and ptu_number.startswith(DEV_PTU_PREFIX)
+
 
 def _log_number_gap(user_id, number_type, number, ptu_number, branch_id, error):
     """Standalone MongoDB has no multi-document transactions, so a sequence counter increment
@@ -238,6 +248,7 @@ def v3_create_transaction(user_id):
 
         try:
             data = model.model_dump(by_alias=True, exclude={'discounts', 'transactionItems'})
+            data['isDevTest'] = _is_dev_test(model.ptuNumber)
             if existing_hold:
                 result = transactionRepository.update_one_bare({ "_id": existing_hold["_id"] }, data)
                 # The cart may have been edited after restoring the hold (items added/removed,
@@ -265,33 +276,35 @@ def v3_create_transaction(user_id):
             raise
 
         discounts = list(map(
-            lambda i: { 
+            lambda i: {
                 **i.model_dump(exclude='id'),
-                'discountId': i.id, 
+                'discountId': i.id,
                 'transactionId': result['_id'],
                 'customerId': result['customer']['_id'],
                 'memberId': result['customer'].get('customer_type_id'),
+                'isDevTest': data['isDevTest'],
                 **model.model_dump(
                     include={
-                        'cashierId', 
-                        'branchId', 
+                        'cashierId',
+                        'branchId',
                         'date',
                         'status'
                     }
                 )
-            }, 
+            },
             model.discounts
         ))
-        
+
         if(len(discounts) > 0):
             discountRepository.insert_many(discounts)
 
         transactionItems = list(map(
-            lambda i: { 
+            lambda i: {
                 **i.model_dump(exclude='id'),
                 'transactionId': result['_id'],
+                'isDevTest': data['isDevTest'],
                 **model.model_dump(include={'date'})
-            }, 
+            },
             model.transactionItems
         ))
 
@@ -420,6 +433,14 @@ def v3_cancel_transaction(user_id):
             # same as invoiceNumber above. This is the PTU of the terminal performing the
             # cancel/refund right now, not necessarily the terminal that issued the original invoice.
             void_doc['ptuNumber'] = model.ptuNumber
+            # Same reasoning as ptuNumber above — this is the cancelling terminal's own MIN/SN,
+            # not inherited from the original via omit(transaction, ...).
+            void_doc['min'] = model.min
+            void_doc['sn'] = model.sn
+            # Recomputed from the void's own ptuNumber above, not inherited from the original via
+            # omit(transaction, ...) — the cancelling terminal may be in Dev Test Mode even when
+            # the original sale wasn't, or vice versa.
+            void_doc['isDevTest'] = _is_dev_test(model.ptuNumber)
             void_doc['serialNumber'] = transactionRepository._get_next_sequence({ "type": next_sequence, "ptuNumber": model.ptuNumber })
             void_doc['status'] = model.status
             void_doc['totalNetSales'] = -1 * void_doc['totalNetSales']

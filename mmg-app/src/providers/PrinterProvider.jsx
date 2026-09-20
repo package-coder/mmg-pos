@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { canPrint } from 'utils/devTestMode'
+import { canPrint, isDevTestModeEnabled } from 'utils/devTestMode'
+import { useAuth } from 'providers/AuthProvider'
 
 export const PrinterContext = createContext()
 
@@ -9,30 +10,32 @@ const CONNECT_TIMEOUT_MS = 5000
 // The helper retries the printer connection (~5 s) before it prints, so leave generous room.
 const REPLY_TIMEOUT_MS = 30000
 
-// Local-dev-only escape hatch: pos-helper-app is a Windows executable that never runs in this
-// docker-compose stack, so getTerminalInfo() can never really succeed here. Set
-// VITE_APP_SKIP_TERMINAL_CHECK=true (docker-compose.yml only — NEVER docker-compose.prod.yml or
-// a real branch deployment) to fake a terminal response so checkout isn't blocked in dev.
-const SKIP_TERMINAL_CHECK = import.meta.env.VITE_APP_SKIP_TERMINAL_CHECK === 'true'
-// The PTU must be unique per install, not a shared constant. Invoice numbers are counted per
-// ptuNumber and the central DB has a unique (ptuNumber, invoiceNumber) index, so every dev stack
-// sharing one fake PTU restarted at invoice 1 and the second machine's sales were rejected on sync.
-function devPtuNo() {
+// The PTU must be unique per branch+user in this browser, not a single shared constant.
+// Invoice numbers are counted per ptuNumber alone (BIR rule — a real PTU belongs to one
+// physical terminal, so this is exactly right for real terminals). But one browser testing
+// several branches/users in Dev Test Mode would otherwise have them all mint invoice numbers
+// off the same fake PTU's sequence, mixing series that a real deployment would never mix — so
+// each (branchId, userId) combination this browser has logged in as gets its own persisted PTU.
+function devPtuNo(branchId, userId) {
+    const key = `devPtuNo:${branchId || 'no-branch'}:${userId || 'no-user'}`
     const fresh = () => `DEV-PTU-${Math.random().toString(16).slice(2, 10).toUpperCase()}`
     try {
-        let id = localStorage.getItem('devPtuNo')
+        let id = localStorage.getItem(key)
         if (!id) {
             id = fresh()
-            localStorage.setItem('devPtuNo', id)
+            localStorage.setItem(key, id)
         }
         return id
     } catch {
         return fresh()
     }
 }
-const DEV_MOCK_TERMINAL_INFO = { MIN: 'DEV-MIN', SN: 'DEV-SN', PTU_NO: devPtuNo() }
+function devMockTerminalInfo(branchId, userId) {
+    return { MIN: 'DEV-MIN', SN: 'DEV-SN', PTU_NO: devPtuNo(branchId, userId) }
+}
 
 const PrinterProvider = ({ children }) => {
+    const { branch, user } = useAuth()
     const [socket, setSocket] = useState(null);
     const [printing, setPrinting] = useState(false)
     const [status, setStatus] = useState(statuses[3])
@@ -165,9 +168,9 @@ const PrinterProvider = ({ children }) => {
     // helper app, or { error } if the helper app can't be reached. Used at checkout time to
     // scope invoice numbers per accredited terminal (BIR compliance) — see Checkout.jsx.
     function getTerminalInfo() {
-        if (SKIP_TERMINAL_CHECK) {
-            console.warn('[DEV] VITE_APP_SKIP_TERMINAL_CHECK is set — using mock terminal info instead of querying the helper app.')
-            return Promise.resolve(DEV_MOCK_TERMINAL_INFO)
+        if (isDevTestModeEnabled()) {
+            console.warn('[DEV TEST MODE] Using mock terminal info instead of querying the helper app.')
+            return Promise.resolve(devMockTerminalInfo(branch?.id, user?._id))
         }
         return print("terminal", "info", {})
     }

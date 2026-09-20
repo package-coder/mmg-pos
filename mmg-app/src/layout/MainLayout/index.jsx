@@ -20,7 +20,6 @@ import { drawerWidth } from 'store/constant';
 import { IconChevronRight } from '@tabler/icons-react';
 import FooterWatermark from 'ui-component/FooterWatermark';
 import DevTestModeBanner, { DEV_TEST_MODE_BANNER_HEIGHT } from 'ui-component/DevTestModeBanner';
-import { APP_ROLE } from 'api';
 import { useDevTestMode } from 'utils/devTestMode';
 
 const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' && prop !== 'theme' })(({ theme, open }) => ({
@@ -72,8 +71,7 @@ const MainLayout = () => {
     // of them, so both need to be pushed down by its height while it's showing or it would
     // cover the top of the header/menu instead of appearing above them.
     const devTestMode = useDevTestMode();
-    const showDevTestModeBanner = APP_ROLE === 'admin' && devTestMode;
-    const bannerOffset = showDevTestModeBanner ? DEV_TEST_MODE_BANNER_HEIGHT : 0;
+    const bannerOffset = devTestMode ? DEV_TEST_MODE_BANNER_HEIGHT : 0;
 
     return (
         <Box sx={{ display: 'flex' }}>

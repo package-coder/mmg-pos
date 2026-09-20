@@ -214,7 +214,18 @@ class CreateTransaction(BaseTransaction):
     # Accredited terminal identifier (PTU_NO from the workstation's terminal.json). Invoice
     # numbers are sequential per PTU (BIR rule) — required whenever this transaction is being
     # completed, since that's the only point an invoice number gets issued.
+    # A "DEV-PTU-..." value means Dev Test Mode mocked this instead of a real accredited
+    # terminal (mmg-app/src/utils/devTestMode.js) — see app/blueprints/transaction.py
+    # _is_dev_test(), which derives the persisted `isDevTest` tag from this prefix rather than
+    # trusting any client-sent boolean.
     ptuNumber: Optional[str] = None
+    # MIN/SN from the same terminal.json/config.json lookup as ptuNumber (fetched together via
+    # the helper app's `{device: "terminal", device_type: "info"}` — see PrinterProvider.jsx
+    # getTerminalInfo()). Persisted here (not just used live) so a receipt viewed/reprinted
+    # later — with no helper app reachable from the browser at view time — can still show the
+    # terminal's actual MIN/SN header instead of a permanent "---" placeholder.
+    min: Optional[str] = None
+    sn: Optional[str] = None
     # Client-generated key (one per Pay/Hold click), unique across new_transactions (see
     # app/database/indexes.py: unique_idempotency_key). Lets a double-click or a retried request
     # after a dropped response be recognized as the same submission instead of creating a second
@@ -264,6 +275,9 @@ class CreateCancelledTransaction(BaseModel):
     # terminal that issued the original invoice. Cancel/refund serial numbers are sequential
     # per accredited terminal (BIR rule), same as invoice numbers.
     ptuNumber: str
+    # MIN/SN of that same terminal — see CreateTransaction.min/.sn.
+    min: Optional[str] = None
+    sn: Optional[str] = None
 
 class CreateRefundTransaction(CreateTransaction):
     reason: Optional[str] = None

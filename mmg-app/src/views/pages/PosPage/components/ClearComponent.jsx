@@ -134,7 +134,7 @@ export default memo(function ({ disabled, buttonProps }) {
                             return;
                         }
 
-                        cancelTransaction({ ...values, ptuNumber: terminalInfo.PTU_NO })
+                        cancelTransaction({ ...values, ptuNumber: terminalInfo.PTU_NO, min: terminalInfo.MIN, sn: terminalInfo.SN })
                             .then(context?.refetch)
                             .then(onToggle)
                             .catch((e) => {
