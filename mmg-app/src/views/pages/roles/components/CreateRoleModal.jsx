@@ -44,7 +44,7 @@ const COLUMN = Object.freeze({
     UPDATE: 'update'
 });
 
-export default function () {
+export default function ({ disabled = false }) {
     const [open, setOpen] = React.useState(false);
     const [permissions, setPermissions] = React.useState({});
 
@@ -163,7 +163,7 @@ export default function () {
     };
 
     const renderButton = () => (
-        <Button startIcon={<AddIcon />} onClick={handleClickOpen} variant="contained" color="primary">
+        <Button disabled={disabled} startIcon={<AddIcon />} onClick={handleClickOpen} variant="contained" color="primary">
             New Role
         </Button>
     );

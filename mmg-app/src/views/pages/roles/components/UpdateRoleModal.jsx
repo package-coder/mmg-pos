@@ -50,7 +50,7 @@ const mapPermissionsToFormikValues = (authorizations) => {
     return permissions;
 };
 
-export default function ({ initialValues }) {
+export default function ({ initialValues, disabled = false }) {
     const [open, setOpen] = React.useState(false);
     const [permissions, setPermissions] = React.useState({});
 
@@ -150,7 +150,7 @@ export default function ({ initialValues }) {
     };
 
     const renderButton = () => (
-        <Button onClick={handleClickOpen} startIcon={<EditIcon fontSize="small" />} variant="outlined" size="small">
+        <Button disabled={disabled} onClick={handleClickOpen} startIcon={<EditIcon fontSize="small" />} variant="outlined" size="small">
             Edit
         </Button>
     );

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { APP_ROLE } from 'api';
 import {
     Typography,
     Grid,
@@ -233,7 +234,7 @@ const ProductList = ({ mode }) => {
                         </Button>
                     )}
                     {userRole?.role?.name === 'admin' && (
-                        <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleNewProduct}>
+                        <Button disabled={APP_ROLE !== 'admin'} variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleNewProduct}>
                             New Item
                         </Button>
                     )}
@@ -323,6 +324,7 @@ const ProductList = ({ mode }) => {
                                         <CardActions style={{ flexShrink: 0 }}>
                                             <Stack direction="row" justifyContent="flex-end" sx={{ width: '100%' }}>
                                                 <Button
+                                                    disabled={APP_ROLE !== 'admin'}
                                                     variant="outlined"
                                                     size="small"
                                                     sx={{ borderColor: 'grey.400', backgroundColor: 'white' }}
@@ -393,6 +395,7 @@ const ProductList = ({ mode }) => {
                                     {mode != 'view' && (
                                         <TableCell>
                                             <Button
+                                                disabled={APP_ROLE !== 'admin'}
                                                 variant="outlined"
                                                 size="small"
                                                 color="primary"

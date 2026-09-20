@@ -20,6 +20,7 @@ import { omit, startCase } from 'lodash';
 import UpdateDoctorModal from './components/UpdateCorporateModal';
 import corporate from 'api/corporate';
 import MainCard from 'ui-component/cards/MainCard';
+import { APP_ROLE } from 'api';
 
 function CorporatesPage() {
     const { data: corporates, isLoading, isRefetching } = useQuery('corporates', () => corporate.GetAllCorporate().then(data => data.sort((a, b) => a.name.localeCompare(b.name))));
@@ -61,7 +62,7 @@ function CorporatesPage() {
                 justifyContent="space-between"
             >
                 <TextField size="small" label="Search" onChange={handleSearch} sx={{ minWidth: 300 }} />
-                <CreateDoctorModal />
+                <CreateDoctorModal disabled={APP_ROLE !== 'admin'} />
             </Stack>
 
             <Card sx={{ borderRadius: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -94,6 +95,7 @@ function CorporatesPage() {
                                         <TableCell>{corporate.contactNumber}</TableCell>
                                         <TableCell sx={{ pl: 0, py: 0, width: 0 }}>
                                             <UpdateDoctorModal
+                                                disabled={APP_ROLE !== 'admin'}
                                                 initialValues={{
                                                     ...omit(corporate, '_id'),
                                                     contactNo: corporate?.contactNumber,

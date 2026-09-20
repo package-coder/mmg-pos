@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { APP_ROLE } from 'api';
 import {
     Typography,
     Grid,
@@ -211,7 +212,7 @@ const PackageList = () => {
                         </Button>
                     )}
 
-                    <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleNewProduct}>
+                    <Button disabled={APP_ROLE !== 'admin'} variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleNewProduct}>
                         New Item
                     </Button>
                 </Stack>
@@ -325,6 +326,7 @@ const PackageList = () => {
                                             sx={{ width: '100%' }}
                                         >
                                             <Button
+                                                disabled={APP_ROLE !== 'admin'}
                                                 variant="outlined"
                                                 size="small"
                                                 sx={{ borderColor: 'grey.400', backgroundColor: 'white' }}
@@ -378,6 +380,7 @@ const PackageList = () => {
                                     <TableCell>{product.labTest?.map((prerequisite) => `${prerequisite.name}`).join(', ')}</TableCell>
                                     <TableCell>
                                         <Button
+                                            disabled={APP_ROLE !== 'admin'}
                                             variant="outlined"
                                             size="small"
                                             color="primary"

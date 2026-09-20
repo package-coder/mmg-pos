@@ -21,6 +21,7 @@ import { startCase } from 'lodash';
 import UserSwitch from './components/UserSwitch';
 import UpdateUserModal from './components/UpdateUserModal';
 import MainCard from 'ui-component/cards/MainCard';
+import { APP_ROLE } from 'api';
 
 function UsersPage() {
     const { data: users, isLoading, isRefetching } = useQuery('users', user.GetAllUser);
@@ -60,7 +61,7 @@ function UsersPage() {
                 justifyContent="space-between"
             >
                 <TextField variant="outlined" size="small" label="Search" onChange={handleSearch} sx={{ minWidth: 300 }} />
-                <CreateUserModal />
+                <CreateUserModal disabled={APP_ROLE !== 'admin'} />
             </Stack>
             <Card sx={{ borderRadius: 2 }}>
                 <TableContainer component={Paper}>
@@ -98,6 +99,7 @@ function UsersPage() {
                                         </TableCell>
                                         <TableCell sx={{ pl: 0, py: 0, width: 0 }}>
                                             <UpdateUserModal
+                                                disabled={APP_ROLE !== 'admin'}
                                                 initialValues={{
                                                     ...user,
                                                     id: user._id

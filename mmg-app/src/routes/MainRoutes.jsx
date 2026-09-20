@@ -50,16 +50,31 @@ export function RequireAuth(children, roles) {
 // Downstream-synced master data (users, roles, branches, doctors, corporates,
 // packages, discounts, labtest/services) is centrally owned by the admin
 // instance (VITE_ROLE=admin). Branches only ever receive it via sync, so
-// editing it locally would just get clobbered by the next sync tick.
-const AdminOnlyRoute = ({ roles }) => {
-    if (APP_ROLE !== 'admin') return <Navigate to="/404" replace />;
-    return <AuthorizeRoute roles={roles} />;
+// editing it locally would clobber on the next sync tick — but a branch
+// ADMIN can still view it read-only for reference (e.g. checking a
+// package's price or a discount's rule); CASHIER gets no access at all on
+// branch, matching the write-side restriction. Create/edit routes
+// (`writeOnly`) are never reachable on a branch deployment regardless of
+// role — the page components also hide/disable their own Add/Edit
+// buttons, this is the defense-in-depth layer against a typed URL.
+const LookupRoute = ({ roles, writeOnly = false }) => {
+    if (APP_ROLE === 'admin') return <AuthorizeRoute roles={roles} />;
+    if (writeOnly) return <Navigate to="/404" replace />;
+    return <AuthorizeRoute roles={[Role.ADMIN]} />;
 };
 
-export function RequireAdminDeployment(children, roles) {
+export function RequireLookupView(children, roles) {
     return {
         path: '',
-        element: <AdminOnlyRoute roles={roles} />,
+        element: <LookupRoute roles={roles} />,
+        children
+    };
+}
+
+export function RequireLookupWrite(children, roles) {
+    return {
+        path: '',
+        element: <LookupRoute roles={roles} writeOnly />,
         children
     };
 }
@@ -115,30 +130,16 @@ const MainRoutes = {
                     ],
                     [Role.CASHIER, Role.ADMIN]
                 ),
-                // Centrally-managed master data — admin deployment only (see AdminOnlyRoute above)
-                RequireAdminDeployment(
+                // Centrally-managed master data — view is admin-deployment OR
+                // branch-admin-read-only; create/edit is admin-deployment only
+                // (see LookupRoute above).
+                RequireLookupView(
                     [
                         { path: 'users', element: <UsersPage /> },
                         { path: 'roles', element: <RolesPage /> },
                         { path: 'branches', element: <BranchesPage /> },
                         { path: 'doctors', element: <DoctorsPage /> },
                         { path: 'corporates', element: <CorporatesPage /> },
-                        {
-                            path: 'packages',
-                            children: [
-                                { path: '', element: <PackagesPage /> },
-                                { path: 'new', element: <PackageForm /> },
-                                { path: 'edit', element: <PackageForm /> }
-                            ]
-                        },
-                        {
-                            path: 'labtest',
-                            children: [
-                                { path: '', element: <ServicesPage /> },
-                                { path: 'new', element: <ServiceForm /> },
-                                { path: 'edit', element: <ServiceForm /> }
-                            ]
-                        },
                         {
                             path: 'labtest-categories',
                             children: [{ path: '', element: <ServiceCategoriesPage /> }]
@@ -149,7 +150,33 @@ const MainRoutes = {
                         }
                     ],
                     [Role.CASHIER, Role.ADMIN]
-                )
+                ),
+                {
+                    path: 'packages',
+                    children: [
+                        RequireLookupView([{ path: '', element: <PackagesPage /> }], [Role.CASHIER, Role.ADMIN]),
+                        RequireLookupWrite(
+                            [
+                                { path: 'new', element: <PackageForm /> },
+                                { path: 'edit', element: <PackageForm /> }
+                            ],
+                            [Role.CASHIER, Role.ADMIN]
+                        )
+                    ]
+                },
+                {
+                    path: 'labtest',
+                    children: [
+                        RequireLookupView([{ path: '', element: <ServicesPage /> }], [Role.CASHIER, Role.ADMIN]),
+                        RequireLookupWrite(
+                            [
+                                { path: 'new', element: <ServiceForm /> },
+                                { path: 'edit', element: <ServiceForm /> }
+                            ],
+                            [Role.CASHIER, Role.ADMIN]
+                        )
+                    ]
+                }
             ]
         }
     ]

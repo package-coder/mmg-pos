@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { APP_ROLE } from 'api';
 import {
     Typography,
     Button,
@@ -222,6 +223,7 @@ const DiscountList = () => {
                                 <TableCell>{discount.type}</TableCell>
                                 <TableCell>
                                     <Button
+                                        disabled={APP_ROLE !== 'admin'}
                                         variant="outlined"
                                         size="small"
                                         color="primary"
@@ -283,7 +285,7 @@ const DiscountList = () => {
                     <TextField label="Search" variant="outlined" onChange={handleSearch} size="small" sx={{ minWidth: 300 }} />
                 </Stack>
                 <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={2}>
-                    <Button startIcon={<AddIcon />} variant="contained" onClick={handleNewDiscount}>
+                    <Button disabled={APP_ROLE !== 'admin'} startIcon={<AddIcon />} variant="contained" onClick={handleNewDiscount}>
                         New Discount
                     </Button>
                 </Stack>

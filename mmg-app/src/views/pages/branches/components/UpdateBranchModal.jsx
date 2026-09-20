@@ -28,7 +28,7 @@ const validationSchema = Yup.object().shape({
     // isActive: Yup.bool()
 });
 
-export default function ({ initialValues }) {
+export default function ({ initialValues, disabled = false }) {
     const [open, setOpen] = React.useState(false);
 
     const queryClient = useQueryClient();
@@ -38,7 +38,7 @@ export default function ({ initialValues }) {
     const handleClose = () => setOpen(false);
 
     const renderButton = () => (
-        <Button onClick={handleClickOpen} startIcon={<EditIcon fontSize="small" />} variant="outlined" size="small">
+        <Button disabled={disabled} onClick={handleClickOpen} startIcon={<EditIcon fontSize="small" />} variant="outlined" size="small">
             Edit
         </Button>
     );

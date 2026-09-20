@@ -3,6 +3,7 @@ import { useMutation } from 'react-query';
 import user from 'api/user';
 import Switch from 'ui-component/switch';
 import branch from 'api/branch';
+import { APP_ROLE } from 'api';
 
 export default function ({ id, value }) {
     const [checked, setChecked] = React.useState(Boolean(value));
@@ -19,5 +20,5 @@ export default function ({ id, value }) {
         mutateAsync({ id, isActive: value }).catch(() => setChecked(!value));
     };
 
-    return <Switch checked={checked} onChange={handleChange} />;
+    return <Switch checked={checked} onChange={handleChange} disabled={APP_ROLE !== 'admin'} />;
 }

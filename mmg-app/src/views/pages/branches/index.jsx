@@ -20,6 +20,7 @@ import { omit, startCase } from 'lodash';
 import branch from 'api/branch';
 import BranchSwitch from './components/BranchSwitch';
 import UpdateBranchModal from './components/UpdateBranchModal';
+import { APP_ROLE } from 'api';
 import MainCard from 'ui-component/cards/MainCard';
 
 function BranchesPage() {
@@ -48,7 +49,7 @@ function BranchesPage() {
                 justifyContent="space-between"
             >
                 <TextField size="small" label="Search" onChange={handleSearch} sx={{ minWidth: 300 }} />
-                <CreateBranchModal />
+                <CreateBranchModal disabled={APP_ROLE !== 'admin'} />
             </Stack>
 
             <Card sx={{ borderRadius: 2 }}>
@@ -87,7 +88,7 @@ function BranchesPage() {
                                             <BranchSwitch id={branch.id} value={branch.isActive} />
                                         </TableCell> */}
                                         <TableCell sx={{ pl: 0, py: 0, width: 0 }}>
-                                            <UpdateBranchModal initialValues={branch} />
+                                            <UpdateBranchModal disabled={APP_ROLE !== 'admin'} initialValues={branch} />
                                         </TableCell>
                                     </TableRow>
                                 ))}

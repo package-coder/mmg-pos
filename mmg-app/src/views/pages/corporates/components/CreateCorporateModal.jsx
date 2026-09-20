@@ -27,7 +27,7 @@ const validationSchema = Yup.object().shape({
     emailAddress: Yup.string().email('Invalid email address')
 });
 
-export default function () {
+export default function ({ disabled = false }) {
     const [open, setOpen] = React.useState(false);
 
     const queryClient = useQueryClient();
@@ -37,7 +37,7 @@ export default function () {
     const handleClose = () => setOpen(false);
 
     const renderButton = () => (
-        <Button startIcon={<AddIcon />} onClick={handleClickOpen} variant="contained" color="primary">
+        <Button disabled={disabled} startIcon={<AddIcon />} onClick={handleClickOpen} variant="contained" color="primary">
             New Corporate/HMO
         </Button>
     );

@@ -6,6 +6,7 @@ import DataTable from 'ui-component/DataTable';
 import { useQuery } from 'react-query';
 import role from 'api/role';
 import { startCase } from 'lodash';
+import { APP_ROLE } from 'api';
 import UpdateRoleModal from './components/UpdateRoleModal';
 
 const columns = [
@@ -28,7 +29,7 @@ const columns = [
         width: 0,
         align: 'right',
         stopPropagation: true,
-        render: (role) => <UpdateRoleModal initialValues={{ ...role, id: role._id }} />
+        render: (role) => <UpdateRoleModal disabled={APP_ROLE !== 'admin'} initialValues={{ ...role, id: role._id }} />
     }
 ];
 
@@ -61,7 +62,7 @@ function RolesPage() {
                 justifyContent="space-between"
             >
                 <TextField variant="outlined" size="small" label="Search" sx={{ width: { xs: '100%', sm: 360 } }} />
-                <CreateRoleModal />
+                <CreateRoleModal disabled={APP_ROLE !== 'admin'} />
             </Stack>
             <DataTable
                 dense

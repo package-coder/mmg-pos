@@ -30,7 +30,7 @@ const validationSchema = Yup.object().shape({
     role: Yup.object().required('Role is required')
 });
 
-export default function () {
+export default function ({ disabled = false }) {
     const [open, setOpen] = React.useState(false);
     const [showPassword, setShowPassword] = React.useState(false);
 
@@ -63,7 +63,7 @@ export default function () {
     };
 
     const renderButton = () => (
-        <Button startIcon={<AddIcon />} onClick={handleClickOpen} variant="contained" color="primary">
+        <Button disabled={disabled} startIcon={<AddIcon />} onClick={handleClickOpen} variant="contained" color="primary">
             New User
         </Button>
     );

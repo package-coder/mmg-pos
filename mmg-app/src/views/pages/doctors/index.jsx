@@ -21,6 +21,7 @@ import { useQuery } from 'react-query';
 import { startCase } from 'lodash';
 import doctor from 'api/doctor';
 import UpdateDoctorModal from './components/UpdateDoctorModal';
+import { APP_ROLE } from 'api';
 import MainCard from 'ui-component/cards/MainCard';
 
 function DoctorsPage() {
@@ -71,7 +72,7 @@ function DoctorsPage() {
                 justifyContent="space-between"
             >
                 <TextField size="small" label="Search..." onChange={handleSearch} sx={{ minWidth: 300 }} />
-                <CreateDoctorModal />
+                <CreateDoctorModal disabled={APP_ROLE !== 'admin'} />
             </Stack>
 
             <div sx={{ borderRadius: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -107,7 +108,7 @@ function DoctorsPage() {
                                             <Checkbox checked={doctor.isMember} readOnly disableRipple />
                                         </TableCell>
                                         <TableCell sx={{ pl: 0, py: 0, width: 0 }}>
-                                            <UpdateDoctorModal initialValues={{ ...doctor, id: doctor._id }} />
+                                            <UpdateDoctorModal disabled={APP_ROLE !== 'admin'} initialValues={{ ...doctor, id: doctor._id }} />
                                         </TableCell>
                                     </TableRow>
                                 ))}
