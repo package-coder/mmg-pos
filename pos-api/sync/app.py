@@ -12,6 +12,13 @@ import lookup_tally  # noqa: E402
 
 REMOTE_DATABASE_URL = os.getenv('REMOTE_DATABASE_URL')
 LOCAL_DATABASE_URL = os.getenv('LOCAL_DATABASE_URL')
+APP_ENV = os.getenv('APP_ENV')
+
+# Only a real branch/central deployment may push data upstream. A developer's
+# local .env pointed at a real REMOTE_DATABASE_URL (e.g. for testing against
+# UAT) would otherwise let throwaway dev data reach it — there's no other
+# check anywhere in the stack that stops that.
+UPSTREAM_ALLOWED_ENVS = {'internal-production', 'production'}
 
 def _redact(url):
   """Hide user:password in a connection string before it reaches the logs."""
@@ -321,6 +328,11 @@ def downstream_sync_data():
 
 
 def upstream_sync_data():
+  if APP_ENV not in UPSTREAM_ALLOWED_ENVS:
+    print(f'[upstream-sync] {_stamp()} Skipping — APP_ENV={APP_ENV!r} is not a real branch/central '
+          f'deployment, refusing to push local data upstream.')
+    return
+
   local = get_client('local', LOCAL_DATABASE_URL)
   remote = get_client('remote', REMOTE_DATABASE_URL)
   if local is None or remote is None:

@@ -80,18 +80,56 @@ branch is reported in the sync log as a warning.
 
 ## Starting over (dev / test machines only)
 
+Inside Docker (normal — same `docker-compose exec server` prefix as every other command in this file):
+
 ```bash
-python seed.py --reset          # shows what would be wiped, changes nothing
-python seed.py --reset --yes    # backs up, empties, then re-seeds (bootstrap from central)
+docker-compose exec server python seed.py --reset                            # dry run, changes nothing
+docker-compose exec server python seed.py --reset --yes                      # dev/test APP_ENV only
+docker-compose exec server python seed.py --reset --yes --force-production   # internal-production/production
 ```
 
-- The whole database is first copied to `<database>_backup_<timestamp>` on the same server.
-- Collections are emptied, not dropped, so indexes survive.
-- Invoice counters are wiped too, so numbering restarts at 1.
-- **Refuses** if any sale has not uploaded to central yet (`--discard-unsynced` to override).
-- **Refuses** unless `APP_ENV` is `local-development` or `development` (`--force-production` to override).
-- Afterwards: sign out and back in, and clear the browser's `devPtuNo` local-storage key so the restarted
-  invoice numbering does not reuse a PTU that central already has invoices for.
+Local dev (from `pos-api/`, venv active):
+
+```bash
+python seed.py --reset
+python seed.py --reset --yes
+python seed.py --reset --yes --force-production
+```
+
+### Step by step, in the order the tool actually runs them
+
+Given a database that already has data (empty or not doesn't matter — the sequence is the same):
+
+1. **Run the dry run first: `--reset` with no `--yes`.** This only ever counts and prints, e.g.
+   `Database 'pos' currently holds: {'branches': 3, 'users': 6, 'transactions': 1, 'customers': 1, ...}`,
+   then stops — `"Nothing was changed. Re-run with --yes to back up and wipe this database."` Nothing is
+   backed up, emptied, or re-seeded at this step, no matter what flags you add. Do this step every time
+   before adding `--yes`, so you know what you're about to lose.
+2. **Add `--yes` and re-run.** Only now does the tool decide whether it's allowed to continue:
+   - **Unsynced-sale check.** If any upstream doc (`transactions`, `sales`, `cashier_reports`, etc.) still
+     has `_sync.status: pending` or `conflict`, it refuses outright — exit, nothing touched. Add
+     `--discard-unsynced` only once you've confirmed those records are genuinely disposable (e.g. test
+     transactions), not real sales that haven't reached central yet.
+   - **Production check.** If `APP_ENV` is `internal-production` or `production`, it refuses again — exit,
+     nothing touched — unless `--force-production` is also passed. This is the branch we ran it on
+     ourselves earlier; a real branch/central database always needs this flag explicitly.
+   Both checks must pass (or be overridden) before step 3 happens.
+3. **Backup.** The *entire current database* — everything, synced or not — is copied wholesale to a
+   sibling database named `<database>_backup_<timestamp>` on the same MongoDB server. Still nothing
+   deleted at this point; this is your rollback copy if the reset turns out to be a mistake.
+4. **Empty.** Every collection in the live database is emptied (`delete_many({})`), not dropped — indexes
+   from `ensure_indexes()` survive, so the server doesn't recreate them. Invoice/cancel/refund counters
+   are emptied too, so the next completed sale on any terminal starts numbering from 1 again.
+5. **Re-seed, immediately, same run.** `seed.py`'s normal auto-detection (see the mode table above) fires
+   right after, exactly as if starting from an empty database. On a branch with `REMOTE_DATABASE_URL`
+   reachable this means **bootstrap**: lookup collections come back from central with their original
+   `_id`s — the branch ends up looking freshly provisioned, not standalone-seeded.
+6. **Restart + manual browser cleanup (not automatic).** Restart the `server` container (it recreates
+   indexes only at startup), sign out and back in, and clear the browser's `devPtuNo` local-storage key —
+   otherwise the restarted invoice numbering can reuse a PTU that central already has invoices for.
+7. **Nothing from the old data comes back on its own.** It only exists in the `_backup_<timestamp>`
+   database from step 3 — recovering anything from it (a customer or product that existed only locally) is
+   a manual `mongodump`/`mongorestore`, `--reset` does not do this for you.
 
 ## Repairing a database that was seeded the old way
 
