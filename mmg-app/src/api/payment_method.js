@@ -35,7 +35,7 @@ async function CreatePaymentMethod(model) {
 async function UpdatePaymentMethod({ code, ...model }) {
     const {
         data: { data }
-    } = await server.patch(`${PAYMENT_METHOD_ENDPOINT}/${code}`, model);
+    } = await server.post(`${PAYMENT_METHOD_ENDPOINT}/${code}`, model);
     return data;
 }
 

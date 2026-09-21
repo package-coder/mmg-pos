@@ -4,7 +4,6 @@ from pydantic import ValidationError
 from app.features.payment_method import service
 from app.features.payment_method.models import CreatePaymentMethodRequest, UpdatePaymentMethodRequest
 from app.features.payment_method.repository import PaymentMethodRepository
-from app.config import IS_INTERNAL_PRODUCTION
 from app.middlewares.authorized_attribute import authorized
 
 api = '/v2/payment-methods'
@@ -13,10 +12,10 @@ repository = PaymentMethodRepository()
 
 
 def _ensure_can_manage(user_id):
-    # Lookups are minted on central only and pulled down to branches (see CLAUDE.md, seed.py): a
-    # method created on a branch server would get its own id and clash with central's on sync.
-    if IS_INTERNAL_PRODUCTION:
-        raise service.PaymentMethodError('Payment methods are managed from the admin portal, not on a branch server.', 403)
+    # Admin role only. The API can't tell the admin/cloud instance from a branch server (both run
+    # APP_ENV=internal-production; only the frontend's VITE_ROLE=admin differs), so the "manage
+    # from the admin portal" rule is enforced in the UI: PaymentMethodSettings is read-only unless
+    # VITE_ROLE=admin, and the menu lives under the admin-only Settings group.
     service.ensure_admin(repository, user_id)
 
 
@@ -49,7 +48,8 @@ def create_payment_method(user_id):
         return _error(e, 'Unable to create payment method')
 
 
-@payment_methods_bp.patch(api + '/<code>')
+# POST, not PATCH: the branch proxy (pos-api/proxy/app.py) only forwards GET/POST/PUT/DELETE.
+@payment_methods_bp.post(api + '/<code>')
 @authorized
 def update_payment_method(user_id, code):
     try:
