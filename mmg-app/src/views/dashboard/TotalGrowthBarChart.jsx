@@ -36,7 +36,10 @@ const TotalGrowthBarChart = ({ data: categories, branchOptions, onChangeBranch, 
 
     const categoryNames = categories.map(i => i.name)
     const cashData = categories.map(i => i.transactionSummary?.cash || 0)
-    const chargeData = categories.map(i => i.transactionSummary?.charge || 0)
+    // Everything not paid in cash (on-account / pay later, cheque) is shown as charge - same split as Summary Income.
+    const chargeData = categories.map(i =>
+        Object.entries(i.transactionSummary || {}).reduce((sum, [type, amount]) => (type === 'cash' ? sum : sum + amount), 0)
+    )
 
     const totalGrowth = categories.reduce((total, category) => total + category.totalNetSales, 0);
 

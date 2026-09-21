@@ -39,6 +39,18 @@ class TransactionPackage(Package):
 class TenderType(str, Enum):
     CASH = "cash"
     CHEQUE = "cheque"
+    # Sale billed to a payor (customer "pay later" or corporate charge account) instead of being
+    # paid at the counter - no cash enters the drawer.
+    ON_ACCOUNT = "on-account"
+
+class BillToType(str, Enum):
+    CUSTOMER = "customer"
+    CORPORATE = "corporate"
+
+class BillTo(BaseModel):
+    type: BillToType
+    id: str
+    name: str
 
 class Tender(BaseModel):
     type: TenderType = TenderType.CASH
@@ -51,6 +63,10 @@ class ChequeTender(Tender):
     accountName: str
     bankName: str
     branchName: str
+    amount: float
+
+class OnAccountTender(Tender):
+    type: TenderType = TenderType.ON_ACCOUNT
     amount: float
 
 class TransactionItem(Labtest):
@@ -323,6 +339,26 @@ class CreateChequeTransaction(CreateTransaction):
         if(self.tender is None):
             return None
         return self.tender.amount - self.totalNetSales
+
+class CreateOnAccountTransaction(CreateTransaction):
+    tender: Optional[OnAccountTender] = None
+    billTo: Optional[BillTo] = None
+
+    @model_validator(mode='after')
+    def requireBillToAndFullTender(self):
+        if self.status == TransactionStatus.COMPLETED:
+            if self.billTo is None:
+                raise ValueError('billTo is required for an on-account transaction')
+            # The whole net sale goes on account - never trust a client-sent amount.
+            self.tender = OnAccountTender(amount=self.totalNetSales)
+        return self
+
+    @computed_field
+    @property
+    def change(self) -> Optional[float]:
+        if(self.tender is None):
+            return None
+        return 0.0
 
 class CreateCashTransaction(CreateTransaction):
     tender: Optional[Tender] = None

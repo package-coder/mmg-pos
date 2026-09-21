@@ -19,6 +19,7 @@ import WithPrintMutation from 'views/utilities/Print';
 import { useAuth } from 'providers/AuthProvider';
 import print from 'api/print';
 import { usePrinter } from 'providers/PrinterProvider';
+import BillToPanel, { BILL_TO_LABELS } from './BillToPanel';
 
 const schema = yup.object().shape({
     chequeNumber: yup
@@ -38,7 +39,18 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
     const { display: showCustomerDisplay, getTerminalInfo } =  usePrinter()
     // const { mutate: showCustomerDisplay } = useMutation(print.Display)
     const [amountGiven, setAmountGiven] = useState('');
+    // Bill To "Charge to Account": the whole sale goes on account to a payor, so there is no
+    // tender to collect - the only payment method is 'on-account'.
+    const customerData = combinedData?.customerData;
+    const [billToMode, setBillToMode] = useState('customer');
+    const [billToPayor, setBillToPayor] = useState(null);
+    const isOnAccount = billToMode === 'charge';
+    const needsTender = !isOnAccount;
+    const billTo = isOnAccount && billToPayor ? { type: billToPayor.type, id: billToPayor.id, name: billToPayor.name } : null;
     const [paymentMethod, setPaymentMethod] = useState(ar ? 'charge' : 'cash');
+    const activeMethod = isOnAccount ? 'on-account' : paymentMethod;
+    // Charge to Account needs a payor before it can be submitted.
+    const missingPayor = isOnAccount && !billTo;
     const [receiptOpen, setReceiptOpen] = useState(false);
     const tenderFieldRef = useRef(null);
     const [isChipClicked, setIsChipClicked] = useState(false);
@@ -132,13 +144,14 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
             }
 
             if (key >= '0' && key <= '9') {
+                if (isOnAccount) return;
                 event.preventDefault();
                 handleAmountClick(undefined, Number(key));
             } else if (key === 'Backspace') {
                 handleClearClick();
             } else if (key === 'Enter') {
                 event.preventDefault();
-                if (!(amountGiven < combinedData?.paymentDue || loading)) {
+                if (!(needsTender && amountGiven < combinedData?.paymentDue) && !missingPayor && !loading) {
                     handleSubmit(handlePayClick)();
                 }
             } else if (key === 'Escape') {
@@ -207,6 +220,18 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
         };
 
         switch (value) {
+            case 'on-account':
+                return {
+                    ...baseData,
+                    billTo,
+                    paymentDetails: {
+                        subTotal: combinedData?.subTotal,
+                        paymentDue: combinedData?.paymentDue,
+                        change: 0,
+                        tenderAmount: combinedData?.paymentDue,
+                        tenderType: value
+                    }
+                };
             case 'cash':
                 return {
                     ...baseData,
@@ -256,7 +281,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                 return;
             }
 
-            const newData = buildNewData(paymentMethod, amountGiven);
+            const newData = buildNewData(activeMethod, amountGiven);
             await editTransactionMutation.mutateAsync({
                 ...newData,
                 branchId: branch.id,
@@ -308,12 +333,12 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
     const renderGridItem = (label, value, highlight = false, sx) => (
         <>
             <Grid item xs={5}>
-                <Typography variant="h3" fontWeight="bold" color={theme.palette.grey[500]}>
+                <Typography variant="h4" fontWeight="bold" color={theme.palette.grey[500]}>
                     {label}
                 </Typography>
             </Grid>
             <Grid item xs={7} sx={{ textWrap: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                <Typography variant="h1" sx={[highlight ? { color: 'success.dark' } : {}, sx]} textAlign="end">
+                <Typography variant="h2" sx={[highlight ? { color: 'success.dark' } : {}, sx]} textAlign="end">
                     {value}
                 </Typography>
             </Grid>
@@ -328,8 +353,10 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
             alignItems='center'
             width="100%"
             sx={{
-                minHeight: '100dvh',
-                p: 4
+                height: { md: '100dvh' },
+                minHeight: { xs: '100dvh', md: 0 },
+                p: 2,
+                boxSizing: 'border-box'
             }}
         >
             <Grid
@@ -337,23 +364,25 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                 spacing={2}
                 direction={{ xs: 'column', md: 'row' }}
                 justifyContent="center"
+                sx={{ height: { md: '100%' }, maxWidth: 1100, mx: 'auto' }}
             >
-                <Grid item xs lg={6} xl={4}>
-                    <Card sx={{ py: 6, px: 4, height: '100%' }}>
+                <Grid item xs={12} md={6} sx={{ height: { md: '100%' } }}>
+                    <Card sx={{ py: 3, px: 3, height: '100%', overflowY: 'auto' }}>
                         <Button
                             size="large"
                             startIcon={<MdChevronLeft />}
-                            sx={{ mb: 4, bgcolor: 'grey.50' }}
+                            sx={{ mb: 2, bgcolor: 'grey.50' }}
                             onClick={() => handleBack('back')}
                         >
                             Back
                         </Button>
-                        <Typography variant="h1" mb={5} fontSize={28}>
+                        <Typography variant="h2" mb={2}>
                             Checkout
                         </Typography>
-                        {/* <Typography variant="h3" mb={2}> Discounts</Typography>                    */}
+                        {!isOnAccount && (
+                        <>
                         <Stack direction="row" justifyContent="space-between" alignItems="baseline" mb={2}>
-                            <Typography variant="h3">
+                            <Typography variant="h4">
                                 Payment Method{' '}
                                 <Typography component="span" variant="caption" color="text.secondary">
                                     (Choose primary tender)
@@ -402,7 +431,9 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                 </Grid>
                             ))}
                         </Grid>
-                        <Typography variant="h3" mb={2}>
+                        </>
+                        )}
+                        <Typography variant="h4" mb={2}>
                             {' '}
                             Information
                         </Typography>
@@ -444,7 +475,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                                 <Typography variant="caption" color="text.secondary" display="block">
                                                     Age &amp; Birth Date
                                                 </Typography>
-                                                <Typography variant="h5">
+                                                <Typography variant="body1" fontWeight={600}>
                                                     {combinedData?.customerData?.age ? `${combinedData.customerData.age} yrs old` : '---'}
                                                     {combinedData?.customerData?.birthDate &&
                                                         combinedData?.customerData?.type === 'customer' &&
@@ -462,7 +493,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                                 <Typography variant="caption" color="text.secondary" display="block">
                                                     Mobile No.
                                                 </Typography>
-                                                <Typography variant="h5">{combinedData?.customerData?.contactNumber}</Typography>
+                                                <Typography variant="body1" fontWeight={600}>{combinedData?.customerData?.contactNumber}</Typography>
                                             </Box>
                                         </Stack>
                                     </Grid>
@@ -475,14 +506,14 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                                 <Typography variant="caption" color="text.secondary" display="block">
                                                     Address
                                                 </Typography>
-                                                <Typography variant="h5">{combinedData?.customerData?.address}</Typography>
+                                                <Typography variant="body1" fontWeight={600}>{combinedData?.customerData?.address}</Typography>
                                             </Box>
                                         </Stack>
                                     </Grid>
                                 )}
                             </Grid>
                         </Stack>
-                        <Typography variant="h3" mb={2}>
+                        <Typography variant="h4" mb={2}>
                             Order Summary
                         </Typography>
                         <Stack mb={4} spacing={1} p={2.5} bgcolor="grey.50" borderRadius={3}>
@@ -516,42 +547,78 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                             <Divider />
                             <Stack direction="row" justifyContent="space-between">
                                 <Typography variant="h4">Net Payable</Typography>
-                                <Typography variant="h4" color="primary.main">
+                                <Typography variant="h2" color="primary.main">
                                     ₱{new Intl.NumberFormat().format(combinedData?.paymentDue)}
                                 </Typography>
                             </Stack>
                         </Stack>
                     </Card>
                 </Grid>
-                <Grid item xs lg={6} xl={3}>
-                    <Card sx={{ py: 6, px: 4, height: '100%', }}>
+                <Grid item xs={12} md={6} sx={{ height: { md: '100%' } }}>
+                    <Card sx={{ py: 3, px: 3, height: '100%', overflowY: 'auto' }}>
+                        <Stack mb={2} p={2} bgcolor="grey.50" borderRadius={3}>
+                            <BillToPanel
+                                mode={billToMode}
+                                onModeChange={(mode) => {
+                                    setBillToMode(mode);
+                                    if (mode === 'customer') {
+                                        setBillToPayor(null);
+                                    } else if (!billToPayor && customerData?.id) {
+                                        // Default the payor to the customer/corporate already selected on the POS screen.
+                                        setBillToPayor({
+                                            type: customerData.type === 'corporate' ? 'corporate' : 'customer',
+                                            id: customerData.id,
+                                            name: customerData.name
+                                        });
+                                    }
+                                }}
+                                payor={billToPayor}
+                                onPayorChange={setBillToPayor}
+                            />
+                        </Stack>
                         <Grid container mb={2} spacing={2}>
                             {renderGridItem(
                                 'Total balance: ',
                                 <>
                                     <FaPesoSign
-                                        style={{ marginLeft: '3px', marginBottom: -2, marginRight: '2px', fontSize: '1.55rem' }}
+                                        style={{ marginLeft: '3px', marginBottom: -2, marginRight: '2px', fontSize: '1.25rem' }}
                                     />
                                     {new Intl.NumberFormat().format(combinedData?.paymentDue)}
                                 </>,
                                 false,
-                                { color: 'primary.main', fontSize: '1.8rem' }
+                                { color: 'primary.main', fontSize: '1.5rem' }
                             )}
                             <Grid item xs={12} my={1}>
                                 <Divider />
                             </Grid>
-                            {renderGridItem(
+                            {isOnAccount && billTo && (
+                                <Grid item xs={12}>
+                                    <Stack p={2.5} spacing={0.5} bgcolor="grey.50" borderRadius={3}>
+                                        <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                                            {BILL_TO_LABELS[billTo.type].toUpperCase()}
+                                        </Typography>
+                                        <Typography variant="h4" sx={{ textTransform: 'uppercase' }}>
+                                            {billTo.name}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            No payment is collected now. The full amount is recorded as ON-ACCOUNT.
+                                        </Typography>
+                                    </Stack>
+                                </Grid>
+                            )}
+                            {needsTender && renderGridItem(
                                 'Change: ',
                                 <>
                                     <FaPesoSign
-                                        style={{ marginLeft: '3px', marginBottom: -2, marginRight: '2px', fontSize: '1.55rem' }}
+                                        style={{ marginLeft: '3px', marginBottom: -2, marginRight: '2px', fontSize: '1.25rem' }}
                                     />
                                     {new Intl.NumberFormat().format(calculateChange(amountGiven))}
                                 </>,
                                 false,
-                                { color: getChangeColor(amountGiven), fontSize: '1.8rem' }
+                                { color: getChangeColor(amountGiven), fontSize: '1.5rem' }
                             )}
                             <Grid item xs={12}></Grid>
+                            {needsTender && (
                             <Grid item xs={12}>
                                 <TextField
                                     ref={tenderFieldRef}
@@ -565,7 +632,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                             <InputAdornment position="start">
                                                 <Stack direction="row" spacing={1} alignItems="center">
                                                     <FaPesoSign
-                                                        style={{ marginBottom: 1, fontSize: '1.2rem', color: theme.palette.grey[400] }}
+                                                        style={{ marginBottom: 1, fontSize: '1rem', color: theme.palette.grey[400] }}
                                                     />
                                                     <Typography variant="h4" fontWeight="bold" color="grey.400">
                                                         Tender Amount
@@ -584,13 +651,13 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                     inputProps={{
                                         sx: {
                                             '&::placeholder': {
-                                                fontSize: '1.1rem'
+                                                fontSize: '1rem'
                                             }
                                         }
                                     }}
                                     sx={{
                                         '& .MuiInputBase-root': {
-                                            fontSize: '1.3rem',
+                                            fontSize: '1.5rem',
                                             fontWeight: 'bold',
                                             py: 0.5
                                         },
@@ -606,6 +673,8 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                     fullWidth
                                 />
                             </Grid>
+                            )}
+                        {needsTender && (
                         <Grid item xs={12}>
                                     <Stack direction="row" spacing={1}>
                                         {[
@@ -624,7 +693,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                                     {
                                                         flex: 1,
                                                         bgcolor: 'grey.100',
-                                                        fontSize: '0.9rem'
+                                                        fontSize: '0.875rem'
                                                     },
                                                     item.exact ? { color: 'primary.dark' } : {}
                                                 ]}
@@ -633,7 +702,8 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                         ))}
                                     </Stack>
                                 </Grid>
-                            {paymentMethod === 'cash' && (
+                        )}
+                            {activeMethod === 'cash' && (
                                 <>
                                 
                                     <Grid item xs={12}>
@@ -642,7 +712,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                                 <Grid item xs={4}>
                                                     <Button
                                                         sx={{
-                                                            py: 2,
+                                                            py: 1.25,
                                                             borderRadius: 3,
                                                             textWrap: 'nowrap',
                                                             overflow: 'hidden',
@@ -660,7 +730,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                             <Grid item xs={4}>
                                                 <Button
                                                     sx={{
-                                                        py: 2,
+                                                        py: 1.25,
                                                         borderRadius: 3,
                                                         textWrap: 'nowrap',
                                                         overflow: 'hidden',
@@ -679,7 +749,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
 
                                 </>
                             )}
-                            {paymentMethod === 'cheque' && (
+                            {activeMethod === 'cheque' && (
                                 <Grid item xs={12}>
                                     <Stack direction='column' spacing={1.5} width='100%'>
                                         <Controller
@@ -787,9 +857,9 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                             variant="contained"
                             size="large"
                             onClick={handleSubmit(handlePayClick)}
-                            disabled={amountGiven < combinedData?.paymentDue || loading}
+                            disabled={(needsTender && amountGiven < combinedData?.paymentDue) || missingPayor || loading}
                         >
-                            {loading ? 'LOADING' : `PAY ₱${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(combinedData?.paymentDue || 0)}`}
+                            {loading ? 'LOADING' : `${isOnAccount ? 'CHARGE' : 'PAY'} ₱${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(combinedData?.paymentDue || 0)}`}
                         </Button>
                         <Stack direction="row" justifyContent="space-between" mt={1}>
                             <Typography variant="caption" color="text.secondary">
@@ -832,7 +902,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                     combinedData={{ ...combinedData, invoiceNumber: editTransactionMutation?.data?.invoiceNumber, ...editTransactionMutation?.data }}
                                     amountGiven={parseFloat(amountGiven)}
                                     change={parseFloat(calculateChange(amountGiven))}
-                                    tenderType={paymentMethod}
+                                    tenderType={activeMethod}
                                     data={editTransactionMutation?.data}
                                     handleBack={handleBack}
                                     setReceiptOpen={setReceiptOpen}

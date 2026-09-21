@@ -85,6 +85,8 @@ async function CreateTransactionV2(model) {
         // PosComponent.jsx: handleRestoreTransaction) — tells the backend to convert that hold
         // document in place instead of inserting a second, disconnected completed transaction.
         holdTransactionId: model.holdTransactionId,
+        // Set only for a Charge to Account / Pay Later sale (tender type 'on-account').
+        billTo: model.billTo || undefined,
         tender: model.paymentDetails ? {
             ...model.paymentDetails,
             amount: model.paymentDetails.tenderAmount,

@@ -9,7 +9,7 @@ from app.database.config import roles, users
 from app.filters.date_filter import DateFilter, compare_date_filter
 from app.middlewares.authorized_attribute import authorized
 from app.new_models.AuditLog import AuditCode, AuditLog
-from app.new_models.Transaction import ChequeTender, CreateCashTransaction, CreateChequeTransaction, CreateTransaction, TenderType
+from app.new_models.Transaction import ChequeTender, CreateCashTransaction, CreateChequeTransaction, CreateOnAccountTransaction, CreateTransaction, TenderType
 from app.new_models.Transaction import CreateRefundTransaction, CreateTransaction, CreateCancelledTransaction, TransactionStatus
 from app.repositories.app_settings import AppSettingsRepository, DEV_TEST_MODE_KEY
 from app.repositories.audit_log import AuditLogRepository
@@ -228,6 +228,8 @@ def v3_create_transaction(user_id):
 
         if(status == TransactionStatus.COMPLETED and tenderType == TenderType.CHEQUE):
             model = CreateChequeTransaction(**args)
+        elif(status == TransactionStatus.COMPLETED and tenderType == TenderType.ON_ACCOUNT):
+            model = CreateOnAccountTransaction(**args)
         else:
             model = CreateCashTransaction(**args)
 

@@ -39,6 +39,8 @@ def getSalesJournal(args, filter):
             'discount': transaction.get('totalDiscount') or 0,
             'discountType': discount_type,
             'netSales': transaction.get('totalNetSales') or 0,
+            'tenderType': (transaction.get('tender') or {}).get('type'),
+            'billTo': (transaction.get('billTo') or {}).get('name'),
         })
 
     return result

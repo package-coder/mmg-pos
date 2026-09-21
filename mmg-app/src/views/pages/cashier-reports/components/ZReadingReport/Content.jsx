@@ -136,6 +136,7 @@ function Content({ report, reprint }) {
             {renderTitle('TRANSACTION SUMMARY')}
             {renderGridItem('Cash In Drawer:', clip(report.endingCashCount?.total))}
             {renderGridItem('Cheque:', clip(report.transactionSummary.cheque))}
+            {renderGridItem('On Account:', clip(report.transactionSummary['on-account']))}
             {renderGridItem('Credit Card:', clip(0))}
             {renderGridItem('Gift Certificate:', clip(0))}
             {renderGridItem('Opening Fund:', clip(report.openingFund?.total))}

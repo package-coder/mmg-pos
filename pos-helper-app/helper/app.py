@@ -435,6 +435,9 @@ def print_receipt(request_data: dict = {}):
             
                 p.row("Tender Amount: ", get(transaction, 'tender.amount'))
                 p.row("Tender Type: ", upper_case(get(transaction, 'tender.type')))
+                bill_to = transaction.get('billTo')
+                if bill_to:
+                    p.row("Pay Later: " if bill_to.get('type') == 'customer' else "Charged To: ", str(bill_to.get('name', ''))[:24])
                 p.row("Change: ", transaction["change"])
 
                 # This block only needed for dry run
@@ -625,6 +628,7 @@ def print_report(data: dict = {}):
             p.title("TRANSACTION SUMMARY")
             p.row("Cash In Drawer: ", get(data, 'endingCashCount.total', 0))
             p.row("Cheque: ", transactionSummary.get('cheque', 0))
+            p.row("On Account: ", transactionSummary.get('on-account', 0))
             p.row("Credit Card: ", 0)
             p.row("Gift Certificate: ", 0)
             p.row("Opening Fund: ", get(data, 'openingFund.total', 0))

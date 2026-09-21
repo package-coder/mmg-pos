@@ -43,7 +43,8 @@ const REPORT_TYPES = [
     { value: 'summaryIncome', label: 'Summary Income' },
     { value: 'packagesReports', label: 'Package Reports' },
     { value: 'salesJournal', label: 'Sales Journal' },
-    { value: 'cashReceiptsJournal', label: 'Cash Receipts Journal' }
+    { value: 'cashReceiptsJournal', label: 'Cash Receipts Journal' },
+    { value: 'chargeJournal', label: 'Charge / Pay Later Journal' }
 ];
 
 const ExampleTabs = () => {
@@ -253,6 +254,7 @@ const ExampleTabs = () => {
             }
             case 'salesJournal':
             case 'cashReceiptsJournal':
+            case 'chargeJournal':
                 return reportData.map((b) => ({
                     'Ref No': b.refNo,
                     Customer: b.customer,
@@ -261,7 +263,9 @@ const ExampleTabs = () => {
                     'Gross Sales': b.grossSales,
                     Discount: b?.discount ? b?.discount?.toFixed(2) : 0.0,
                     'Net Sales': b.netSales,
-                    'Discount Type': b.discountType ? b.discountType : 'none'
+                    'Discount Type': b.discountType ? b.discountType : 'none',
+                    Payment: b.tenderType ? b.tenderType.toUpperCase() : '',
+                    'Billed To': b.billTo || ''
                 }));
             default:
                 return [];
@@ -557,7 +561,8 @@ const ExampleTabs = () => {
                 );
             }
             case 'salesJournal':
-            case 'cashReceiptsJournal': {
+            case 'cashReceiptsJournal':
+            case 'chargeJournal': {
                 const paginated = reportData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
                 return (
                     <>
@@ -573,7 +578,9 @@ const ExampleTabs = () => {
                                             'Gross Sales',
                                             'Discount',
                                             'Net Sales',
-                                            'Discount Type'
+                                            'Discount Type',
+                                            'Payment',
+                                            'Billed To'
                                         ].map((head) => (
                                             <TableCell key={head} sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
                                                 {head.toUpperCase()}
@@ -598,6 +605,8 @@ const ExampleTabs = () => {
                                                 <Currency value={b.netSales} />
                                             </TableCell>
                                             <TableCell>{b.discountType ? b.discountType : 'none'}</TableCell>
+                                            <TableCell sx={{ textWrap: 'nowrap' }}>{b.tenderType ? b.tenderType.toUpperCase() : '---'}</TableCell>
+                                            <TableCell>{b.billTo || '---'}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>

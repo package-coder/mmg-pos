@@ -317,8 +317,11 @@ class CashierReportRepository(BackupRepository):
                     salesAdjustment[key] = total
                 item['salesAdjustment'] = salesAdjustment
                 
-                transactions = filter(lambda i: i['status'] == TransactionStatus.COMPLETED and get(i, 'tender.type') != TenderType.CASH, item['transactions'])
+                # On-account sales are receivables, not money received: they are excluded from
+                # "payments" here and taken out of the expected drawer total below.
+                transactions = filter(lambda i: i['status'] == TransactionStatus.COMPLETED and get(i, 'tender.type') not in (TenderType.CASH, TenderType.ON_ACCOUNT), item['transactions'])
                 item['totalPayments'] = sum(map(lambda i: i['tender']['amount'], transactions))
+                item['totalOnAccount'] = sum(i['totalNetSales'] for i in item['transactions'] if i['status'] == TransactionStatus.COMPLETED and get(i, 'tender.type') == TenderType.ON_ACCOUNT)
                 item['totalPayments'] += get(item, 'endingCashCount.total') or 0
 
                 withdrawal = get(item, 'withdraw') or 0
@@ -328,7 +331,7 @@ class CashierReportRepository(BackupRepository):
                     # the drawer is opening fund + net sales MINUS withdrawals, so without adding
                     # it back here a withdrawal reads as a cash shortage instead of an accounted-
                     # for removal.
-                    difference = item['totalPayments'] - openingFundTotal - item['sales']['totalNetSales'] + withdrawal
+                    difference = item['totalPayments'] - openingFundTotal - (item['sales']['totalNetSales'] - item['totalOnAccount']) + withdrawal
                     item['sales']['cashDifference'] = difference
 
                 item['totalPayments'] -= withdrawal

@@ -274,6 +274,12 @@ export default function ({ transaction }) {
                     <Typography>Tender Type:</Typography>
                     <Typography variant="h5">{transaction?.tender?.type?.toUpperCase()}</Typography>
                 </Stack>
+                {transaction?.billTo && (
+                    <Stack direction="row" justifyContent="space-between">
+                        <Typography>{transaction.billTo.type === 'customer' ? 'Pay Later:' : 'Charged To:'}</Typography>
+                        <Typography variant="h5">{transaction.billTo.name}</Typography>
+                    </Stack>
+                )}
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Change:</Typography>
                     <Typography variant="h5">{formatCurrency(transaction.change)}</Typography>

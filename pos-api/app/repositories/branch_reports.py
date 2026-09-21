@@ -178,8 +178,11 @@ class BranchReportRepository(BackupRepository):
                     salesAdjustment[key] = total
                 item['salesAdjustment'] = salesAdjustment
 
-                transactions = filter(lambda i: i['status'] == TransactionStatus.COMPLETED and get(i, 'tender.type') != TenderType.CASH, item['transactions'])
+                # On-account sales are receivables, not money received: they are excluded from
+                # "payments" here and taken out of the expected drawer total below.
+                transactions = filter(lambda i: i['status'] == TransactionStatus.COMPLETED and get(i, 'tender.type') not in (TenderType.CASH, TenderType.ON_ACCOUNT), item['transactions'])
                 item['totalPayments'] = sum(map(lambda i: i['tender']['amount'], transactions))
+                item['totalOnAccount'] = sum(i['totalNetSales'] for i in item['transactions'] if i['status'] == TransactionStatus.COMPLETED and get(i, 'tender.type') == TenderType.ON_ACCOUNT)
                 item['totalPayments'] += get(item, 'endingCashCount.total', 0)
                 
                 openingFundTotal = get(item, 'openingFund.total', 0)
@@ -187,7 +190,7 @@ class BranchReportRepository(BackupRepository):
                 # Short/Over must add back what was legitimately withdrawn — expected cash in the
                 # drawer is opening fund + net sales MINUS withdrawals, so without adding it back
                 # here a withdrawal reads as a cash shortage instead of an accounted-for removal.
-                difference = item['totalPayments'] - openingFundTotal - item['totalNetSales'] + withdrawal
+                difference = item['totalPayments'] - openingFundTotal - (item['totalNetSales'] - item['totalOnAccount']) + withdrawal
                 item['cashDifference'] = difference
 
                 item['totalPayments'] -= withdrawal
