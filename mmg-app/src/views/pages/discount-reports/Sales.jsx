@@ -4,7 +4,6 @@ import _ from 'lodash';
 import moment from 'moment';
 import { useState } from 'react';
 import discount_report from 'api/discount_report';
-import { DateFilterEnum } from 'ui-component/filter/DateFilter';
 import ReportPagination from 'ui-component/ReportPagination';
 import ExportRowButton from './ExportRowButton';
 
@@ -14,6 +13,10 @@ export const ReportTypeEnum = Object.freeze({
 });
 
 const TABLE_HEADS = [
+    'Branch',
+    'PTU No.',
+    'MIN',
+    'SN',
     'Invoice No.',
     'Grand Accum. Sales Ending Balance',
     'Grand Accum. Opening Fund',
@@ -22,14 +25,49 @@ const TABLE_HEADS = [
     'Total Member Discount',
     'Total Net Sales',
     'Date',
-    'Branch',
-    'MIN',
-    'SN',
-    'PTU No.',
     ''
 ];
 
-const rowKey = (report) => `${report.branch?._id}|${report.ptuNumber}|${report.date}`;
+const NO_PTU = '-';
+const groupKey = (report) => `${report.branch?._id}|${report.ptuNumber || NO_PTU}`;
+const pad = (n) => String(n).padStart(6, '0');
+
+// One row per branch + terminal (PTU) for the whole selected period, built from the per-day rows.
+function groupReports(reports = []) {
+    return _.map(_.groupBy(reports, groupKey), (rows, key) => {
+        const days = _.sortBy(rows, 'date');
+        const first = days[0];
+        const last = days[days.length - 1];
+        const starts = days.map((r) => r.invoiceStartNumber).filter((n) => n != null);
+        const ends = days.map((r) => r.invoiceEndNumber).filter((n) => n != null);
+        const sum = (pick) => _.sumBy(days, (r) => pick(r) || 0);
+
+        return {
+            key,
+            branch: first.branch,
+            ptuNumber: first.ptuNumber,
+            min: _.find(days, 'min')?.min,
+            sn: _.find(days, 'sn')?.sn,
+            days: days.length,
+            invoiceStart: starts.length ? Math.min(...starts) : null,
+            invoiceEnd: ends.length ? Math.max(...ends) : null,
+            // opening fund of the first day, ending cash count of the last day
+            openingFund: first.openingFund?.total,
+            endingCashCount: last.endingCashCount?.total,
+            grossSales: sum((r) => r.salesSummary?.grossSales),
+            deductions: sum((r) => (r.salesSummary?.cancelled || 0) + (r.salesSummary?.refunded || 0)),
+            discount: sum((r) => r.salesSummary?.discount),
+            netSales: sum((r) => r.salesSummary?.netSales),
+            firstDate: first.date,
+            lastDate: last.date
+        };
+    });
+}
+
+const formatDates = (row) =>
+    row.firstDate === row.lastDate
+        ? moment(row.firstDate).format('YYYY-MM-DD')
+        : `${moment(row.firstDate).format('YYYY-MM-DD')} – ${moment(row.lastDate).format('YYYY-MM-DD')}`;
 
 function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
     const clip = (value) => (value ? value : 0).toFixed(2);
@@ -58,7 +96,8 @@ function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
 
-    const filteredSales = sales?.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    const groups = groupReports(sales);
+    const pageRows = groups.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
     return (
         <Card sx={{ overflow: 'hidden' }}>
@@ -66,9 +105,9 @@ function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
                 <Table>
                     <TableHead>
                         <TableRow sx={{ bgcolor: 'grey.50' }}>
-                            {TABLE_HEADS.map((head) => (
+                            {TABLE_HEADS.map((head, index) => (
                                 <TableCell
-                                    key={head}
+                                    key={index}
                                     sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'text.secondary', letterSpacing: 0.5, textWrap: 'nowrap' }}
                                 >
                                     {head.toUpperCase()}
@@ -77,7 +116,7 @@ function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {!isLoading && (!filteredSales || filteredSales.length === 0) && (
+                        {!isLoading && pageRows.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={TABLE_HEADS.length}>
                                     <Stack alignItems="center" py={6}>
@@ -89,40 +128,37 @@ function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
                             </TableRow>
                         )}
                         {!isLoading &&
-                            filteredSales?.map((report) => (
-                                <TableRow key={report._id} hover>
+                            pageRows.map((row) => (
+                                <TableRow key={row.key} hover>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.branch?.name || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.ptuNumber || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.min || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.sn || '---'}</TableCell>
                                     <TableCell sx={{ textWrap: 'nowrap' }}>
-                                        {report.invoiceStartNumber
-                                            ? `${String(report.invoiceStartNumber).padStart(6, '0')} - ${String(report.invoiceEndNumber).padStart(6, '0')}`
-                                            : '---'}
+                                        {row.invoiceStart != null ? `${pad(row.invoiceStart)} - ${pad(row.invoiceEnd)}` : '---'}
                                     </TableCell>
-                                    <TableCell>{clip(report.endingCashCount?.total)}</TableCell>
-                                    <TableCell>{clip(report.openingFund?.total)}</TableCell>
-                                    <TableCell>{clip(report.salesSummary?.grossSales)}</TableCell>
-                                    <TableCell>{clip((report.salesSummary?.cancelled || 0) + (report.salesSummary?.refunded || 0))}</TableCell>
-                                    <TableCell>{clip(report.salesSummary?.discount)}</TableCell>
-                                    <TableCell>{clip(report.salesSummary?.netSales)}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{moment(report.date).format('YYYY-MM-DD')}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{report.branch?.name || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{report.min || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{report.sn || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{report.ptuNumber || '---'}</TableCell>
+                                    <TableCell>{clip(row.endingCashCount)}</TableCell>
+                                    <TableCell>{clip(row.openingFund)}</TableCell>
+                                    <TableCell>{clip(row.grossSales)}</TableCell>
+                                    <TableCell>{clip(row.deductions)}</TableCell>
+                                    <TableCell>{clip(row.discount)}</TableCell>
+                                    <TableCell>{clip(row.netSales)}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{formatDates(row)}</TableCell>
                                     <TableCell>
                                         <ExportRowButton
-                                            loading={exportingKey === rowKey(report)}
+                                            loading={exportingKey === row.key}
                                             disabled={!!exportingKey}
                                             onClick={() =>
                                                 onExport(
-                                                    rowKey(report),
+                                                    row.key,
                                                     {
+                                                        // the export keeps one line per day, for this branch + terminal
+                                                        ..._.pick(params, ['dateFilter', 'customDate', 'startDate', 'endDate']),
                                                         type: 'sales',
-                                                        branchId: report.branch?._id,
-                                                        ptuNumber: report.ptuNumber || '-',
-                                                        dateFilter: DateFilterEnum.CUSTOM_FILTER,
-                                                        startDate: report.date,
-                                                        endDate: report.date
+                                                        branchId: row.branch?._id,
+                                                        ptuNumber: row.ptuNumber || NO_PTU
                                                     },
-                                                    `annex_sales_summary-${report.ptuNumber || 'no-ptu'}-${report.date}.xlsx`
+                                                    `annex_sales_summary-${_.kebabCase(row.branch?.name)}-${row.ptuNumber || 'no-ptu'}.xlsx`
                                                 )
                                             }
                                         />
@@ -138,7 +174,7 @@ function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
                 )}
             </TableContainer>
             <ReportPagination
-                count={sales?.length || 0}
+                count={groups.length}
                 page={page}
                 onPageChange={setPage}
                 rowsPerPage={rowsPerPage}
@@ -146,7 +182,7 @@ function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
                     setRowsPerPage(value);
                     setPage(0);
                 }}
-                itemLabel="records"
+                itemLabel="terminals"
             />
         </Card>
     );

@@ -5,30 +5,58 @@ import moment from 'moment';
 import { useState } from 'react';
 import discount_report from 'api/discount_report';
 import ReportPagination from 'ui-component/ReportPagination';
-import { DateFilterEnum } from 'ui-component/filter/DateFilter';
 import ExportRowButton from './ExportRowButton';
 
 const TABLE_HEADS = [
+    'Branch',
+    'PTU No.',
+    'MIN',
+    'SN',
     'Invoice Range #',
-    'Customer',
-    'Member ID',
     'Member Type',
+    'Records',
     'Gross Sales',
     'Member Discount',
     'Total Discount',
     'Net Sales',
     'Date',
-    'Branch',
-    'MIN',
-    'SN',
-    'PTU No.',
     ''
 ];
 
-const getMemberDiscount = (discounts) => {
-    const memberDiscounts = discounts?.filter((v) => !!v.memberType);
-    return memberDiscounts && memberDiscounts?.length > 0 ? memberDiscounts[0] : null;
-};
+const NO_PTU = '-';
+const groupKey = (row) => `${row.branch?._id}|${row.transaction?.ptuNumber || NO_PTU}`;
+const pad = (n) => String(n).padStart(6, '0');
+const day = (value) => moment(value).format('YYYY-MM-DD');
+
+// One row per branch + terminal (PTU): the member discounts of the whole period, rolled up.
+function groupDiscounts(discounts = []) {
+    return _.map(_.groupBy(discounts, groupKey), (rows, key) => {
+        const first = rows[0];
+        const invoices = rows.map((r) => r.transaction?.invoiceNumber).filter((n) => n != null);
+        const dates = rows.map((r) => r.transaction?.transactionDate).filter(Boolean).sort();
+        const sum = (pick) => _.sumBy(rows, (r) => pick(r.transaction) || 0);
+
+        return {
+            key,
+            branch: first.branch,
+            ptuNumber: first.transaction?.ptuNumber,
+            min: _.find(rows, 'transaction.min')?.transaction.min,
+            sn: _.find(rows, 'transaction.sn')?.transaction.sn,
+            records: rows.length,
+            invoiceStart: invoices.length ? Math.min(...invoices) : null,
+            invoiceEnd: invoices.length ? Math.max(...invoices) : null,
+            grossSales: sum((t) => t.totalGrossSales),
+            memberDiscount: sum((t) => t.totalMemberDiscount),
+            totalDiscount: sum((t) => t.totalDiscount),
+            netSales: sum((t) => t.totalNetSales),
+            firstDate: dates[0],
+            lastDate: dates[dates.length - 1]
+        };
+    });
+}
+
+const formatDates = (row) =>
+    !row.firstDate ? '---' : day(row.firstDate) === day(row.lastDate) ? day(row.firstDate) : `${day(row.firstDate)} – ${day(row.lastDate)}`;
 
 function DiscountReports({ generated, onExport, exportingKey, ...initialParams }) {
     const params = _.pickBy(
@@ -49,7 +77,8 @@ function DiscountReports({ generated, onExport, exportingKey, ...initialParams }
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
 
-    const filteredDiscounts = discounts?.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    const groups = groupDiscounts(discounts);
+    const pageRows = groups.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
     return (
         <Card sx={{ overflow: 'hidden' }}>
@@ -57,9 +86,9 @@ function DiscountReports({ generated, onExport, exportingKey, ...initialParams }
                 <Table>
                     <TableHead>
                         <TableRow sx={{ bgcolor: 'grey.50' }}>
-                            {TABLE_HEADS.map((head) => (
+                            {TABLE_HEADS.map((head, index) => (
                                 <TableCell
-                                    key={head}
+                                    key={index}
                                     sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'text.secondary', letterSpacing: 0.5, textWrap: 'nowrap' }}
                                 >
                                     {head.toUpperCase()}
@@ -68,7 +97,7 @@ function DiscountReports({ generated, onExport, exportingKey, ...initialParams }
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {!isLoading && (!filteredDiscounts || filteredDiscounts.length === 0) && (
+                        {!isLoading && pageRows.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={TABLE_HEADS.length}>
                                     <Stack alignItems="center" py={6}>
@@ -80,54 +109,44 @@ function DiscountReports({ generated, onExport, exportingKey, ...initialParams }
                             </TableRow>
                         )}
                         {!isLoading &&
-                            filteredDiscounts?.map((transaction) => {
-                                const memberDiscount = getMemberDiscount(transaction.discounts);
-
-                                return (
-                                    <TableRow key={transaction._id} hover sx={{ textTransform: 'capitalize' }}>
-                                        <TableCell component="th" scope="row">
-                                            {String(transaction.transaction.invoiceNumber).padStart(6, '0')}
-                                        </TableCell>
-                                        <TableCell>{transaction.customer.name}</TableCell>
-                                        <TableCell>{transaction.customer?.customer_type_id}</TableCell>
-                                        <TableCell>{upperCase(transaction.memberType)}</TableCell>
-                                        <TableCell>{transaction.transaction.totalGrossSales.toFixed(2)}</TableCell>
-                                        <TableCell>
-                                            {transaction.value}
-                                            {transaction.type == 'percentage' ? '%' : ''}
-                                        </TableCell>
-                                        <TableCell>{transaction.transaction.totalDiscount.toFixed(2)}</TableCell>
-                                        <TableCell>{transaction.transaction.totalNetSales.toFixed(2)}</TableCell>
-                                        <TableCell sx={{ textWrap: 'nowrap' }}>
-                                            {moment(transaction.transaction.transactionDate).format('YYYY-MM-DD hh:mmA')}
-                                        </TableCell>
-                                        <TableCell sx={{ textWrap: 'nowrap', textTransform: 'none' }}>{transaction.branch?.name || '---'}</TableCell>
-                                        <TableCell sx={{ textWrap: 'nowrap', textTransform: 'none' }}>{transaction.transaction?.min || '---'}</TableCell>
-                                        <TableCell sx={{ textWrap: 'nowrap', textTransform: 'none' }}>{transaction.transaction?.sn || '---'}</TableCell>
-                                        <TableCell sx={{ textWrap: 'nowrap', textTransform: 'none' }}>{transaction.transaction?.ptuNumber || '---'}</TableCell>
-                                        <TableCell>
-                                            <ExportRowButton
-                                                loading={exportingKey === transaction._id}
-                                                disabled={!!exportingKey}
-                                                onClick={() =>
-                                                    onExport(
-                                                        transaction._id,
-                                                        {
-                                                            type: 'discounts',
-                                                            memberType: transaction.memberType,
-                                                            discountId: transaction._id,
-                                                            branchId: transaction.branch?._id,
-                                                            ptuNumber: transaction.transaction?.ptuNumber || '-',
-                                                            dateFilter: DateFilterEnum.ALL
-                                                        },
-                                                        `annex-${String(transaction.memberType).replace('_', '-')}-${transaction.transaction?.ptuNumber || 'no-ptu'}-${String(transaction.transaction?.invoiceNumber).padStart(6, '0')}.xlsx`
-                                                    )
-                                                }
-                                            />
-                                        </TableCell>
-                                    </TableRow>
-                                );
-                            })}
+                            pageRows.map((row) => (
+                                <TableRow key={row.key} hover>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.branch?.name || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.ptuNumber || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.min || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.sn || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>
+                                        {row.invoiceStart != null ? `${pad(row.invoiceStart)} - ${pad(row.invoiceEnd)}` : '---'}
+                                    </TableCell>
+                                    <TableCell>{upperCase(initialParams.memberType)}</TableCell>
+                                    <TableCell>{row.records}</TableCell>
+                                    <TableCell>{row.grossSales.toFixed(2)}</TableCell>
+                                    <TableCell>{row.memberDiscount.toFixed(2)}</TableCell>
+                                    <TableCell>{row.totalDiscount.toFixed(2)}</TableCell>
+                                    <TableCell>{row.netSales.toFixed(2)}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{formatDates(row)}</TableCell>
+                                    <TableCell>
+                                        <ExportRowButton
+                                            loading={exportingKey === row.key}
+                                            disabled={!!exportingKey}
+                                            onClick={() =>
+                                                onExport(
+                                                    row.key,
+                                                    {
+                                                        // every discount of this branch + terminal in the period
+                                                        ..._.pick(params, ['dateFilter', 'customDate', 'startDate', 'endDate']),
+                                                        type: 'discounts',
+                                                        memberType: initialParams.memberType,
+                                                        branchId: row.branch?._id,
+                                                        ptuNumber: row.ptuNumber || NO_PTU
+                                                    },
+                                                    `annex-${String(initialParams.memberType).replace('_', '-')}-${_.kebabCase(row.branch?.name)}-${row.ptuNumber || 'no-ptu'}.xlsx`
+                                                )
+                                            }
+                                        />
+                                    </TableCell>
+                                </TableRow>
+                            ))}
                     </TableBody>
                 </Table>
                 {isLoading && (
@@ -137,7 +156,7 @@ function DiscountReports({ generated, onExport, exportingKey, ...initialParams }
                 )}
             </TableContainer>
             <ReportPagination
-                count={discounts?.length || 0}
+                count={groups.length}
                 page={page}
                 onPageChange={setPage}
                 rowsPerPage={rowsPerPage}
@@ -145,7 +164,7 @@ function DiscountReports({ generated, onExport, exportingKey, ...initialParams }
                     setRowsPerPage(value);
                     setPage(0);
                 }}
-                itemLabel="records"
+                itemLabel="terminals"
             />
         </Card>
     );

@@ -67,6 +67,7 @@ def export_discount_reports(workbook: openpyxl.Workbook, type: MemberType, repor
     worksheet = workbook.active
 
     append_base_header(worksheet, user_id, reports)
+    append_terminal_header(worksheet, [(get(r, 'transaction.sn'), get(r, 'transaction.min'), get(r, 'transaction.ptuNumber')) for r in reports])
 
     if(type == MemberType.NAAC):
         append_naac_reports(worksheet, reports)
@@ -91,6 +92,9 @@ def append_discount_reports(worksheet, reports):
         worksheet.cell(column=default_col + 3, row=default_row + index, value=report['customer']['tin_number'])
         worksheet.cell(column=default_col + 4, row=default_row + index, value=report['transaction']['invoiceNumber'])
         worksheet.cell(column=default_col + 5, row=default_row + index, value=report['transaction']['totalSalesWithoutMemberDiscount'])
+        # MMG is NON-VAT registered: no VAT amount, and VAT-Exempt Sales equals the sales figure.
+        worksheet.cell(column=default_col + 6, row=default_row + index, value=0)
+        worksheet.cell(column=default_col + 7, row=default_row + index, value=report['transaction']['totalSalesWithoutMemberDiscount'])
         worksheet.cell(column=default_col + 9, row=default_row + index, value=report['transaction']['totalMemberDiscount'])
         worksheet.cell(column=default_col + 10, row=default_row + index, value=report['transaction']['totalNetSales'])
 
@@ -118,11 +122,25 @@ def append_solo_parent_reports(worksheet, reports):
         worksheet.cell(column=default_col + 9, row=default_row + index, value=report['transaction']['totalMemberDiscount'])
         worksheet.cell(column=default_col + 10, row=default_row + index, value=report['transaction']['totalNetSales'])
 
+def append_terminal_header(worksheet, terminals):
+    """Fills the template's Serial No. / Machine Identification Number / POS Terminal No. lines
+    (rows 6-8) when the export covers a single terminal — always the case for a per-row export.
+    A mixed export leaves them alone rather than print one terminal's numbers over another's."""
+    terminals = set(terminals)
+    if len(terminals) != 1:
+        return
+    sn, min_, ptu = terminals.pop()
+    worksheet.cell(6, 1, f'Serial No.: {sn or "---"}')
+    worksheet.cell(7, 1, f'Machine Identification Number: {min_ or "---"}')
+    worksheet.cell(8, 1, f'POS Terminal No.: {ptu or "---"}')
+
+
 def export_sales_reports(workbook, sales, user_id):
     worksheet = workbook.active
     
     append_base_header(worksheet, user_id, sales)
     append_sales_reports(worksheet, sales)
+    append_terminal_header(worksheet, [(s.get('sn'), s.get('min'), s.get('ptuNumber')) for s in sales])
     append_terminal_columns(worksheet, 16, 17, [(get(s, 'branch.name', '---'), s.get('min') or '---', s.get('sn') or '---', s.get('ptuNumber') or '---') for s in sales])
     return convert_to_bytes(workbook)
 
@@ -131,7 +149,7 @@ def append_sales_reports(worksheet, sales):
     def clip(value):
         return "{:.2f}".format(value)
     
-    totalSales = sum(map(lambda i: i['totalNetSales'], sales))
+    totalSales = sum(get(i, 'salesSummary.netSales', i['totalNetSales']) for i in sales)
     worksheet.cell(11, 1, f'Total: {clip(totalSales)}')
 
 
@@ -145,18 +163,33 @@ def append_sales_reports(worksheet, sales):
         worksheet.cell(row, col + 3, str(sale['invoiceEndNumber']).zfill(6))
         worksheet.cell(row, col + 4, clip(get(sale, 'endingCashCount.total', 0)))
         worksheet.cell(row, col + 5, clip(get(sale, 'openingFund.total', 0)))
-        worksheet.cell(row, col + 7, clip(sale['totalSalesWithoutMemberDiscount']))
-        
+        summary = sale.get('salesSummary') or {}
+        # Same top-to-bottom breakdown as the Z-report screen (app/utils/sales_summary.py), so the
+        # sheet foots: Gross - total deductions = Net.
+        gross = summary.get('grossSales', sale['totalSalesWithoutMemberDiscount'])
+        worksheet.cell(row, col + 7, clip(gross))
+        # MMG is NON-VAT registered: every sale is VAT-exempt, so VAT-Exempt Sales equals Gross.
+        worksheet.cell(row, col + 8, clip(0))
+        worksheet.cell(row, col + 10, clip(gross))
+        worksheet.cell(row, col + 11, clip(0))
+
         discountSummary = sale['discountSummary']
         worksheet.cell(row, col + 12, clip(discountSummary.get(MemberType.SENIOR_CITIZEN.value, 0)))
         worksheet.cell(row, col + 13, clip(discountSummary.get(MemberType.PWD.value, 0)))
         worksheet.cell(row, col + 14, clip(discountSummary.get(MemberType.NAAC.value, 0)))
         worksheet.cell(row, col + 15, clip(discountSummary.get(MemberType.SOLO_PARENT.value, 0)))
 
-        totalDiscount = sum(discountSummary.values())
-        worksheet.cell(row, col + 19, clip(totalDiscount))
+        returns = summary.get('refunded', 0)
+        voids = summary.get('cancelled', 0)
+        worksheet.cell(row, col + 17, clip(returns))
+        worksheet.cell(row, col + 18, clip(voids))
 
-        worksheet.cell(row, col + 27, clip(sale['totalNetSales']))
+        # Member discounts are the ones broken down by type above; returns and voids complete
+        # the deductions, matching the Z-report's Gross - Discount - Cancelled - Refunded = Net.
+        totalDeductions = summary.get('discount', sum(discountSummary.values())) + returns + voids
+        worksheet.cell(row, col + 19, clip(totalDeductions))
+
+        worksheet.cell(row, col + 27, clip(summary.get('netSales', sale['totalNetSales'])))
         worksheet.cell(row, col + 28, clip(sale['cashDifference']))
         worksheet.cell(row, col + 30, 0)
         worksheet.cell(row, col + 31, 1)

@@ -25,20 +25,23 @@ class BranchReportRepository(BackupRepository):
     _cashier_report_collection = CashierReportRepository()._collection
     _cash_count_collection = CashCountRepository()._collection
 
-    def _default_filter(self, include_dev_test=False):
+    def _default_filter(self, include_dev_test=False, by_ptu=True):
         """Shared by the "transactions" (new_transactions) and "discounts" (transaction_discounts)
         lookups, and by the branch_reports/cashier_reports self-lookups (which don't carry
         isDevTest at all — the clause simply never matches anything there, harmless either way).
         Dev Test Mode sales must never count toward a real branch's Z-report UNLESS the browser
         generating/viewing it has Dev Test Mode on (see app/blueprints/branch_report.py)."""
         dev_test_filter = [] if include_dev_test else [{ "$ne": ["$isDevTest", True] }]
+        # by_ptu=False for collections that carry no PTU of their own (discount rows): matching
+        # them on PTU here would drop every row — the PTU is matched on the joined sale instead.
+        ptu_filter = [{ "$eq": [{ "$ifNull": ["$ptuNumber", None] }, "$$ptuNumber"] }] if by_ptu else []
         return {
                 "$match": {
                     "$expr": {
                         "$and": [
                             { "$eq": ["$branchId", "$$branchId"] },
                             { "$eq": ["$date", "$$date"] },
-                            { "$eq": [{ "$ifNull": ["$ptuNumber", None] }, "$$ptuNumber"] },
+                            *ptu_filter,
                             *dev_test_filter,
                         ]
                     }
@@ -110,7 +113,7 @@ class BranchReportRepository(BackupRepository):
                             "ptuNumber": "$ptuNumber"
                         },
                         "pipeline": [
-                            self._default_filter(include_dev_test),
+                            self._default_filter(include_dev_test, by_ptu=False),
                             {
                                 "$addFields": {
                                     "transactionId": {"$toObjectId": "$transactionId"}
