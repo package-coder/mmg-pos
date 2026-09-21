@@ -18,7 +18,16 @@ class Database(abc.ABC):
 
 class MongoDB(Database):
     def connect(self):
-        self._connection = pymongo.MongoClient(self.config['uri'])
+        self._connection = pymongo.MongoClient(
+            self.config['uri'],
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=60000,
+            maxIdleTimeMS=60000,       # drop pooled sockets before the network/mongo kills them
+            heartbeatFrequencyMS=10000,
+            retryReads=True,
+            retryWrites=True,
+        )
         db = self._connection[self.config['database']]
 
         print(f'CONNECTED_DB [{ENVIRONMENT}]: ', self.config['database'], self.config['uri'])
