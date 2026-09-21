@@ -401,7 +401,7 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                                                 {isAdjustment ? String(t.invoiceNumber).padStart(6, '0') : '---'}
                                             </TableCell>
                                             <TableCell sx={{ textWrap: 'nowrap' }}>
-                                                {moment(t.transactionDate).format('YYYY-MM-DD hh:mmA')}
+                                                {moment(t.transactionDate).format('MM/DD/YYYY HH:mm:ss')}
                                             </TableCell>
                                             <TableCell>
                                                 <Chip

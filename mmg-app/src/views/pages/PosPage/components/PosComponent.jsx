@@ -1133,7 +1133,7 @@ const PosComponent = () => {
                         </Card>
                     </Stack>
                 </Grid>
-                <Grid item xs={9.5} sx={{ overflow: 'hidden', height: '100%' }}>
+                <Grid item xs={6.5} sx={{ overflow: 'hidden', height: '100%' }}>
                     <Stack direction="column" spacing={1.5} width="100%" height="100%">
                         <Card sx={{ px: 3, py: 2 }}>
                             <PackagesComponent
@@ -1243,126 +1243,127 @@ const PosComponent = () => {
                                 )}
                             </TableContainer>
                         </Card>
-
-                        {/* Bottom summary bar — invoice/customer/discount/totals detail that used to sit
-                                in a right-hand sidebar column, now a strip below the main content, scoped to
-                                this column's width so it doesn't run under the left sidebar. */}
-                        <Card sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
-                            <Box
-                                sx={{
-                                    flex: 1,
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
-                                    columnGap: 3,
-                                    rowGap: 1.5,
-                                    ...(!customerData?.name ||
-                                    (selectedPackagesX?.packages?.length === 0 &&
-                                        selectedPackagesX?.promos?.length === 0 &&
-                                        selectedPackagesX?.labtests?.length === 0)
-                                        ? { opacity: 0.5 }
-                                        : {})
-                                }}
-                            >
-                                {renderInlineItem(
-                                    'Invoice No.',
-                                    referenceNumber ?? (
-                                        <Box component="span" sx={{ color: 'text.disabled', fontStyle: 'italic', fontWeight: 400 }}>
-                                            Auto-generated
-                                        </Box>
-                                    )
-                                )}
-                                {renderInlineItem('Date', transactionDate)}
-                                {renderInlineItem(
-                                    'Status',
-                                    <Chip size="small" sx={{ backgroundColor: 'success.light', color: 'green' }} label="Active" />
-                                )}
-                                {renderInlineItem('Customer Name', customerData?.name ?? '---', false, 'span 2')}
-                                {renderInlineItem('Mobile No.', customerData?.contactNumber ?? '---')}
-                                {renderInlineItem('TIN No.', customerData?.tin ?? '---')}
-                                {customerData?.type === 'customer' && (
-                                    <>
-                                        {renderInlineItem('Age', customerData?.age ?? '---')}
-                                        {renderInlineItem('Birth Date', customerData?.birthDate ?? '---')}
-                                    </>
-                                )}
-                                {renderInlineItem('Requested By', requestedBy?.name ?? '---')}
-                                {renderInlineItem('Referred By', referredBy?.name ?? '---')}
-                                {renderInlineItem(
-                                    'Discount Applied',
-                                    <Stack direction="row" spacing={1} alignItems="center">
-                                        <span>
-                                            {(appliedDiscount?.value || 0).toFixed(2)} (
-                                            {appliedDiscount?.type === 'package' || appliedDiscount?.type === 'percentage' ? '%' : 'Fixed'})
-                                        </span>
-                                        {appliedDiscount && (
-                                            <Typography
-                                                component="span"
-                                                variant="caption"
-                                                fontWeight={600}
-                                                onClick={() => setRemoveDiscountDialogOpen(true)}
-                                                sx={{ cursor: 'pointer', color: 'error.main', textDecoration: 'underline' }}
-                                            >
-                                                Remove
-                                            </Typography>
-                                        )}
-                                    </Stack>,
-                                    true
-                                )}
-                                {renderInlineItem(
-                                    'Discount Total',
-                                    <>
-                                        - <FaPesoSign style={{ marginLeft: '3px', fontSize: '0.85rem' }} />
-                                        {new Intl.NumberFormat().format(appliedDiscount?.totalDiscount || 0)}
-                                    </>,
-                                    true
-                                )}
-                                {renderInlineItem(
-                                    'Promo Discount',
-                                    <>
-                                        - <FaPesoSign style={{ marginLeft: '3px', fontSize: '0.85rem' }} />
-                                        {new Intl.NumberFormat().format(selectedPackagesX.promos[0]?.discount?.value || 0)}
-                                    </>,
-                                    true
-                                )}
-                                {renderInlineItem('Total Items', `(${totalItems})`)}
-                                {renderInlineItem(
-                                    'Subtotal',
-                                    <>
-                                        <FaPesoSign style={{ marginLeft: '6px', fontSize: '0.85rem' }} />
-                                        {subTotal?.toFixed(2)}
-                                    </>
-                                )}
-                                {renderInlineItem(
-                                    'Tax',
-                                    <>
-                                        <FaPesoSign style={{ marginLeft: '6px', fontSize: '0.85rem' }} />
-                                        {taxAmount.toFixed(2)}
-                                    </>
-                                )}
-                            </Box>
-                            <Divider orientation="vertical" flexItem />
-                            <Stack direction="row" spacing={2.5} alignItems="center">
-                                <Box textAlign="right">
-                                    <Typography variant="subtitle2" color="text.secondary" fontWeight={600} letterSpacing={0.5} noWrap>
-                                        TOTAL PAYABLE
-                                    </Typography>
-                                    <Typography variant="h2" color="primary.main" fontWeight="bold" noWrap>
-                                        <FaPesoSign style={{ fontSize: '0.7em' }} />
-                                        {total?.toFixed(2)}
-                                    </Typography>
-                                </Box>
-                                <Button
-                                    sx={{ py: 1.5, px: 4 }}
-                                    variant="contained"
-                                    size="large"
-                                    disabled={!canCheckout}
-                                    onClick={() => setCheckout(true)}
-                                >
-                                    Settle Payment (Space)
-                                </Button>
-                            </Stack>
-                        </Card>
                     </Stack>
+                </Grid>
+
+                <Grid item xs={3} sx={{ overflow: 'hidden', height: '100%' }}>
+                    <Card sx={{ p: 2.5, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+                        <Typography variant="h4" mb={2}>
+                            Order Summary
+                        </Typography>
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                                columnGap: 2,
+                                rowGap: 1.5,
+                                ...(!customerData?.name ||
+                                (selectedPackagesX?.packages?.length === 0 &&
+                                    selectedPackagesX?.promos?.length === 0 &&
+                                    selectedPackagesX?.labtests?.length === 0)
+                                    ? { opacity: 0.5 }
+                                    : {})
+                            }}
+                        >
+                            {renderInlineItem(
+                                'Invoice No.',
+                                referenceNumber ?? (
+                                    <Box component="span" sx={{ color: 'text.disabled', fontStyle: 'italic', fontWeight: 400 }}>
+                                        Auto-generated
+                                    </Box>
+                                )
+                            )}
+                            {renderInlineItem('Date', transactionDate)}
+                            {renderInlineItem(
+                                'Status',
+                                <Chip size="small" sx={{ backgroundColor: 'success.light', color: 'green' }} label="Active" />
+                            )}
+                            {renderInlineItem('Customer Name', customerData?.name ?? '---', false, 'span 2')}
+                            {renderInlineItem('Mobile No.', customerData?.contactNumber ?? '---')}
+                            {renderInlineItem('TIN No.', customerData?.tin ?? '---')}
+                            {customerData?.type === 'customer' && (
+                                <>
+                                    {renderInlineItem('Age', customerData?.age ?? '---')}
+                                    {renderInlineItem('Birth Date', customerData?.birthDate ?? '---')}
+                                </>
+                            )}
+                            {renderInlineItem('Requested By', requestedBy?.name ?? '---')}
+                            {renderInlineItem('Referred By', referredBy?.name ?? '---')}
+                            {renderInlineItem(
+                                'Discount Applied',
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    <span>
+                                        {(appliedDiscount?.value || 0).toFixed(2)} (
+                                        {appliedDiscount?.type === 'package' || appliedDiscount?.type === 'percentage' ? '%' : 'Fixed'})
+                                    </span>
+                                    {appliedDiscount && (
+                                        <Typography
+                                            component="span"
+                                            variant="caption"
+                                            fontWeight={600}
+                                            onClick={() => setRemoveDiscountDialogOpen(true)}
+                                            sx={{ cursor: 'pointer', color: 'error.main', textDecoration: 'underline' }}
+                                        >
+                                            Remove
+                                        </Typography>
+                                    )}
+                                </Stack>,
+                                true
+                            )}
+                            {renderInlineItem(
+                                'Discount Total',
+                                <>
+                                    - <FaPesoSign style={{ marginLeft: '3px', fontSize: '0.85rem' }} />
+                                    {new Intl.NumberFormat().format(appliedDiscount?.totalDiscount || 0)}
+                                </>,
+                                true
+                            )}
+                            {renderInlineItem(
+                                'Promo Discount',
+                                <>
+                                    - <FaPesoSign style={{ marginLeft: '3px', fontSize: '0.85rem' }} />
+                                    {new Intl.NumberFormat().format(selectedPackagesX.promos[0]?.discount?.value || 0)}
+                                </>,
+                                true
+                            )}
+                            {renderInlineItem('Total Items', `(${totalItems})`)}
+                            {renderInlineItem(
+                                'Subtotal',
+                                <>
+                                    <FaPesoSign style={{ marginLeft: '6px', fontSize: '0.85rem' }} />
+                                    {subTotal?.toFixed(2)}
+                                </>
+                            )}
+                            {renderInlineItem(
+                                'Tax',
+                                <>
+                                    <FaPesoSign style={{ marginLeft: '6px', fontSize: '0.85rem' }} />
+                                    {taxAmount.toFixed(2)}
+                                </>
+                            )}
+                        </Box>
+                        <Box flex={1} />
+                        <Divider sx={{ my: 2 }} />
+                        <Box>
+                            <Typography variant="subtitle2" color="text.secondary" fontWeight={600} letterSpacing={0.5} noWrap>
+                                TOTAL PAYABLE
+                            </Typography>
+                            <Typography variant="h2" color="primary.main" fontWeight="bold" noWrap>
+                                <FaPesoSign style={{ fontSize: '0.7em' }} />
+                                {total?.toFixed(2)}
+                            </Typography>
+                        </Box>
+                        <Button
+                            fullWidth
+                            sx={{ py: 1.5, mt: 2 }}
+                            variant="contained"
+                            size="large"
+                            disabled={!canCheckout}
+                            onClick={() => setCheckout(true)}
+                        >
+                            Settle Payment (Space)
+                        </Button>
+                    </Card>
                 </Grid>
             </Grid>
 
