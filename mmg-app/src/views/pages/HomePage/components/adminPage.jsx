@@ -16,7 +16,7 @@ import { useAuth } from 'providers/AuthProvider';
 
 const AdminPage = () => {
     const [selectedBranch, setSelectedBranch] = useState('')
-    const { user } = useAuth();
+    const { user, matchRole } = useAuth();
 
     const date = moment()
     const format = 'YYYY-MM-DD'
@@ -37,13 +37,13 @@ const AdminPage = () => {
         enabled: !loadingBranches
     });
 
-    // Branch deployments only show tiles for branches assigned to the logged-in user
+    // Only an admin user on the admin deployment sees every branch; everyone else sees their assigned branches
     const visibleBranches = useMemo(() => {
         if (!branches) return [];
-        if (APP_ROLE === 'admin') return branches;
+        if (APP_ROLE === 'admin' && matchRole('admin')) return branches;
         const ids = (user?.branches || []).map((b) => String(b?._id ?? b));
         return branches.filter((b) => ids.includes(String(b._id)));
-    }, [branches, user]);
+    }, [branches, user, matchRole]);
 
     const renderLoading = () => (
         <Stack alignItems="center" my={4}>
