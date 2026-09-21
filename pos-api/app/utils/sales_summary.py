@@ -12,9 +12,11 @@ def summarize_sales(transactions) -> dict:
 
     Gross Sales counts every invoice ISSUED in the window, including the ones that were later
     cancelled/refunded (a cancel/refund flips the original to status cancelled/refunded but leaves
-    its positive amounts untouched). Cancelled/Refunded are then deducted from the negative void
-    (mirror) documents processed in the window (see v3_cancel_transaction: same document plus
-    negated totals and a serialNumber). Because a void is reported in the window where it is
+    its positive amounts untouched). Discount is the member discount of still-completed sales only:
+    a cancelled/refunded sale is taken out at its full GROSS (before discount), so its discount must
+    not be deducted a second time. Cancelled/Refunded are the gross of the negative void (mirror)
+    documents processed in the window (see v3_cancel_transaction: same document plus negated
+    totals and a serialNumber). Because a void is reported in the window where it is
     processed, a shift/day in which more is voided than sold can legitimately go negative.
     """
     summary = {
@@ -31,15 +33,23 @@ def summarize_sales(transactions) -> dict:
         if status in _VOIDED and (t.get('serialNumber') is not None or net < 0):
             # void/mirror document (negative amounts)
             key = 'cancelled' if status == TransactionStatus.CANCELLED else 'refunded'
-            summary[key] += abs(net)
+            gross_void = t.get('totalSalesWithoutMemberDiscount')
+            summary[key] += abs(gross_void if gross_void is not None else net)
             continue
 
         if status not in _ISSUED:
             continue
 
+        # A deleted hold (v3_cancel_hold_transaction) is flipped to "cancelled" in place but never
+        # got an invoice number, so it was never a sale and has no void document to offset it.
+        # Counting it as issued would inflate Gross and Net by its full amount.
+        if status in _VOIDED and t.get('invoiceNumber') is None:
+            continue
+
         gross = t.get('totalSalesWithoutMemberDiscount') or 0
         summary['grossSales'] += gross
-        summary['discount'] += t.get('totalMemberDiscount') or 0
+        if status == TransactionStatus.COMPLETED:
+            summary['discount'] += t.get('totalMemberDiscount') or 0
 
         # Only the post-discount VAT split is persisted on a transaction, so apply each
         # transaction's exempt share of net to its gross. Transactions from before VAT was
