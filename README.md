@@ -11,6 +11,8 @@ The system has three main components:
 
 All run locally on the same machine for demo purposes.
 
+> Setting up a real branch register instead? Skip to [Setting Up a New Branch POS Station](#setting-up-a-new-branch-pos-station).
+
 ## Prerequisites
 
 - **Docker & Docker Compose** — [Install here](https://www.docker.com/products/docker-desktop)
@@ -364,6 +366,76 @@ cd mmg-app && npm install && npm start  # runs on :5173
 - **Change settings** → theme, branch selection (stored in localStorage)
 - **Add products** → Admin → Product Management (if available)
 - **Check API** → directly at `http://localhost:8001` (Flask) or `http://localhost:8002` (proxy)
+
+---
+
+## Setting Up a New Branch POS Station
+
+A real branch has two parts, set up separately:
+
+- **Branch server** — one per branch. A machine on the branch LAN running the Docker stack (frontend, API, proxy, MongoDB, sync). Cashiers open the app in a browser pointed at it.
+- **Cashier workstations** — one per register. Each runs the **helper** (a Windows installer, *not* Docker) that talks to that PC's receipt printer and customer display, and holds that terminal's own BIR credentials.
+
+Everything in this section is for a real, live branch. For a throwaway demo, use the Quick Start above.
+
+### Before you start — collect these
+
+| Item | Where it comes from |
+|---|---|
+| Central MongoDB URL (`REMOTE_DATABASE_URL`) | Whoever runs the central/UAT server. The branch **copies** its users, branches and products from central — it never creates its own, so this is required. |
+| Per-terminal **MIN**, **SN**, **PTU No** | The BIR permit for each register. Every terminal has its own; never share or reuse them. |
+| Receipt printer IP (default `192.168.192.168`) and customer-display COM port (default `COM3`) | The hardware at that register. |
+
+### Part A — Branch server (once per branch)
+
+Needs Docker, Git and `curl`, and ports 8000–8003 free. Give the machine a fixed LAN IP.
+
+1. **Clone the repo**
+   ```bash
+   git clone <repo-url> mmg-pos && cd mmg-pos
+   ```
+2. **Run the setup script.** It asks for the central MongoDB URL, generates a JWT secret, writes `pos-api/.env`, builds and starts the stack, seeds it from central and checks it tallies:
+   ```bash
+   ./scripts/setup-pos-station.sh
+   ```
+   It finishes by printing the URL cashiers should open (`http://<server-ip>:8000`).
+
+   <details><summary>Or do the same steps by hand</summary>
+
+   ```bash
+   cp .env.example pos-api/.env        # then set JWT_SECRET_KEY and REMOTE_DATABASE_URL; keep APP_ENV=internal-production
+   docker-compose up --build -d
+   docker-compose exec server python seed.py                    # prints "Bootstrapping lookup data from central"
+   docker-compose exec sync python reconcile.py --verify        # must end with "TALLY OK"
+   ```
+   </details>
+3. **Open the firewall** so cashier PCs can reach this machine on **8000** (app) and **8002** (API proxy).
+4. **Log in** with an account from central — a branch's users are copied down from central, so the `admin`/`admin123` and `cashier`/`cashier123` seeder defaults only exist on a database seeded standalone. If you do see those, change them before anyone uses it.
+5. **Check sync** — `docker-compose logs --tail 20 sync` should show `[upstream-sync] ... failed=0`.
+
+### Part B — Each cashier workstation
+
+1. **Build or obtain the installer** (once, on a build machine with Inno Setup):
+   ```powershell
+   cd pos-helper-app
+   .\build-installer.ps1        # produces installer\Output\MMG-Helper-Setup.exe
+   ```
+   Optionally put a `branch-defaults.ini` next to it to prefill the fields shared by the whole branch (printer IP, COM port).
+2. **Run `MMG-Helper-Setup.exe` as administrator** on the cashier PC. The wizard asks for **MIN, SN, PTU No**, the printer IP, the display COM port and a **provider password** (min 8 characters; it locks the tray's Settings and Logs window), then installs to `C:\MMG-POS\`, adds a startup shortcut and writes `C:\MMG-POS\config.json`.
+   For a scripted install: `MMG-Helper-Setup.exe /VERYSILENT /MIN="..." /SN="..." /PTU="..." /PRINTER=192.168.x.x /COM=COM3 /ADMINPW="..."` (without `/ADMINPW`, Settings and Logs is left unlocked). Precedence per field: command-line switch, then `branch-defaults.ini`, then the built-in default.
+3. **Confirm the helper is running** — a tray icon appears; right-click → **Test Print** should print a test slip. Credentials can be corrected later from the tray icon's **Settings and Logs** (Save and Restart).
+4. **Open the app** in the browser at `http://<branch-server-ip>:8000`, sign in, and pick the branch.
+5. **Do a real checkout.** It reads this terminal's PTU from the helper at the moment of sale, so the first sale proves the whole chain (browser → helper → printer, and the invoice sequence for this PTU starting at 000001).
+
+Repeat Part B for every register.
+
+### Things to know
+
+- **Checkout is blocked if the helper can't be reached** — by design, so a sale never gets issued without a real terminal PTU. Check the tray icon and `C:\MMG-POS\helper.log`.
+- **Invoice numbers are per PTU (per terminal)**, not per branch or cashier. Two registers each start at 000001; that is correct.
+- **Leave Dev Test Mode off** (Settings) on real registers — it mocks the terminal and PTU. It is off by default.
+- **Never create test data on a live station.** Sync is running and pushes transactions to central. For automated tests against a stack with sync running, set `"isLocal": true` on the transaction payload so it is never pushed.
+- Database wipes and re-seeding are covered in `pos-api/SEEDING.md`.
 
 ---
 
