@@ -31,7 +31,7 @@ const pages = {
         // },
         {
             id: 'cashier-reports',
-            title: 'Cashier Reports',
+            title: 'X Reports',
             type: 'item',   
             url: '/dashboard/cashier-reports',
             icon: FaFileInvoice,
@@ -40,7 +40,7 @@ const pages = {
         },
         {
             id: 'branch-reports',
-            title: 'Branch Reports',
+            title: 'Z Reports',
             type: 'item',
             url: '/dashboard/branch-reports',
             icon: FaFileInvoice,

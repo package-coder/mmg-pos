@@ -73,7 +73,7 @@ const GenerateReportPage = () => {
                         </Button>
                         <form noValidate onSubmit={handleSubmit}>
                             <Typography variant="h1" mb={6} fontSize={28} gutterBottom>
-                                Generate Branch Report
+                                Generate Z Report
                             </Typography>
                             <Grid container spacing={6} flexDirection='column'>
                                 <Grid item xs md={12}>
@@ -258,7 +258,7 @@ const ReportMessage = () => {
                 </Typography>
 
                 <Typography variant="h3" mb={3} color="gray" fontWeight="regular" gutterBottom>
-                    Only one branch report is allowed per day.
+                    Only one Z report is allowed per day.
                 </Typography>
                 <Button onClick={() => navigate(-1)} size="large" sx={{ bgcolor: 'grey.50' }}>
                     Go to Dashboard

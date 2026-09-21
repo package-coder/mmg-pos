@@ -147,7 +147,7 @@ function CashierReportsPage() {
                 <Box>
                     <Stack direction="row" spacing={1.5} alignItems="center">
                         <Typography variant="h2" fontWeight={600}>
-                            Cashier Reports
+                            X Reports
                         </Typography>
                         <ShiftStatusChip />
                     </Stack>

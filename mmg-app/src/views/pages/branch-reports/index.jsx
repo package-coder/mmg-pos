@@ -145,7 +145,7 @@ function BranchReportsPage() {
                 <Box>
                     <Stack direction="row" spacing={1.5} alignItems="center">
                         <Typography variant="h2" fontWeight={600}>
-                            Branch Reports
+                            Z Reports
                         </Typography>
                         <ShiftStatusChip />
                     </Stack>
@@ -267,7 +267,7 @@ function BranchReportsPage() {
                                 <TableCell colSpan={7}>
                                     <Stack alignItems="center" py={6} spacing={1}>
                                         <Typography color="error" variant="h5">
-                                            Couldn't load branch reports
+                                            Couldn't load Z reports
                                         </Typography>
                                         <Typography color="text.secondary" variant="body2">
                                             Something went wrong while summarizing this period. Please try again, or narrow the date/branch
