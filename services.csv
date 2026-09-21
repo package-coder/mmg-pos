@@ -1,0 +1,198 @@
+id,name,category,description,price,sku,no_price,transaction_count
+66b4d93dbcaa066bc344bb7d,DRUGTEST SCREENING,Drug Test,,300.0,DRUGTEST-DS,False,0
+66b42a85336c3b523d8cce2b,ECG WITH READER'S FEE,ECG Services,na,285.0,ECG,False,8
+66b42b8a336c3b523d8cce32,SPIROMETRY WITH POST BRONCHO DILATOR   WITH READER'S FEE,ECG Services,na,1320.0,ECG-SWPBDWRF,False,1
+66b42b35336c3b523d8cce31,SPIROMETRY WITH READER'S FEE,ECG Services,na,1200.0,ECG-SWRF,False,1
+669cb773a0de383df513c9ce,ABO/RH TYPING WITH REVERSE TYPING,Laboratory Services,Hematology,180.0,HEM-ATWRT,False,52
+66b41935336c3b523d8ccde0,BUA,Laboratory Services,,150.0,LAB-BUA,False,97
+66b41951336c3b523d8ccde2,BUN,Laboratory Services,,150.0,LAB-BUN,False,89
+669cb5aea0de383df513c9b9,CBC w/ Platelet Count,Laboratory Services,Hematology,275.0,HEM-CBCWPC,False,134
+66ce8df30036f46f183a5f05,COVID TEST,Laboratory Services,,450.0,COVID TEST,False,1
+669cb6e6a0de383df513c9cb,CT/BT,Laboratory Services,Hematology,120.0,HEM-CT,False,2
+66c3dec5a1cdda302151cee1,Calcium,Laboratory Services,,275.0,CALCIUM,False,1
+66b419af336c3b523d8ccde3,Cholesterol,Laboratory Services,,150.0,LAB-CHOLESTEROL,False,105
+66b41a26336c3b523d8ccde4,Creatinine,Laboratory Services,Creatinine level is not more than 1.4 for males,150.0,LAB-CREATININE,False,109
+66c3ee55a1cdda302151cf20,Dengue Check NSI,Laboratory Services,,995.0,Dengue Check NSI,False,9
+66b8bbf31e02b764b4bf6e8e,DvoteSample Lab,Laboratory Services,Sample only for QA and Docu,155.0,LAB-BASIC,False,0
+669cb707a0de383df513c9cc,ESR,Laboratory Services,Hematology,120.0,HEM-ESR,False,5
+66b4170b336c3b523d8ccdd6,Electrolytes,Laboratory Services,,960.0,ELECT-LAB-SER,False,22
+66b41a61336c3b523d8ccde6,FBS + 2Hrs PBS,Laboratory Services,,150.0,LAB-FBS,False,61
+66c3dea5a1cdda302151cedf,FBS/PPBS,Laboratory Services,,150.0,FBS,False,42
+66b9cf411e02b764b4bf6ec9,FT3,Laboratory Services,,660.0,,False,2
+66b9cf561e02b764b4bf6eca,FT4,Laboratory Services,,660.0,,False,3
+66b42e6d336c3b523d8cce3c,Fecalysis,Laboratory Services,,85.0,LAB-FECA,False,22
+66c53266b92fbf965079b927,HBA1C Year Promo,Laboratory Services,,840.0,HBA1C Year Promo,False,14
+669ccea3a0de383df513caa9,HBsAg SCREENING,Laboratory Services,Serology,330.0,SER-HBsAg SCREENING,False,24
+66b41ac7336c3b523d8ccde7,HDL/LDL,Laboratory Services,,275.0,LAB-HDL,False,95
+669cb6a1a0de383df513c9c9,HGB/HCT,Laboratory Services,Hematology,75.0,HEM-HGB,False,3
+66c3ee73a1cdda302151cf21,HIV TEST Screening,Laboratory Services,,500.0,HIV TEST Screening,False,4
+66b9d0061e02b764b4bf6ece,LDH,Laboratory Services,,660.0,,False,0
+66ce81860036f46f183a5eea,LIPID PROFILE -REG,Laboratory Services,,690.0,LIPID PROFILE -REG,False,8
+66c589070036f46f183a5e8a,OGTT,Laboratory Services,,745.0,OGTT,False,4
+66c5909e0036f46f183a5eb1,Occult Blood,Laboratory Services,,175.0,OCCULT-BLOOD,False,1
+669cb733a0de383df513c9cd,PERIPHERAL SMEAR W/READING,Laboratory Services,Hematology,200.0,HEM-PSWR,False,6
+66d003aa0036f46f183a5f92,PHARMA (BETALIFE),Laboratory Services,,255.0,PHARMA (BETALIFE),False,1
+669cb6c0a0de383df513c9ca,PLATELET COUNT,Laboratory Services,Hematorlogy,120.0,HEM-PC,False,9
+66b9cff61e02b764b4bf6ecd,PSA,Laboratory Services,,900.0,,False,1
+669ccec7a0de383df513caaa,RA FACTOR,Laboratory Services,Serology,540.0,SER-RA FACTOR,False,
+66b41afb336c3b523d8ccde8,SGOT / AST,Laboratory Services,,240.0,LAB-SGOT,False,88
+66b41c10336c3b523d8ccdea,SGPGT / ALT,Laboratory Services,,240.0,LAB-SGPGT,False,115
+66ce87b00036f46f183a5efb,SPERM ANALYSIS,Laboratory Services,,400.0,SPERM ANALYSIS,False,2
+66b9cf6a1e02b764b4bf6ecb,T3,Laboratory Services,,700.0,,False,4
+66b9cfe11e02b764b4bf6ecc,T4,Laboratory Services,,700.0,,False,5
+669ccf4ca0de383df513caab,THYPHIDOT/ Salmonella Typhi IgG/IgM,Laboratory Services,Serology,780.0,SER-TSTII,False,
+66d00a730036f46f183a5fa0,THYROID PACKAGE,Laboratory Services,,1841.0,THYROID PACKAGE,False,1
+66ce812f0036f46f183a5ee9,TPAG,Laboratory Services,,360.0,TPAG,False,1
+66b9cf281e02b764b4bf6ec8,TSH,Laboratory Services,,660.0,,False,7
+66b41b77336c3b523d8ccde9,Triglycerides,Laboratory Services,,265.0,LAB-TRIGLYCERIDES,False,103
+66b42ad9336c3b523d8cce2e,Urinalysis,Laboratory Services,,85.0,LAB-URINALYSIS,False,124
+669cce8ba0de383df513caa8,VDRL/RPR,Laboratory Services,Serology,300.0,SER-VDRL/RPR,False,23
+66c3e8d3a1cdda302151cf0d,VLDL,Laboratory Services,,265.0,VLDL,False,2
+669cb609a0de383df513c9bf,WBC & DIFF. COUNT,Laboratory Services,Hematology,75.0,HEM-WBC,False,14
+66b4df37bcaa066bc344bb81,asd,Laboratory Services,asd,123.0,123123123,False,0
+669fd5f6cc94aac0b9ba7602,Account Receivable,Others,,0.0,OTHERS-AR,True,1
+669fd614cc94aac0b9ba7603,Building Rental,Others,,0.0,OTHERS-BR,True,
+66cfd8810036f46f183a5f6d,DT SCRN,Others,,300.0,DT SCRN,False,7
+66b8c3191e02b764b4bf6e90,DvoteOthersLabTest,Others,sample demo test,-900.0,,False,0
+66c53773b92fbf965079b936,Lipid Profile,Others,,642.0,LIPID-222,False,0
+669fd5dccc94aac0b9ba7601,Misc. Income,Others,,0.0,OTHERS-MI,True,1
+669fd669cc94aac0b9ba7606,Misc. Item,Others,,0.0,OTHERS-MIT,True,
+669fcb15cc94aac0b9ba75ee,New Services,Others,,0.0,OTHERS-NS,True,
+66af252c0d2abf56b4d1de5f,Others-Demo,Others,,0.0,OTHERS-DEMO,False,
+669fd647cc94aac0b9ba7605,Pharma - Beta Life,Others,,230.0,OTHERS-PHBETA,False,
+669fd635cc94aac0b9ba7604,Receipt from Members,Others,,0.0,OTHERS-RFM,True,
+66b5f43e1c239886461e9912,Test others,Others,,0.0,,False,0
+66b437f3336c3b523d8cce51,PF BREAST,PF,,528.0,LAB-PF-BREAST-1,False,1
+66b75cef1e02b764b4bf6e0b,Professional Fee,PF,,400.0,,False,11
+66b7476b1e02b764b4bf6dcd,ACID PHOSPHATASE,Send Out,---,760.0,,False,0
+66b747651e02b764b4bf6dc4,ALPHA-FETO-PROTEIN,Send Out,---,2000.0,,False,0
+66b747a81e02b764b4bf6dd5,AMYLASE,Send Out,---,875.0,,False,0
+66b746f61e02b764b4bf6db3,ANA,Send Out,---,2525.0,,False,0
+66b747b01e02b764b4bf6dd8,ANTI HBS,Send Out,---,865.0,,False,0
+66b747651e02b764b4bf6dc5,ANTI-H-PYLORI,Send Out,---,1200.0,,False,0
+66b747bb1e02b764b4bf6ddf,ANTI-HAV-IgG,Send Out,---,725.0,,False,0
+66b747b31e02b764b4bf6dda,ANTI-HAV-IgM,Send Out,---,780.0,,False,0
+66b747b31e02b764b4bf6dd9,ANTI-HBC-IgG,Send Out,---,805.0,,False,0
+66b747b81e02b764b4bf6dde,ANTI-HBC-IgM,Send Out,---,750.0,,False,0
+66b747b61e02b764b4bf6ddd,ANTI-HCV,Send Out,---,1155.0,,False,0
+66b747b51e02b764b4bf6ddc,ANTI-Hbe,Send Out,---,780.0,,False,0
+66b746fc1e02b764b4bf6dbb,B-HCG (CHORION),Send Out,---,2000.0,,False,0
+66b747681e02b764b4bf6dc9,B-HCG (with Absolute),Send Out,---,2400.0,,False,0
+66b746f61e02b764b4bf6db2,C3,Send Out,---,1200.0,,False,0
+66b746fe1e02b764b4bf6dbe,CA 125 (OVARY),Send Out,---,2200.0,,False,0
+66b747001e02b764b4bf6dbf,CA 15.3 (BREAST),Send Out,---,3000.0,,False,0
+66b747011e02b764b4bf6dc0,CA 19.9 (PANCREAS),Send Out,---,3400.0,,False,0
+66b746fc1e02b764b4bf6dba,CEA (COLON),Send Out,---,1200.0,,False,0
+66b747ab1e02b764b4bf6dd6,COMPLETE HEPA PROFILE,Send Out,---,4050.0,,False,0
+66b746fd1e02b764b4bf6dbd,CORTISOL,Send Out,---,1200.0,,False,0
+66b747691e02b764b4bf6dcb,CPK (CREATININE PHOSPHOKINASE),Send Out,---,600.0,,False,0
+66b746f31e02b764b4bf6db0,CRP,Send Out,---,635.0,,False,0
+66b746fa1e02b764b4bf6db6,CRP (Quantitative),Send Out,---,1160.0,,False,0
+66b747021e02b764b4bf6dc1,ESTRADIOL,Send Out,---,1950.0,,False,0
+66b747c01e02b764b4bf6de3,EXTRA LARGE SPECIMEN,Send Out,---,8800.0,,False,0
+66b746fd1e02b764b4bf6dbc,FERRITIN,Send Out,---,2000.0,,False,0
+66b747a61e02b764b4bf6dd1,FRUCTOSAMINE,Send Out,---,975.0,,False,0
+66b746fa1e02b764b4bf6db7,FSH,Send Out,---,1050.0,,False,0
+66b747661e02b764b4bf6dc7,GGTP,Send Out,---,825.0,,False,0
+66bb1a3fe20c8bca3ebcddf4,HBA1C,Send Out,,1080.0,,False,4
+66b747b41e02b764b4bf6ddb,HBeAg,Send Out,---,780.0,,False,0
+66b747af1e02b764b4bf6dd7,HBsAg CONFIRMATORY,Send Out,---,630.0,,False,0
+66b746f51e02b764b4bf6db1,HsCRP,Send Out,---,1800.0,,False,0
+66b747a71e02b764b4bf6dd4,INSULIN,Send Out,---,2625.0,,False,0
+66b7476a1e02b764b4bf6dcc,IONIZED CALCIUM,Send Out,---,900.0,,False,0
+66b747a51e02b764b4bf6dcf,IRON,Send Out,---,815.0,,False,0
+66b747671e02b764b4bf6dc8,IgE,Send Out,---,2700.0,,False,0
+66b747bf1e02b764b4bf6de2,LARGE SPECIMEN,Send Out,---,7100.0,,False,0
+66b746fb1e02b764b4bf6db8,LH,Send Out,---,1050.0,,False,0
+66b747a61e02b764b4bf6dd2,LITHIUM,Send Out,---,1700.0,,False,0
+66b747a41e02b764b4bf6dce,MAGNESIUM,Send Out,---,1005.0,,False,0
+66b747bf1e02b764b4bf6de1,MEDIUM SPECIMEN,Send Out,---,4900.0,,False,0
+66b747661e02b764b4bf6dc6,PROGESTERONE,Send Out,---,2600.0,,False,0
+66b746fb1e02b764b4bf6db9,PROLACTIN,Send Out,---,1125.0,,False,0
+66b747681e02b764b4bf6dca,PSA,Send Out,---,1200.0,,False,0
+66b746f71e02b764b4bf6db5,Rubella IgG (Quanti),Send Out,---,1600.0,,False,0
+66b747bd1e02b764b4bf6de0,SMALL SPECIMEN,Send Out,---,3000.0,,False,0
+66b747641e02b764b4bf6dc3,TESTOSTERONE,Send Out,---,2325.0,,False,0
+66b747a51e02b764b4bf6dd0,TIBC (TOTAL IRON BINDING CAPACITY) with Iron,Send Out,---,2215.0,,False,0
+66b746f71e02b764b4bf6db4,TPHA,Send Out,---,935.0,,False,0
+66b747a71e02b764b4bf6dd3,TROPONIN,Send Out,---,2000.0,,False,0
+66b7497b1e02b764b4bf6deb,ABDOMINO PELVIC (WHOLE AB + OB),UTZ,---,2400.0,,False,0
+66b7497e1e02b764b4bf6def,BPS (Biophysical Profile Score) ,UTZ, Additional P625.00 Professional Fee if twins,1560.0,,False,0
+66b436c9336c3b523d8cce4a,BREAST,UTZ,,792.0,LAB-PF-BREAST,False,1
+66b749821e02b764b4bf6df6,CHEST UTZ/CHEST MAPPING,UTZ,---,1200.0,,False,0
+66b749781e02b764b4bf6de5,HBT,UTZ,---,1320.0,,False,0
+66b7497f1e02b764b4bf6df0,INGUINAL,UTZ,---,1200.0,,False,0
+66b749801e02b764b4bf6df2,INGUINAL AND SCROTAL,UTZ,---,1320.0,,False,0
+66b7497a1e02b764b4bf6de8,KUB,UTZ,---,1200.0,,False,0
+66b749791e02b764b4bf6de7,KUB & PROSTATE (POST-VOID),UTZ,---,1440.0,,False,0
+66b749791e02b764b4bf6de6,KUB & PROSTATE (PRE-VOID),UTZ,---,1320.0,,False,0
+66b7497c1e02b764b4bf6ded,LOWER ABDOMEN,UTZ,---,1560.0,,False,0
+66b749841e02b764b4bf6df9,MASS ,UTZ,---,1080.0,,False,0
+66b749811e02b764b4bf6df4,NECK,UTZ,---,1560.0,,False,0
+66b7497b1e02b764b4bf6dea,PELVIC ,UTZ,(Additional P410.00 Professional Fee if twins),1020.0,,False,0
+66b7497a1e02b764b4bf6de9,RENAL,UTZ,---,1020.0,,False,0
+66b7497f1e02b764b4bf6df1,SCROTAL,UTZ,---,1200.0,,False,0
+66b749821e02b764b4bf6df7,SINGLE ORGAN (LIVER/GALL BLADDER/SPLEEN/PROSTATE GLAD),UTZ,---,1020.0,,False,0
+66b749831e02b764b4bf6df8,SOFT TISSUE WITH COLOR  DOPPLER FLOW,UTZ,---,1020.0,,False,0
+66b749811e02b764b4bf6df5,THYROID,UTZ,---,1320.0,,False,0
+66b749801e02b764b4bf6df3,TRANSRECTAL,UTZ,---,1440.0,,False,0
+66b7497d1e02b764b4bf6dee,TVS  ,UTZ,---,1440.0,,False,1
+66b7497c1e02b764b4bf6dec,UPPER ABDOMEN,UTZ,---,1560.0,,False,0
+66a24fb9f7aba22e71013943,WHOLE ABDOMEN ,UTZ,,1920.0,UTZ-WA,False,3
+66b4e91fe405632a7f8dca78,A. TOWNE'S VIEW,X-RAY Services,sample towne's view edit,265.0,,False,0
+66b4d2dfbcaa066bc344bb76,A. WATER'S VIEW,X-RAY Services,,275.0,XRAY-AWV,False,0
+66b4e92fe405632a7f8dca90,ABDOMEN (PLAIN),X-RAY Services,---,280.0,,False,0
+66b4e92ee405632a7f8dca8f,ABDOMEN (PLAIN)  UPRIGHT AND SUPINE,X-RAY Services,---,560.0,,False,0
+66b4e936e405632a7f8dca9b,ANKLE AP/L,X-RAY Services,---,465.0,,False,0
+66b4e937e405632a7f8dca9c,ANKLE AP/L BILATERAL,X-RAY Services,---,900.0,,False,0
+66b4e926e405632a7f8dca83,APICO LORDOTIC VIEW,X-RAY Services,---,285.0,,False,1
+66b4e91fe405632a7f8dca79,B. TOWNE'S VIEW WITH LATERAL VIEW,X-RAY Services,---,505.0,,False,0
+669e9321fe69f889e339e337,B. WATER'S VIEW AND LATERAL,X-RAY Services,X-RAY,275.0,X-RAY-BWVAL,False,
+66b4e920e405632a7f8dca7a,C. TOWNE'S VIEW WITH BILATERAL VIEW,X-RAY Services,---,745.0,,False,0
+66b4d607bcaa066bc344bb7c,C. WATER'S VIEW AND LATERAL W / CALDWEL's (PNS),X-RAY Services,---,825.0,---,False,0
+66b4e927e405632a7f8dca84,CERVICAL SPINE AP/L,X-RAY Services,---,525.0,,False,0
+66b4e923e405632a7f8dca7f,CHEST AP/L (INFANT),X-RAY Services,---,540.0,,False,0
+66b4e924e405632a7f8dca80,CHEST LAT VIEW,X-RAY Services,---,285.0,,False,0
+66b4e920e405632a7f8dca7b,CHEST PA,X-RAY Services,---,285.0,,False,59
+66b4e922e405632a7f8dca7c,CHEST PA (PRE-EMPLOYMENT) 5% Discount,X-RAY Services,---,271.0,,False,1
+66b4e922e405632a7f8dca7d,CHEST PA (STUDENT)15% Discount,X-RAY Services,---,243.0,,False,0
+66b4e923e405632a7f8dca7e,CHEST PA/L (ADULT),X-RAY Services,---,540.0,,False,2
+66b4e925e405632a7f8dca81,CLAVICLE,X-RAY Services,---,285.0,,False,0
+66b41795336c3b523d8ccdd7,Chest PA,X-RAY Services,,150.0,XRAY-CHEST-PA,False,0
+66b4e92be405632a7f8dca8a,DECUBITUS (Polangui Branch only),X-RAY Services,---,350.0,,False,0
+66c40023a1cdda302151cf78,Elbow AP/L,X-RAY Services,,500.0,Elbow AP/L,False,1
+66b4e939e405632a7f8dca9f,FOOT AP/O,X-RAY Services,---,480.0,,False,0
+66b4e93ae405632a7f8dcaa0,FOOT AP/O BILATERAL,X-RAY Services,---,900.0,,False,0
+66b4e93be405632a7f8dcaa1,FOOT AP/O/L,X-RAY Services,---,600.0,,False,0
+66b4e93be405632a7f8dcaa2,FOOT AP/O/L BILATERAL,X-RAY Services,---,1140.0,,False,0
+66b4e92be405632a7f8dca8b,FOREARM / LOWER ARM (RADIUS/ULNA) AP/L BILATERAL,X-RAY Services,---,950.0,,False,0
+66b4e931e405632a7f8dca94,FROG LEG VIEW,X-RAY Services,---,300.0,,False,0
+66b4e92ce405632a7f8dca8d,HAND AP/O,X-RAY Services,---,500.0,,False,0
+66b4e92ee405632a7f8dca8e,HAND AP/O BILATERAL,X-RAY Services,---,900.0,,False,0
+669e92fafe69f889e339e336,HEAD/SKULL AP/L,X-RAY Services,X-RAY,525.0,X-RAY-HEAD/SKULL AP/L,False,
+66b4e937e405632a7f8dca9d,HEEL LAT VIEW,X-RAY Services,---,300.0,,False,0
+66b4e938e405632a7f8dca9e,HEEL LAT VIEW BILATERAL,X-RAY Services,---,540.0,,False,0
+66b4e931e405632a7f8dca93,HIP JOINT,X-RAY Services,---,300.0,,False,0
+66b4e934e405632a7f8dca97,KNEE AP/L,X-RAY Services,---,465.0,,False,1
+66b4e934e405632a7f8dca98,KNEE AP/L BILATERAL,X-RAY Services,---,900.0,,False,0
+66b4e92fe405632a7f8dca91,KUB AP PLAIN,X-RAY Services,---,350.0,,False,0
+66c44352a1cdda302151cfac,LEG/THIGH AP/L,X-RAY Services,,565.0,LEG/THIGH AP/L,False,1
+66b4e928e405632a7f8dca86,LUMBAR SERIES,X-RAY Services,---,1020.0,,False,0
+66b4e929e405632a7f8dca87,LUMBO SACRAL AP/L,X-RAY Services,---,540.0,,False,0
+66b4e91de405632a7f8dca75,MANDIBLE AP,X-RAY Services,---,275.0,,False,0
+66b4e91ee405632a7f8dca76,MANDIBLE AP/L,X-RAY Services,---,505.0,,False,0
+66b4e91ee405632a7f8dca77,MANDIBLE AP/L/O,X-RAY Services,---,745.0,,False,0
+66b4e91ce405632a7f8dca73,MAXILLARY,X-RAY Services,---,275.0,,False,0
+66b4e240b903079c8fed33a2,NASAL BONE AP/L,X-RAY Services,---,275.0,X-RAY-,False,0
+66b4e930e405632a7f8dca92,PELVIC AP,X-RAY Services,---,300.0,,False,0
+66b4e925e405632a7f8dca82,RIB CAGE/ THORACIC CAGE AP,X-RAY Services,---,285.0,,False,0
+66b4e929e405632a7f8dca88,SHOULDER AP,X-RAY Services,---,300.0,,False,0
+66b4e92ae405632a7f8dca89,SHOULDER AP BILATERAL,X-RAY Services,---,540.0,,False,0
+66b4e932e405632a7f8dca95,THIGH / UPPER LEG (FEMUR) AP/L,X-RAY Services,---,575.0,,False,0
+66b4e932e405632a7f8dca96,THIGH / UPPER LEG (FEMUR) AP/L BILATERAL,X-RAY Services,---,900.0,,False,0
+66b4e928e405632a7f8dca85,THORACO-LUMBAR AP/L,X-RAY Services,---,540.0,,False,0
+66b4e935e405632a7f8dca99,TIBIA/FIBULA (LOWER LEG)  AP/L,X-RAY Services,---,445.0,,False,0
+66b4e936e405632a7f8dca9a,TIBIA/FIBULA (LOWER LEG) AP/L BILATERAL,X-RAY Services,---,900.0,,False,0
+66b4e91de405632a7f8dca74,TMJ (TEMPOROMANDIBULAR JOINT),X-RAY Services,---,765.0,,False,0
+66b49f3e020469439377dd76,WATER'S VIEW,X-RAY Services,na,275.0,XRAY-HSA,False,1
+66b4e92ce405632a7f8dca8c,WRIST AP/L,X-RAY Services,---,500.0,,False,1

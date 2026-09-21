@@ -1,5 +1,6 @@
 
 import abc
+import threading
 import pymongo
 from app.config import DATABASE, ENVIRONMENT, IS_DEVELOPMENT, IS_INTERNAL_PRODUCTION, IS_LOCAL_DEVELOPMENT, IS_PRODUCTION, LOCAL_DATABASE_URL, REMOTE_DATABASE_URL
 
@@ -16,9 +17,25 @@ class Database(abc.ABC):
         pass
 
 
+# One MongoClient per URI per process. connect() is called from every Repository
+# constructor (some per request); building a client each time leaked a connection
+# pool per call and exhausted mongo (hundreds of connections -> AutoReconnect).
+_clients = {}
+_clients_lock = threading.Lock()
+
+
 class MongoDB(Database):
     def connect(self):
-        self._connection = pymongo.MongoClient(
+        with _clients_lock:
+            client = _clients.get(self.config['uri'])
+            if client is None:
+                client = _clients[self.config['uri']] = self._new_client()
+        self._connection = client
+        db = self._connection[self.config['database']]
+        return db
+
+    def _new_client(self):
+        return pymongo.MongoClient(
             self.config['uri'],
             serverSelectionTimeoutMS=10000,
             connectTimeoutMS=10000,
@@ -27,11 +44,8 @@ class MongoDB(Database):
             heartbeatFrequencyMS=10000,
             retryReads=True,
             retryWrites=True,
+            maxPoolSize=50,
         )
-        db = self._connection[self.config['database']]
-
-        print(f'CONNECTED_DB [{ENVIRONMENT}]: ', self.config['database'], self.config['uri'])
-        return db
 
     def close(self):
         self._connection.close()

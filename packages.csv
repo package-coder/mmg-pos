@@ -1,0 +1,14 @@
+id,name,package_type,packageForMemberType,totalPackagePrice,totalDiscountedPrice,discount_name,lab_test_names
+66cdd74b0036f46f183a5ed1,2024 LIPID PROFILE,package,all,690,582,Senior Citizen Member 20%,Cholesterol; Triglycerides; HDL/LDL
+66cdd7e20036f46f183a5ed2,2024 PRE-NATAL PACKAGE,package,all,1170,936,PWD Member 20%,CBC w/ Platelet Count; Urinalysis; ABO/RH TYPING WITH REVERSE TYPING; HBsAg SCREENING; VDRL/RPR
+66c5418cb92fbf965079b95d,Basic 10,package,all,1770,1416,Solo Parent Member 20%,FBS/PPBS; BUN; BUA; SGOT / AST; SGPGT / ALT; Cholesterol; Triglycerides; HDL/LDL; Creatinine
+66ab2da7216f052daf20e628,Basic 5,package,all,1130,1078.9,Non-Member 7%,CBC w/ Platelet Count; Urinalysis; Fecalysis; CHEST PA; Professional Fee
+66b9d10c1e02b764b4bf6ed0,Basic Thyroid Function,package,all,2060,1648,NAAC Member 20%,T3; T4; TSH
+6704e13148450403bb994935,Blood Chemistry (Basic 8),promo,all,1380,999,Basic 8 Promo,FBS/PPBS; BUN; Cholesterol; HDL/LDL; Triglycerides; Creatinine; SGPGT / ALT
+66b9d0da1e02b764b4bf6ecf,Free Thyroid Function,package,all,1980,1841.4,Packages,FT3; FT4; TSH
+66bb47c897c18cd0abfec993,HBA1C Year Round Promo,promo,all,1080,840,HBA1C Promo,HBA1C
+66c589bf5bbd4318c9db4b4c,HIV Screening,package,corporate,500,500,,HIV TEST Screening
+66b75c1d1e02b764b4bf6e0a,Lipid Profile,package,corporate,690,641.7,Packages,Cholesterol; Triglycerides; HDL/LDL
+678f1cf01ad2bc458a60a51a,Lipid Profile SCD/PWD,package,seniorcitizenpwd,690,552,Senior Citizen Member 20%,Cholesterol; Triglycerides; HDL/LDL
+66b1ad90d8b6d4337ea8a128,Pre-Natal Package,package,non-member,1170,1088.1,Packages,CBC w/ Platelet Count; Urinalysis; ABO/RH TYPING WITH REVERSE TYPING; HBsAg SCREENING; VDRL/RPR
+66d42a739a7cced10db5333e,Trial x,package,non-member,515,463.5,10% OFF,CBC w/ Platelet Count; SGPGT / ALT
