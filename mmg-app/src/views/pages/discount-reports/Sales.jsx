@@ -13,6 +13,7 @@ export const ReportTypeEnum = Object.freeze({
 });
 
 const TABLE_HEADS = [
+    'Export',
     'Branch',
     'PTU No.',
     'MIN',
@@ -24,8 +25,7 @@ const TABLE_HEADS = [
     'Total Deductions',
     'Total Member Discount',
     'Total Net Sales',
-    'Date',
-    ''
+    'Date'
 ];
 
 const NO_PTU = '-';
@@ -130,20 +130,6 @@ function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
                         {!isLoading &&
                             pageRows.map((row) => (
                                 <TableRow key={row.key} hover>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.branch?.name || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.ptuNumber || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.min || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.sn || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>
-                                        {row.invoiceStart != null ? `${pad(row.invoiceStart)} - ${pad(row.invoiceEnd)}` : '---'}
-                                    </TableCell>
-                                    <TableCell>{clip(row.endingCashCount)}</TableCell>
-                                    <TableCell>{clip(row.openingFund)}</TableCell>
-                                    <TableCell>{clip(row.grossSales)}</TableCell>
-                                    <TableCell>{clip(row.deductions)}</TableCell>
-                                    <TableCell>{clip(row.discount)}</TableCell>
-                                    <TableCell>{clip(row.netSales)}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{formatDates(row)}</TableCell>
                                     <TableCell>
                                         <ExportRowButton
                                             loading={exportingKey === row.key}
@@ -163,6 +149,20 @@ function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
                                             }
                                         />
                                     </TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.branch?.name || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.ptuNumber || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.min || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.sn || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>
+                                        {row.invoiceStart != null ? `${pad(row.invoiceStart)} - ${pad(row.invoiceEnd)}` : '---'}
+                                    </TableCell>
+                                    <TableCell>{clip(row.endingCashCount)}</TableCell>
+                                    <TableCell>{clip(row.openingFund)}</TableCell>
+                                    <TableCell>{clip(row.grossSales)}</TableCell>
+                                    <TableCell>{clip(row.deductions)}</TableCell>
+                                    <TableCell>{clip(row.discount)}</TableCell>
+                                    <TableCell>{clip(row.netSales)}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{formatDates(row)}</TableCell>
                                 </TableRow>
                             ))}
                     </TableBody>

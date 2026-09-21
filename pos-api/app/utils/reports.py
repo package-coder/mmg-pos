@@ -13,6 +13,8 @@ from pydash import get, start_case, upper_case
 from app.new_models.Discount import MemberType
 from app.database.config import users
 from app.new_models.Transaction import TransactionStatus
+from app.utils.app_info import software_line
+from app.utils.utils import formatDateTime12h, getLocalTime
 import json
 import sys
 
@@ -40,27 +42,12 @@ def append_base_header(worksheet, user_id, data):
     worksheet.cell(1, 1, "MMG-ALBAY")
     if branch:
         worksheet.cell(2, 1, upper_case(branch['streetAddress']))
-        worksheet.cell(3, 1, 'NON-VAT REG TIN ' + branch['tin'])
-    worksheet.cell(9, 1, datetime.now().isoformat())
-    worksheet.cell(5, 1, os.getenv('APP_VERSION'))
+        worksheet.cell(3, 1, 'VAT REG TIN ' + branch['tin'])
+    worksheet.cell(9, 1, formatDateTime12h(getLocalTime()))
+    worksheet.cell(5, 1, software_line())
 
     user = users.find_one({ '_id': ObjectId(user_id) })
     worksheet.cell(10, 1, start_case(user['first_name'] + ' ' + user['last_name']))
-
-
-def append_terminal_columns(worksheet, header_row, first_row, cells):
-    """Adds Branch, MIN, SN and PTU No. columns after the template's last one. `cells` is one
-    (branch name, min, sn, ptu number) tuple per data row, in row order."""
-    col = worksheet.max_column + 1
-    for offset, title in enumerate(('Branch', 'MIN', 'SN', 'PTU No.')):
-        worksheet.cell(header_row, col + offset, title)
-    for index, values in enumerate(cells):
-        for offset, value in enumerate(values):
-            worksheet.cell(first_row + index, col + offset, value)
-
-
-def _discount_terminal_cells(reports):
-    return [(get(r, 'branch.name', '---'), get(r, 'transaction.min') or '---', get(r, 'transaction.sn') or '---', get(r, 'transaction.ptuNumber') or '---') for r in reports]
 
 
 def export_discount_reports(workbook: openpyxl.Workbook, type: MemberType, reports, user_id):
@@ -71,13 +58,10 @@ def export_discount_reports(workbook: openpyxl.Workbook, type: MemberType, repor
 
     if(type == MemberType.NAAC):
         append_naac_reports(worksheet, reports)
-        append_terminal_columns(worksheet, 15, 16, _discount_terminal_cells(reports))
     elif(type == MemberType.SOLO_PARENT):
         append_solo_parent_reports(worksheet, reports)
-        append_terminal_columns(worksheet, 16, 17, _discount_terminal_cells(reports))
     else:
         append_discount_reports(worksheet, reports)
-        append_terminal_columns(worksheet, 16, 17, _discount_terminal_cells(reports))
 
     return convert_to_bytes(workbook)
 
@@ -86,7 +70,7 @@ def append_discount_reports(worksheet, reports):
     default_row = 17
     for index, report in enumerate(reports):
         default_col = 1
-        worksheet.cell(column=default_col, row=default_row + index, value=report['transaction']['transactionDate'])
+        worksheet.cell(column=default_col, row=default_row + index, value=formatDateTime12h(report['transaction']['transactionDate']))
         worksheet.cell(column=default_col + 1, row=default_row + index, value=report['customer']['name'])
         worksheet.cell(column=default_col + 2, row=default_row + index, value=report['customer'].get('customer_type_id'))
         worksheet.cell(column=default_col + 3, row=default_row + index, value=report['customer']['tin_number'])
@@ -102,7 +86,7 @@ def append_naac_reports(worksheet, reports):
     default_row = 16
     for index, report in enumerate(reports):
         default_col = 1
-        worksheet.cell(column=default_col, row=default_row + index, value=report['transaction']['transactionDate'])
+        worksheet.cell(column=default_col, row=default_row + index, value=formatDateTime12h(report['transaction']['transactionDate']))
         worksheet.cell(column=default_col + 1, row=default_row + index, value=report['customer']['name'])
         worksheet.cell(column=default_col + 2, row=default_row + index, value=report['customer'].get('customer_type_id'))
         worksheet.cell(column=default_col + 3, row=default_row + index, value=report['transaction']['invoiceNumber'])
@@ -114,7 +98,7 @@ def append_solo_parent_reports(worksheet, reports):
     default_row = 17
     for index, report in enumerate(reports):
         default_col = 1
-        worksheet.cell(column=default_col, row=default_row + index, value=report['transaction']['transactionDate'])
+        worksheet.cell(column=default_col, row=default_row + index, value=formatDateTime12h(report['transaction']['transactionDate']))
         worksheet.cell(column=default_col + 1, row=default_row + index, value=report['customer']['name'])
         worksheet.cell(column=default_col + 2, row=default_row + index, value=report['customer'].get('customer_type_id'))
         worksheet.cell(column=default_col + 6, row=default_row + index, value=report['transaction']['invoiceNumber'])
@@ -141,7 +125,6 @@ def export_sales_reports(workbook, sales, user_id):
     append_base_header(worksheet, user_id, sales)
     append_sales_reports(worksheet, sales)
     append_terminal_header(worksheet, [(s.get('sn'), s.get('min'), s.get('ptuNumber')) for s in sales])
-    append_terminal_columns(worksheet, 16, 17, [(get(s, 'branch.name', '---'), s.get('min') or '---', s.get('sn') or '---', s.get('ptuNumber') or '---') for s in sales])
     return convert_to_bytes(workbook)
 
 def append_sales_reports(worksheet, sales):

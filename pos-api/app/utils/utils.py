@@ -19,6 +19,20 @@ def getLocalTime():
 def getLocalDateStr():
     return str(getLocalTime().date())
 
+def formatDateTime12h(value):
+    """Human-readable local (Manila) date and time, 12-hour with AM/PM: 2026-09-22 09:46 PM.
+    Accepts a datetime or an ISO string; anything unparseable is returned as-is."""
+    if value is None or value == '':
+        return value
+    try:
+        dt = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    except ValueError:
+        return value
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(getTimeZone())
+    return dt.strftime('%Y-%m-%d %I:%M %p')
+
+
 def getLocalTimeStr():
     return getLocalTime().isoformat()
 

@@ -1,16 +1,20 @@
-import { CircularProgress, IconButton, Tooltip } from '@mui/material';
-import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import { Button, CircularProgress } from '@mui/material';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import PropTypes from 'prop-types';
 
 function ExportRowButton({ loading, disabled, onClick }) {
     return (
-        <Tooltip title="Export this row">
-            <span>
-                <IconButton size="small" disabled={disabled || loading} onClick={onClick}>
-                    {loading ? <CircularProgress size={18} /> : <FileDownloadOutlinedIcon fontSize="small" />}
-                </IconButton>
-            </span>
-        </Tooltip>
+        <Button
+            variant="outlined"
+            size="small"
+            color="inherit"
+            disabled={disabled || loading}
+            onClick={onClick}
+            startIcon={loading ? <CircularProgress size={14} /> : <DescriptionOutlinedIcon fontSize="small" />}
+            sx={{ textWrap: 'nowrap' }}
+        >
+            {loading ? 'Exporting…' : 'Export'}
+        </Button>
     );
 }
 

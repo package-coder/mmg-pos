@@ -8,6 +8,7 @@ import ReportPagination from 'ui-component/ReportPagination';
 import ExportRowButton from './ExportRowButton';
 
 const TABLE_HEADS = [
+    'Export',
     'Branch',
     'PTU No.',
     'MIN',
@@ -19,8 +20,7 @@ const TABLE_HEADS = [
     'Member Discount',
     'Total Discount',
     'Net Sales',
-    'Date',
-    ''
+    'Date'
 ];
 
 const NO_PTU = '-';
@@ -111,20 +111,6 @@ function DiscountReports({ generated, onExport, exportingKey, ...initialParams }
                         {!isLoading &&
                             pageRows.map((row) => (
                                 <TableRow key={row.key} hover>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.branch?.name || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.ptuNumber || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.min || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.sn || '---'}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>
-                                        {row.invoiceStart != null ? `${pad(row.invoiceStart)} - ${pad(row.invoiceEnd)}` : '---'}
-                                    </TableCell>
-                                    <TableCell>{upperCase(initialParams.memberType)}</TableCell>
-                                    <TableCell>{row.records}</TableCell>
-                                    <TableCell>{row.grossSales.toFixed(2)}</TableCell>
-                                    <TableCell>{row.memberDiscount.toFixed(2)}</TableCell>
-                                    <TableCell>{row.totalDiscount.toFixed(2)}</TableCell>
-                                    <TableCell>{row.netSales.toFixed(2)}</TableCell>
-                                    <TableCell sx={{ textWrap: 'nowrap' }}>{formatDates(row)}</TableCell>
                                     <TableCell>
                                         <ExportRowButton
                                             loading={exportingKey === row.key}
@@ -145,6 +131,20 @@ function DiscountReports({ generated, onExport, exportingKey, ...initialParams }
                                             }
                                         />
                                     </TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.branch?.name || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.ptuNumber || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.min || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{row.sn || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>
+                                        {row.invoiceStart != null ? `${pad(row.invoiceStart)} - ${pad(row.invoiceEnd)}` : '---'}
+                                    </TableCell>
+                                    <TableCell>{upperCase(initialParams.memberType)}</TableCell>
+                                    <TableCell>{row.records}</TableCell>
+                                    <TableCell>{row.grossSales.toFixed(2)}</TableCell>
+                                    <TableCell>{row.memberDiscount.toFixed(2)}</TableCell>
+                                    <TableCell>{row.totalDiscount.toFixed(2)}</TableCell>
+                                    <TableCell>{row.netSales.toFixed(2)}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{formatDates(row)}</TableCell>
                                 </TableRow>
                             ))}
                     </TableBody>
