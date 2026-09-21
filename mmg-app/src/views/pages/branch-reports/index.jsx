@@ -15,7 +15,7 @@ import {
     IconButton
 } from '@mui/material';
 import { useQuery } from 'react-query';
-import _, { omit, startCase } from 'lodash';
+import _, { startCase } from 'lodash';
 import moment from 'moment';
 import branch_reports from 'api/branch_reports';
 
@@ -23,16 +23,13 @@ import { useAuth } from 'providers/AuthProvider';
 import { usePrinter } from 'providers/PrinterProvider';
 import { dvoteDetails } from 'utils/mockData';
 import BranchFilter, { DEFAULT_BRANCH_FILTER } from 'ui-component/filter/BranchFilter';
+import PtuFilter, { DEFAULT_PTU_FILTER, filterByPtu } from 'ui-component/filter/PtuFilter';
 import ReportPagination from 'ui-component/ReportPagination';
 import { useEffect, useState } from 'react';
 import Role from 'utils/Role';
 import DateFilter, { DateFilterEnum } from 'ui-component/filter/DateFilter';
-import { CSVLink } from 'react-csv';
-import generateReportFilename from '../../../utils/generateReportFilename';
-import { useCallback } from 'react';
 import { CashierReportWrapper, useCashierReport } from 'providers/CashierReportProvider';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ZReportDialog from '../PosPage/components/ZReportDialog';
@@ -69,6 +66,7 @@ function BranchReportsPage() {
     const hasOnlyOneBranch = user?.branches?.length == 1;
 
     const [branchFilter, setBranchFilter] = useState(hasOnlyOneBranch ? branch?.name : DEFAULT_BRANCH_FILTER);
+    const [ptuFilter, setPtuFilter] = useState(DEFAULT_PTU_FILTER);
     const [dateFilter, setDateFilter] = useState(DateFilterEnum.THIS_MONTH);
     const [customDate, setCustomDate] = useState({});
 
@@ -100,29 +98,16 @@ function BranchReportsPage() {
 
     const [filteredReports, setFilteredReports] = useState(reports);
 
+    // Admin/manager see every terminal, so they get Branch + PTU columns and a PTU filter.
+    const showTerminalColumns = !matchRole(Role.CASHIER);
+    const visibleReports = showTerminalColumns ? filterByPtu(filteredReports || [], ptuFilter) : filteredReports || [];
+
     const today = moment().toISOString().split('T')[0];
     const todaysBranchReport = reports?.find((report) => report.branch.id == branch?.id && report.date == today);
 
     useEffect(() => {
         setFilteredReports(reports || []);
     }, [reports, user]);
-
-    const fileName = generateReportFilename('branch-reports', { branchFilter, dateFilter, customDate }) + '.csv';
-
-    const exportToCSV = useCallback(() => {
-        const reports = filteredReports;
-
-        const header = Object.keys(reports?.[0]).map((item) => startCase(item));
-        const data = reports.map((item) =>
-            Object.values({
-                ...omit(item, 'salesDeposits'),
-                branch: item.branch.name,
-                cashier: startCase(item.cashier?.name),
-                createdAt: moment(item.createdAt).format()
-            })
-        );
-        return [header, ...data];
-    }, [filteredReports]);
 
     // "Print Report" reprints today's own branch Z-Reading — the same report the
     // "Shift Active/Closed" chip reflects — not any arbitrary row in the table below.
@@ -137,7 +122,7 @@ function BranchReportsPage() {
 
     const isViewingAllBranches = branchFilter === DEFAULT_BRANCH_FILTER;
 
-    const paginated = filteredReports.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    const paginated = visibleReports.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
     const renderHeader = () => (
         <Card>
@@ -163,17 +148,6 @@ function BranchReportsPage() {
                     >
                         {printing ? 'Printing…' : 'Print Report'}
                     </Button>
-                    {!filteredReports || filteredReports?.length == 0 ? (
-                        <Button variant="outlined" color="inherit" startIcon={<DescriptionOutlinedIcon />} disabled>
-                            Export CSV
-                        </Button>
-                    ) : (
-                        <CSVLink data={exportToCSV()} filename={fileName} style={{ textDecoration: 'none' }}>
-                            <Button variant="outlined" color="inherit" startIcon={<DescriptionOutlinedIcon />}>
-                                Export CSV
-                            </Button>
-                        </CSVLink>
-                    )}
                 </Stack>
             </Box>
         </Card>
@@ -195,6 +169,7 @@ function BranchReportsPage() {
                               }
                             : {})}
                     />
+                    {showTerminalColumns && <PtuFilter filter={ptuFilter} onChange={(value) => { setPtuFilter(value); setPage(0); }} values={filteredReports} />}
                     <DateFilter filter={dateFilter} onChange={(value) => setDateFilter(value)} customDate={customDate} onChangeCustomDate={setCustomDate} />
                 </Stack>
             </Box>
@@ -241,8 +216,9 @@ function BranchReportsPage() {
                     <TableHead>
                         <TableRow sx={{ bgcolor: 'grey.50' }}>
                             {[
+                                ...(isViewingAllBranches || showTerminalColumns ? ['Branch'] : []),
+                                ...(showTerminalColumns ? ['PTU No.'] : []),
                                 'Invoice Range #',
-                                ...(isViewingAllBranches ? ['Branch'] : []),
                                 'Total Opening Fund',
                                 'Total Ending Cash Count',
                                 'Total Gross Sales',
@@ -295,6 +271,8 @@ function BranchReportsPage() {
                             !isError &&
                             paginated.map((report) => (
                                 <TableRow key={report._id} hover>
+                                    {(isViewingAllBranches || showTerminalColumns) && <TableCell>{startCase(report.branch.name)}</TableCell>}
+                                    {showTerminalColumns && <TableCell sx={{ textWrap: 'nowrap' }}>{report.ptuNumber || '---'}</TableCell>}
                                     <TableCell sx={{ textWrap: 'nowrap' }}>
                                         <Chip
                                             size="small"
@@ -308,7 +286,6 @@ function BranchReportsPage() {
                                             }
                                         />
                                     </TableCell>
-                                    {isViewingAllBranches && <TableCell>{startCase(report.branch.name)}</TableCell>}
                                     <TableCell>{clip(report.openingFund?.total || 0)}</TableCell>
                                     <TableCell>{clip(report.endingCashCount?.total || 0)}</TableCell>
                                     <TableCell>{clip(report.salesSummary?.grossSales)}</TableCell>
@@ -342,7 +319,7 @@ function BranchReportsPage() {
                 )}
             </TableContainer>
             <ReportPagination
-                count={filteredReports?.length || 0}
+                count={visibleReports.length}
                 page={page}
                 onPageChange={setPage}
                 rowsPerPage={rowsPerPage}

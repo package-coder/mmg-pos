@@ -31,6 +31,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { useAuth } from 'providers/AuthProvider';
 import BranchFilter from 'ui-component/filter/BranchFilter';
+import PtuFilter, { DEFAULT_PTU_FILTER, filterByPtu } from 'ui-component/filter/PtuFilter';
 import Role from 'utils/Role';
 import { DateFilterEnum, DateFilterOptions } from 'ui-component/filter/DateFilter';
 import generateReportFilename from 'utils/generateReportFilename';
@@ -41,14 +42,21 @@ import PrinterProvider from 'providers/PrinterProvider';
 const DEFAULT_FILTER = 'all';
 
 function TransactionsPage() {
-    const { branch, user, matchRole } = useAuth();
+    const { branch, user, matchRole, ptuNumber } = useAuth();
     const [dateFilter, setDateFilter] = useState(DateFilterEnum.TODAY);
     const [customDate, setCustomDate] = useState({});
 
-    const hasOnlyOneBranch = user?.branches?.length == 1;
     const hasMultipleBranch = user?.branches?.length > 1;
 
     const [branchFilter, setBranchFilter] = useState(branch?.name || DEFAULT_FILTER);
+    const [ptuFilter, setPtuFilter] = useState(DEFAULT_PTU_FILTER);
+    const isCashier = matchRole(Role.CASHIER);
+    const isAdmin = matchRole(Role.ADMIN);
+
+    // A cashier's branch and PTU come from their session and can't be changed.
+    useEffect(() => {
+        if (isCashier && branch?.name) setBranchFilter(branch.name);
+    }, [isCashier, branch]);
 
     const filterByUser = matchRole(Role.ADMIN) || hasMultipleBranch;
 
@@ -75,12 +83,15 @@ function TransactionsPage() {
 
     const [searchFilter, setSearchFilter] = useState('');
     const [transactions, setTransactions] = useState(data);
+    // rows already narrowed to the selected branch (BranchFilter writes here)
+    const [branchScoped, setBranchScoped] = useState([]);
     const [statusFilter, setStatusFilter] = useState(DEFAULT_FILTER);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
 
     useEffect(() => {
-        let transactions = data || [];
+        let transactions = branchScoped || [];
+        if (isAdmin) transactions = filterByPtu(transactions, ptuFilter);
 
         // Dev Test Mode's on/off + ownership scoping is already enforced server-side (see
         // GET /v2/transactions in app/blueprints/transaction.py) — the API response here never
@@ -98,7 +109,7 @@ function TransactionsPage() {
         }
 
         setTransactions(transactions);
-    }, [data, statusFilter, searchFilter]);
+    }, [branchScoped, ptuFilter, statusFilter, searchFilter]);
 
     const exportToCSV = useCallback(() => {
         const headers = [
@@ -107,6 +118,7 @@ function TransactionsPage() {
             'Reference Number',
             'Status',
             'Branch',
+            'PTU No.',
             'Cashier',
             'Customer',
             'Discount Name',
@@ -145,6 +157,7 @@ function TransactionsPage() {
                 referenceNumber,
                 startCase(item.status),
                 item.branch?.name,
+                item.ptuNumber || '---',
                 item.cashier?.name,
                 item.customer?.name,
                 discountNames,
@@ -168,6 +181,7 @@ function TransactionsPage() {
         setSearchFilter('');
         setStatusFilter(DEFAULT_FILTER);
         setBranchFilter(branch?.name || DEFAULT_FILTER);
+        setPtuFilter(DEFAULT_PTU_FILTER);
         setDateFilter(DateFilterEnum.TODAY);
     };
 
@@ -248,14 +262,17 @@ function TransactionsPage() {
                             filter={branchFilter}
                             onChange={(value) => setBranchFilter(value)}
                             values={data}
-                            setValues={setTransactions}
-                            {...(matchRole(Role.CASHIER)
+                            setValues={setBranchScoped}
+                            {...(isCashier
                                 ? {
-                                      options: user?.branches?.map((branch) => branch.name),
-                                      disabled: hasOnlyOneBranch
+                                      options: [branch?.name].filter(Boolean),
+                                      disabled: true,
+                                      hideAllOption: true
                                   }
                                 : {})}
                         />
+                        {isAdmin && <PtuFilter filter={ptuFilter} onChange={(value) => { setPtuFilter(value); setPage(0); }} values={branchScoped} />}
+                        {isCashier && <PtuFilter filter={ptuNumber || ''} fixed={ptuNumber} disabled onChange={() => {}} />}
                         <TextField
                             select
                             size="small"
@@ -337,7 +354,9 @@ function TransactionsPage() {
                                 'Invoice #',
                                 'Reference #',
                                 'Status',
-                                ...(filterByUser ? ['Branch', 'Cashier'] : []),
+                                ...(filterByUser ? ['Branch'] : []),
+                                ...(isAdmin ? ['PTU No.'] : []),
+                                ...(filterByUser ? ['Cashier'] : []),
                                 'Customer',
                                 'Gross Sale',
                                 'Discount',
@@ -394,6 +413,7 @@ function TransactionsPage() {
                                     {filterByUser && (
                                         <>
                                             <TableCell>{transaction.branch.name}</TableCell>
+                                            {isAdmin && <TableCell sx={{ textWrap: 'nowrap' }}>{transaction.ptuNumber || '---'}</TableCell>}
                                             <TableCell>{transaction.cashier.name}</TableCell>
                                         </>
                                     )}

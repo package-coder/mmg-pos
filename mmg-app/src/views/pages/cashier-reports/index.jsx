@@ -15,7 +15,7 @@ import {
     IconButton
 } from '@mui/material';
 import { useQuery } from 'react-query';
-import _, { startCase, omit } from 'lodash';
+import _, { startCase } from 'lodash';
 import moment from 'moment';
 
 import { useAuth } from 'providers/AuthProvider';
@@ -23,15 +23,13 @@ import { usePrinter } from 'providers/PrinterProvider';
 import { dvoteDetails } from 'utils/mockData';
 import CashierReportProvider, { useCashierReport } from 'providers/CashierReportProvider';
 import BranchFilter, { DEFAULT_BRANCH_FILTER } from 'ui-component/filter/BranchFilter';
+import PtuFilter, { DEFAULT_PTU_FILTER, filterByPtu } from 'ui-component/filter/PtuFilter';
 import ReportPagination from 'ui-component/ReportPagination';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import Role from 'utils/Role';
 import DateFilter, { DateFilterEnum } from 'ui-component/filter/DateFilter';
 import cashier_report from 'api/cashier_report';
-import generateReportFilename from '../../../utils/generateReportFilename';
-import { CSVLink } from 'react-csv';
 import SummaryReportDialog from '../PosPage/components/XReportDialog';
-import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
@@ -77,6 +75,7 @@ function CashierReportsPage() {
               ? user?.branches?.[0]?.name
               : DEFAULT_BRANCH_FILTER
     );
+    const [ptuFilter, setPtuFilter] = useState(DEFAULT_PTU_FILTER);
     const [dateFilter, setDateFilter] = useState(DateFilterEnum.THIS_MONTH);
     const [customDate, setCustomDate] = useState({});
 
@@ -106,24 +105,9 @@ function CashierReportsPage() {
     const reports = data?.reports;
     const [filteredReports, setFilteredReports] = useState(reports);
 
-    const fileName = generateReportFilename('cashier-reports', { branchFilter, dateFilter, customDate }) + '.csv';
-
-    const exportToCSV = useCallback(() => {
-        const reports = filteredReports.map((item) => ({
-            ...omit(item, ['invoiceNumberStr']),
-            branch: item.branch.name,
-            cashier: startCase(item.cashier.name),
-            beginningCashOnHand: item.beginningCashOnHand?.total || 0,
-            endingCashOnHand: item.endingCashOnHand?.total || 'N/A',
-            timeIn: moment(item.timeIn, 'hh:mm:ss').format('hh:mm:ss A'),
-            timeOut: item.timeOut ? moment(item.timeOut, 'hh:mm:ss').format('hh:mm:ss A') : 'N/A'
-        }));
-
-        const header = Object.keys(reports?.[0]).map((item) => startCase(item));
-        const data = reports.map((item) => Object.values(item));
-
-        return [header, ...data];
-    }, [filteredReports]);
+    // Admin/manager see every terminal, so they get Branch + PTU columns and a PTU filter.
+    const showTerminalColumns = !matchRole(Role.CASHIER);
+    const visibleReports = showTerminalColumns ? filterByPtu(filteredReports || [], ptuFilter) : filteredReports || [];
 
     // "Print Report" reprints the logged-in user's own X-Reading for today — the same report the
     // "Shift Active/Closed" chip reflects — not any arbitrary row in the table below.
@@ -139,7 +123,7 @@ function CashierReportsPage() {
     const isViewingAllBranches = branchFilter === DEFAULT_BRANCH_FILTER;
     const showCashierColumn = matchRole(Role.ADMIN);
 
-    const paginated = (filteredReports || []).slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    const paginated = visibleReports.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
     const renderHeader = () => (
         <Card>
@@ -165,17 +149,6 @@ function CashierReportsPage() {
                     >
                         {printing ? 'Printing…' : 'Print Report'}
                     </Button>
-                    {!filteredReports || filteredReports?.length == 0 || fetchingReports ? (
-                        <Button variant="outlined" color="inherit" startIcon={<DescriptionOutlinedIcon />} disabled>
-                            Export CSV
-                        </Button>
-                    ) : (
-                        <CSVLink data={exportToCSV()} filename={fileName} style={{ textDecoration: 'none' }}>
-                            <Button variant="outlined" color="inherit" startIcon={<DescriptionOutlinedIcon />}>
-                                Export CSV
-                            </Button>
-                        </CSVLink>
-                    )}
                 </Stack>
             </Box>
         </Card>
@@ -198,6 +171,7 @@ function CashierReportsPage() {
                               }
                             : {})}
                     />
+                    {showTerminalColumns && <PtuFilter filter={ptuFilter} onChange={(value) => { setPtuFilter(value); setPage(0); }} values={filteredReports} />}
                     <DateFilter filter={dateFilter} onChange={(value) => setDateFilter(value)} customDate={customDate} onChangeCustomDate={setCustomDate} />
                 </Stack>
             </Box>
@@ -244,8 +218,9 @@ function CashierReportsPage() {
                     <TableHead>
                         <TableRow sx={{ bgcolor: 'grey.50' }}>
                             {[
+                                ...(isViewingAllBranches || showTerminalColumns ? ['Branch'] : []),
+                                ...(showTerminalColumns ? ['PTU No.'] : []),
                                 'Invoice Range #',
-                                ...(isViewingAllBranches ? ['Branch'] : []),
                                 ...(showCashierColumn ? ['Cashier'] : []),
                                 'Total Opening Fund',
                                 'Total Ending Cash Count',
@@ -297,6 +272,8 @@ function CashierReportsPage() {
                             !isError &&
                             paginated.map((report) => (
                                 <TableRow key={report._id} hover onClick={() => setSelected(report)} sx={{ cursor: 'pointer' }}>
+                                    {(isViewingAllBranches || showTerminalColumns) && <TableCell>{startCase(report.branch.name)}</TableCell>}
+                                    {showTerminalColumns && <TableCell sx={{ textWrap: 'nowrap' }}>{report.ptuNumber || '---'}</TableCell>}
                                     <TableCell sx={{ textWrap: 'nowrap' }}>
                                         <Chip
                                             size="small"
@@ -310,7 +287,6 @@ function CashierReportsPage() {
                                             }
                                         />
                                     </TableCell>
-                                    {isViewingAllBranches && <TableCell>{startCase(report.branch.name)}</TableCell>}
                                     {showCashierColumn && <TableCell>{report.cashier.name}</TableCell>}
                                     <TableCell>{clip(report?.openingFund?.total)}</TableCell>
                                     <TableCell>{clip(report?.endingCashCount?.total)}</TableCell>
@@ -333,7 +309,7 @@ function CashierReportsPage() {
                 )}
             </TableContainer>
             <ReportPagination
-                count={filteredReports?.length || 0}
+                count={visibleReports.length}
                 page={page}
                 onPageChange={setPage}
                 rowsPerPage={rowsPerPage}
