@@ -10,9 +10,27 @@ import { useQuery } from 'react-query';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { toLower } from 'lodash';
 
-export default memo(function ({ onSelectDiscount, disabled, discountsData, buttonProps }) {
+export default memo(function ({ onSelectDiscount, disabled, discountsData, buttonProps, isDiscountApplied, onRemoveDiscount }) {
     const [search, setSearch] = useState('');
     const [open, setOpen] = useState(false);
+
+    // Senior Citizen and PWD are one customer type ("Senior Citizen/PWD") with the same discount
+    // percentage, so they're shown and applied as a single combined entry rather than asking which
+    // one applies - the underlying record is just whichever of the two discounts exists.
+    const seniorDiscount = discountsData?.find((item) => item.memberType === 'senior_citizen');
+    const pwdDiscount = discountsData?.find((item) => item.memberType === 'pwd');
+    const scPwdDiscount = seniorDiscount || pwdDiscount;
+    const canCombineScPwd = !!seniorDiscount && !!pwdDiscount;
+
+    const displayItems = canCombineScPwd
+        ? [
+              {
+                  ...scPwdDiscount,
+                  name: `Senior Citizen / PWD ${scPwdDiscount.value}%`
+              },
+              ...discountsData.filter((item) => item !== seniorDiscount && item !== pwdDiscount)
+          ]
+        : discountsData;
 
     const onToggle = () => {
         if (disabled) return;
@@ -21,13 +39,12 @@ export default memo(function ({ onSelectDiscount, disabled, discountsData, butto
     };
 
     const handleSelectItem = (item) => () => {
-        console.log('item', item);
         onToggle();
         onSelectDiscount(item);
     };
 
     const selectFirstItem = (search) => {
-        const firstItem = discountsData.filter((item) => toLower(item.name).startsWith(toLower(search)))?.[0];
+        const firstItem = displayItems.filter((item) => toLower(item.name).startsWith(toLower(search)))?.[0];
         return firstItem;
     };
 
@@ -35,7 +52,7 @@ export default memo(function ({ onSelectDiscount, disabled, discountsData, butto
         if (e.key === 'Enter') {
             e.preventDefault();
 
-            if (discountsData && discountsData.length == 0) {
+            if (displayItems && displayItems.length == 0) {
                 onToggle();
                 return;
             }
@@ -60,24 +77,45 @@ export default memo(function ({ onSelectDiscount, disabled, discountsData, butto
 
     return (
         <>
-            <Button
-                {...buttonProps}
-                variant="contained"
-                color="dark"
-                fullWidth
-                startIcon={<MdDiscount />}
-                sx={{
-                    py: 2,
-                    height: '100%',
-                    textWrap: 'nowrap',
-                    overflow: 'hidden',
-                    ...buttonProps?.sx
-                }}
-                onClick={onToggle}
-                disabled={disabled}
-            >
-                Discount (F7)
-            </Button>
+            <Stack direction="row" sx={{ height: '100%' }}>
+                <Button
+                    {...buttonProps}
+                    variant="contained"
+                    color="dark"
+                    fullWidth
+                    startIcon={<MdDiscount />}
+                    sx={{
+                        py: 2,
+                        height: '100%',
+                        textWrap: 'nowrap',
+                        overflow: 'hidden',
+                        ...(isDiscountApplied
+                            ? { borderTopRightRadius: 0, borderBottomRightRadius: 0 }
+                            : {}),
+                        ...buttonProps?.sx
+                    }}
+                    onClick={onToggle}
+                    disabled={disabled}
+                >
+                    Discount (F7)
+                </Button>
+                {isDiscountApplied && (
+                    <IconButton
+                        onClick={onRemoveDiscount}
+                        sx={{
+                            bgcolor: 'dark.main',
+                            color: 'white',
+                            borderRadius: 0,
+                            borderTopRightRadius: (theme) => theme.shape.borderRadius,
+                            borderBottomRightRadius: (theme) => theme.shape.borderRadius,
+                            borderLeft: '1px solid rgba(255,255,255,0.24)',
+                            '&:hover': { bgcolor: 'dark.dark' }
+                        }}
+                    >
+                        <IoCloseOutline />
+                    </IconButton>
+                )}
+            </Stack>
             {open && (
                 <Dialog
                     open
@@ -124,8 +162,8 @@ export default memo(function ({ onSelectDiscount, disabled, discountsData, butto
                         </Typography>
                         <Box flex={1} flexBasis={80} overflow="auto">
                             <Grid container spacing={1}>
-                                {discountsData && discountsData.length > 0 ? (
-                                    discountsData
+                                {displayItems && displayItems.length > 0 ? (
+                                    displayItems
                                         .filter((item) => toLower(item.name).includes(toLower(search)))
                                         .map((item, index) => {
                                             return (

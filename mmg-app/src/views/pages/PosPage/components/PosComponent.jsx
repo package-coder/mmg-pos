@@ -22,7 +22,7 @@ import {
     Tooltip,
     Box
 } from '@mui/material';
-import { MdPersonAdd, MdHistory, MdFrontHand, MdLogout, MdAdd, MdList, MdClose } from 'react-icons/md';
+import { MdPersonAdd, MdHistory, MdFrontHand, MdLogout, MdAdd, MdList } from 'react-icons/md';
 import { BiSolidExit } from 'react-icons/bi';
 import { TiHome } from 'react-icons/ti';
 import Checkout from './Checkout';
@@ -53,6 +53,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import LabTestComponent from './LabTestComponent';
 import ClearComponent from './ClearComponent';
 import NewTransactionDialog from './NewTransactionDialog';
+import RemoveDiscountDialog from './RemoveDiscountDialog';
 import HoldItems from './HoldComponent';
 import ServicesPage from 'views/pages/ServicesPage';
 import CashRegister from './CashRegister';
@@ -63,19 +64,6 @@ import { useCashierReport } from '..';
 import { useNavigate } from 'react-router-dom';
 import print from 'api/print';
 import { usePrinter } from 'providers/PrinterProvider';
-
-const generateTransactionNumber = () => {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = ('0' + (date.getMonth() + 1)).slice(-2); // Add leading zero
-    const day = ('0' + date.getDate()).slice(-2); // Add leading zero
-    const hours = ('0' + date.getHours()).slice(-2); // Add leading zero
-    const minutes = ('0' + date.getMinutes()).slice(-2); // Add leading zero
-    const seconds = ('0' + date.getSeconds()).slice(-2); // Add leading zero
-    const randomComponent = Math.random().toString(36).substr(2, 5).toUpperCase(); // Generate a random string
-
-    return `${randomComponent}-${year}${month}${day}${hours}${minutes}${seconds}`;
-};
 
 const calculatePackagePrice = (packageItem) => {
     const packageLabTestPrice = (packageItem.labTest || []).reduce((acc, labTest) => acc + labTest.price, 0);
@@ -120,6 +108,7 @@ const PosComponent = () => {
     const { getDrawerBalance, isRefetching: isReportRefetching } = useCashierReport();
 
     const [openNewTransDialog, setNewTransDialog] = useState(false);
+    const [removeDiscountDialogOpen, setRemoveDiscountDialogOpen] = useState(false);
     const [isNewTrans, setIsNewTrans] = useState(false);
     const [items, setItems] = useState([]);
     const [total, setTotal] = useState(0);
@@ -133,7 +122,7 @@ const PosComponent = () => {
     const [requestedBy, setRequestedBy] = useState({ id: null, name: null });
     const [customerData, setCustomerData] = useState([]);
     const [referenceNumber, setReferenceNumber] = useState(null);
-    const [transactionDate, setTransactionDate] = useState(moment().format('MMMM Do YYYY, h:mm a'));
+    const [transactionDate, setTransactionDate] = useState(moment().format('MM/DD/YYYY HH:mm:ss'));
     const [appliedDiscount, setAppliedDiscount] = useState(null);
     const [sessionItems, setSessionItems] = useState([]);
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -141,6 +130,11 @@ const PosComponent = () => {
     const [regDiscount, setRegularDiscount] = useState(0);
     const [regDiscountType, setRegularDiscountType] = useState();
     const [regDiscountName, setRegularDiscountName] = useState();
+    const [regDiscountMemberType, setRegularDiscountMemberType] = useState();
+    // Tracks whether the current appliedDiscount was auto-tagged from the customer's type (vs.
+    // manually picked by the cashier), so switching customers can safely swap/clear it without
+    // ever overriding a discount the cashier explicitly chose.
+    const [isAutoAppliedDiscount, setIsAutoAppliedDiscount] = useState(false);
 
     // do be deleted
     const [isPackageOrPromoAdded, setIsPackageOrPromoAdded] = useState(false);
@@ -150,6 +144,13 @@ const PosComponent = () => {
     // const { data: packages } = useQuery('packages', packagelab.GetAllPackages);
     const { data: doctorlist } = useQuery('doctors', doctor.GetAllDoctor);
     const { data: discountsData } = useQuery('discounts', discount.GetAllDiscounts);
+    // Senior Citizen and PWD carry the same discount percentage, so whichever record exists is
+    // used for both - no need to ask the cashier which one applies.
+    const scPwdDiscount =
+        discountsData?.find((item) => item.memberType === 'senior_citizen') ||
+        discountsData?.find((item) => item.memberType === 'pwd');
+    const soloParentDiscount = discountsData?.find((item) => item.memberType === 'solo_parent');
+    const naacDiscount = discountsData?.find((item) => item.memberType === 'naac');
 
     // const { data: totalSales } = useQuery(
     //   ['transaction', sessionItems?._id, branch?.id],
@@ -248,6 +249,7 @@ const PosComponent = () => {
             setSubTotal(0);
             setReferenceNumber(null);
             setAppliedDiscount(null);
+            setIsAutoAppliedDiscount(false);
             setIsNewTrans(false);
             setIsPackageOrPromoAdded(false);
         },
@@ -352,6 +354,7 @@ const PosComponent = () => {
                 type: 'percentage',
                 value: selectedPackagesX.packages[0].discount.value,
                 name: selectedPackagesX.packages[0].discount.name,
+                memberType: selectedPackagesX.packages[0].discount.memberType,
                 totalDiscount: (totalPackagePrice.originalPrice + totalLabTestPrice) * (selectedPackagesX.packages[0].discount.value / 100)
             });
         } else if (
@@ -363,6 +366,7 @@ const PosComponent = () => {
                 type: 'percentage',
                 value: selectedPackagesX.packages[0].discount.value,
                 name: selectedPackagesX.packages[0].discount.name,
+                memberType: selectedPackagesX.packages[0].discount.memberType,
                 totalDiscount: (totalPackagePrice.originalPrice + totalLabTestPrice) * (selectedPackagesX.packages[0].discount.value / 100)
             });
         } else if (regDiscount) {
@@ -371,6 +375,7 @@ const PosComponent = () => {
                 type: regDiscountType,
                 value: regDiscount,
                 name: regDiscountName,
+                memberType: regDiscountMemberType,
                 totalDiscount: regDiscountAmount
             });
             // grandTotalDiscountedPrice above doesn't know about this discount (it's only applied via
@@ -494,6 +499,7 @@ const PosComponent = () => {
         if (selectedPackagesX.labtests.length === 1) {
             setRegularDiscount(0);
             setRegularDiscountName(undefined);
+            setRegularDiscountMemberType(undefined);
         }
     };
 
@@ -537,6 +543,7 @@ const PosComponent = () => {
         setSubTotal(0);
         setReferenceNumber(null);
         setAppliedDiscount(null);
+        setIsAutoAppliedDiscount(false);
         setIsNewTrans(false);
         setIsPackageOrPromoAdded(false);
         setDiscountApplied(false);
@@ -545,12 +552,14 @@ const PosComponent = () => {
     const handleClearTransItem = async () => {
         setItems([]);
         setAppliedDiscount(null);
+        setIsAutoAppliedDiscount(false);
         setIsPackageOrPromoAdded(false);
         setDiscountApplied(false);
         setSelectedPackages([]);
         setSelectedlabTest([]);
         setRegularDiscount(0);
         setRegularDiscountName(undefined);
+        setRegularDiscountMemberType(undefined);
         setSelectedPackagesX(() => ({
             packages: [],
             promos: [],
@@ -651,7 +660,7 @@ const PosComponent = () => {
             });
             setItems(transactionItems);
 
-            setTransactionDate(moment(selectedTransaction?.transactionDate).format('MMMM Do YYYY, h:mm a'));
+            setTransactionDate(moment(selectedTransaction?.transactionDate).format('MM/DD/YYYY HH:mm:ss'));
             // These totals come from the transaction's own saved values (computed server-side at
             // hold/save time), so they stay numerically correct even though the per-package discount
             // rule above can't be perfectly reconstructed.
@@ -664,6 +673,7 @@ const PosComponent = () => {
                           type: firstDiscount.type,
                           value: firstDiscount.value,
                           name: firstDiscount.name,
+                          memberType: firstDiscount.memberType,
                           totalDiscount: selectedTransaction?.totalDiscount
                       }
                     : null
@@ -737,6 +747,7 @@ const PosComponent = () => {
         setRegularDiscount(discount?.value); // Consider if this is still necessary
         setRegularDiscountType(discount?.type);
         setRegularDiscountName(discount?.name);
+        setRegularDiscountMemberType(discount?.memberType);
     };
 
     const handleRemoveDiscount = () => {
@@ -744,11 +755,44 @@ const PosComponent = () => {
         setRegularDiscount(0);
         setRegularDiscountType(undefined);
         setRegularDiscountName(undefined);
+        setRegularDiscountMemberType(undefined);
+        setIsAutoAppliedDiscount(false);
         // Re-triggers the totals-recalculation effect (keyed on selectedPackagesX) now that
         // regDiscount is cleared, so `total` drops back to the undiscounted amount without
         // touching the cart items themselves.
         setSelectedPackagesX((prev) => ({ ...prev }));
     };
+
+    const handleRemoveDiscountConfirm = () => {
+        handleRemoveDiscount();
+        setRemoveDiscountDialogOpen(false);
+    };
+
+    // Senior Citizen/PWD, Solo Parent, and NAAC customers get their discount auto-applied as soon
+    // as they're selected - the cashier no longer has to open the discount picker manually for
+    // these. A discount the cashier picked themselves is never overridden or auto-cleared: only
+    // discounts this same effect applied (isAutoAppliedDiscount) are swapped/removed automatically.
+    useEffect(() => {
+        if (!discountsData) return;
+        if (appliedDiscount && !isAutoAppliedDiscount) return;
+
+        const customerType = customerData?.customerType;
+
+        if (customerType === 'seniorcitizenpwd' && scPwdDiscount) {
+            handleSelectDiscount(scPwdDiscount);
+            setIsAutoAppliedDiscount(true);
+        } else if (customerType === 'solo-parent' && soloParentDiscount) {
+            handleSelectDiscount(soloParentDiscount);
+            setIsAutoAppliedDiscount(true);
+        } else if (customerType === 'naac' && naacDiscount) {
+            handleSelectDiscount(naacDiscount);
+            setIsAutoAppliedDiscount(true);
+        } else if (appliedDiscount && isAutoAppliedDiscount) {
+            // Customer changed to a type that no longer qualifies - drop the auto-tagged discount.
+            handleRemoveDiscount();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [customerData?.id, customerData?.customerType, discountsData]);
 
     const handleOpenDrawer = (id) => {
         setDrawerOpen(true);
@@ -768,7 +812,7 @@ const PosComponent = () => {
         createTransactionMutation.mutate({ branchId: branch?.id });
         setNewTransDialog(false);
         setIsNewTrans(true);
-        setReferenceNumber(generateTransactionNumber);
+        setReferenceNumber(null); // No invoice number exists yet — invoiceNumber is only issued at Pay time.
         setHoldTransactionId(null);
     };
 
@@ -784,6 +828,7 @@ const PosComponent = () => {
             setSelectedlabTest([]);
             setReferenceNumber(null);
             setAppliedDiscount(null);
+            setIsAutoAppliedDiscount(false);
             setIsNewTrans(false);
             setIsPackageOrPromoAdded(false);
             setDiscountApplied(false);
@@ -850,6 +895,11 @@ const PosComponent = () => {
     ];
 
     const combinedDataX = [...selectedPackagesX.packages, ...selectedPackagesX.promos, ...selectedPackagesX.labtests];
+
+    // Live preview of the same VAT rule the backend applies (Transaction.py: vatAmount) - a
+    // qualified senior/PWD/NAAC/solo-parent discount makes the sale fully VAT-exempt; otherwise
+    // `total` is treated as VAT-inclusive and 12% is backed out of it.
+    const taxAmount = appliedDiscount?.memberType ? 0 : total - total / 1.12;
 
     const combinedData = {
         id: transactionData?.id,
@@ -1047,25 +1097,13 @@ const PosComponent = () => {
                                     );
                                 })}
                                 <Grid item xs={12} lg={6}>
-                                    <Stack direction="row" spacing={1}>
-                                        <Box flex={1}>
-                                            <DiscountComponent
-                                                disabled={!customerData?.name}
-                                                onSelectDiscount={handleSelectDiscount}
-                                                discountsData={discountsData}
-                                            />
-                                        </Box>
-                                        {appliedDiscount && (
-                                            <Tooltip title="Remove Discount">
-                                                <IconButton
-                                                    onClick={handleRemoveDiscount}
-                                                    sx={{ bgcolor: 'grey.200', '&:hover': { bgcolor: 'grey.300' } }}
-                                                >
-                                                    <MdClose />
-                                                </IconButton>
-                                            </Tooltip>
-                                        )}
-                                    </Stack>
+                                    <DiscountComponent
+                                        disabled={!customerData?.name}
+                                        onSelectDiscount={handleSelectDiscount}
+                                        discountsData={discountsData}
+                                        isDiscountApplied={!!appliedDiscount}
+                                        onRemoveDiscount={() => setRemoveDiscountDialogOpen(true)}
+                                    />
                                 </Grid>
                                 <Grid item xs={12} lg={6}>
                                     <HoldItems
@@ -1251,7 +1289,23 @@ const PosComponent = () => {
                                 {renderInlineItem('Referred By', referredBy?.name ?? '---')}
                                 {renderInlineItem(
                                     'Discount Applied',
-                                    `${(appliedDiscount?.value || 0).toFixed(2)} (${appliedDiscount?.type === 'package' || appliedDiscount?.type === 'percentage' ? '%' : 'Fixed'})`,
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <span>
+                                            {(appliedDiscount?.value || 0).toFixed(2)} (
+                                            {appliedDiscount?.type === 'package' || appliedDiscount?.type === 'percentage' ? '%' : 'Fixed'})
+                                        </span>
+                                        {appliedDiscount && (
+                                            <Typography
+                                                component="span"
+                                                variant="caption"
+                                                fontWeight={600}
+                                                onClick={() => setRemoveDiscountDialogOpen(true)}
+                                                sx={{ cursor: 'pointer', color: 'error.main', textDecoration: 'underline' }}
+                                            >
+                                                Remove
+                                            </Typography>
+                                        )}
+                                    </Stack>,
                                     true
                                 )}
                                 {renderInlineItem(
@@ -1282,7 +1336,7 @@ const PosComponent = () => {
                                     'Tax',
                                     <>
                                         <FaPesoSign style={{ marginLeft: '6px', fontSize: '0.85rem' }} />
-                                        0.00
+                                        {taxAmount.toFixed(2)}
                                     </>
                                 )}
                             </Box>
@@ -1325,6 +1379,11 @@ const PosComponent = () => {
             </RightDrawer>
 
             <NewTransactionDialog open={openNewTransDialog} handleClose={handleDialogClose} handleConfirm={handleDialogConfirm} />
+            <RemoveDiscountDialog
+                open={removeDiscountDialogOpen}
+                handleClose={() => setRemoveDiscountDialogOpen(false)}
+                handleConfirm={handleRemoveDiscountConfirm}
+            />
         </Box>
     );
 };

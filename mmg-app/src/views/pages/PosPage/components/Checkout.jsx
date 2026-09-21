@@ -289,7 +289,8 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
         'officer-treasurer': 'Officer (Treasurer)',
         'officer-committer-officers': 'Officer',
         'associate-member': 'Associate Member',
-        'solo-parent': 'Solo Parent'
+        'solo-parent': 'Solo Parent',
+        naac: 'NAAC'
     };
 
     const getInitials = (name) => {
