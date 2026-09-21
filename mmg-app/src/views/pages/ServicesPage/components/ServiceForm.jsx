@@ -86,6 +86,7 @@ const ServiceForm = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedCategoryName, setSelectedCategoryName] = useState('');
     const [isNoPrice, setIsNoPrice] = useState(false);
+    const [isVatExempt, setIsVatExempt] = useState(true);
 
     const queryClient = useQueryClient();
 
@@ -171,6 +172,7 @@ const ServiceForm = () => {
             setSelectedCategoryName(selectedCategory ? selectedCategory.name : '');
             setValue('categoryName', selectedCategory ? selectedCategory.name : '');
             setIsNoPrice(initialData.no_price !== null ? initialData.no_price : false);
+            setIsVatExempt(initialData.vatExempt !== undefined ? initialData.vatExempt : true);
         }
     }, [initialData, reset, categories, setValue]);
 
@@ -183,13 +185,13 @@ const ServiceForm = () => {
 
     const handleFormSubmit = async (data) => {
         setIsSubmitting(true);
-        const transformedData = { ...data, id: data?._id, noPrice: isNoPrice };
+        const transformedData = { ...data, id: data?._id, noPrice: isNoPrice, vatExempt: isVatExempt };
         delete transformedData.no_price;
         try {
             if (initialData) {
                 await editServiceMutation.mutateAsync(transformedData);
             } else {
-                await createServiceMutation.mutateAsync(data);
+                await createServiceMutation.mutateAsync(transformedData);
             }
         } catch (error) {
             console.error('Error submitting form:', error);
@@ -211,6 +213,7 @@ const ServiceForm = () => {
         });
         setSelectedCategoryName('');
         setIsNoPrice(false);
+        setIsVatExempt(true);
     };
 
     const handleBack = () => {
@@ -335,6 +338,18 @@ const ServiceForm = () => {
                                 No Set Price?{' '}
                                 <Typography component="span" variant="caption" color="text.secondary">
                                     (Variable, non-billable, or determined at checkout)
+                                </Typography>
+                            </Typography>
+                        }
+                    />
+
+                    <FormControlLabel
+                        control={<Checkbox checked={isVatExempt} onChange={(e) => setIsVatExempt(e.target.checked)} name="vatExempt" />}
+                        label={
+                            <Typography variant="body2">
+                                VAT Exempt?{' '}
+                                <Typography component="span" variant="caption" color="text.secondary">
+                                    (Excluded from 12% VAT on the receipt)
                                 </Typography>
                             </Typography>
                         }

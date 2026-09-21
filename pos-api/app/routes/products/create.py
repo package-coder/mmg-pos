@@ -22,6 +22,7 @@ def _create_product():
    category_id = request_data['categoryId']
    inventory_prerequisite = request_data['inventoryPrerequisite']
    sku = request_data.get('sku')
+   vat_exempt = request_data.get('vatExempt', True)
    created_by = g.user_id
    transaction_count = 0
    no_price = False 
@@ -59,7 +60,8 @@ def _create_product():
       "created_by": created_by,
       "created_at": create_at,
       "no_price": no_price,
-      "transaction_count": transaction_count
+      "transaction_count": transaction_count,
+      "vat_exempt": bool(vat_exempt)
    })
    
    if doc.inserted_id:

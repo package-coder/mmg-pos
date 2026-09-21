@@ -46,6 +46,8 @@ def _update_product():
       update_val['inventory_prerequisite'] = request_data['inventoryPrerequisite']
    if 'sku' in request_data:
       update_val['sku'] = request_data['sku']
+   if 'vatExempt' in request_data:
+      update_val['vat_exempt'] = bool(request_data['vatExempt'])
    
    if not update_val:
         return {

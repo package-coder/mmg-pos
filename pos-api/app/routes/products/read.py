@@ -37,7 +37,8 @@ def _get_products():
             "created_by": record["created_by"],
             "created_at": record["created_at"],
             "no_price": record.get('no_price'),
-            "transaction_count": record.get('transaction_count')
+            "transaction_count": record.get('transaction_count'),
+            "vatExempt": record.get('vat_exempt', True)
           })
        return {
           'data': ret,

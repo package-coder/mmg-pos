@@ -106,29 +106,62 @@ class BaseTransaction(BaseModel):
         return totalDiscount
 
     # BIR RA 9994/RA 10754: purchases with a qualified senior citizen/PWD/NAAC/solo-parent
-    # discount are entirely VAT-exempt, not just discounted. Everything else is a standard
-    # VAT-registered sale (prices are VAT-inclusive), so 12% is backed out of net sales.
+    # discount are entirely VAT-exempt, not just discounted, regardless of which items are in
+    # the cart - that exemption is granted to the customer's whole purchase, not per catalog
+    # item. Otherwise, each item's own `vatExempt` flag (set on the product catalog, captured
+    # onto the item at cart time) decides its share: exempt items' net contribution goes to
+    # vatExemptAmount, everything else is a standard VAT-registered sale (prices are
+    # VAT-inclusive) with 12% backed out.
     @computed_field
     @property
     def vatableAmount(self) -> float:
-        if self._hasMemberDiscount():
-            return 0.0
-        return self.totalNetSales / 1.12
+        _, vatableNet = self._computeVatSplit()
+        return vatableNet / 1.12
 
     @computed_field
     @property
     def vatExemptAmount(self) -> float:
-        if self._hasMemberDiscount():
-            return self.totalNetSales
-        return 0.0
+        vatExemptNet, _ = self._computeVatSplit()
+        return vatExemptNet
 
     @computed_field
     @property
     def vatAmount(self) -> float:
-        return self.totalNetSales - self.vatableAmount - self.vatExemptAmount
+        _, vatableNet = self._computeVatSplit()
+        return vatableNet - (vatableNet / 1.12)
 
     def _hasMemberDiscount(self) -> bool:
         return any(d.memberType is not None for d in (self.discounts or []))
+
+    def _computeVatSplit(self) -> tuple:
+        """(vatExemptNet, vatableNet) - totalNetSales split by each item's own vatExempt flag."""
+        if self._hasMemberDiscount():
+            return self.totalNetSales, 0.0
+
+        vatExemptNet = 0.0
+        vatableNet = 0.0
+
+        packageGross = self._computeTotalPackageGrossSales()
+        packageNet = self._computeTotalPackageNetSales()
+        packageRatio = (packageNet / packageGross) if packageGross else 0.0
+
+        for item in self._filterItemsByNotType(PackageType.PROMO):
+            net = item.price * packageRatio
+            if item.vatExempt:
+                vatExemptNet += net
+            else:
+                vatableNet += net
+
+        for groupItems, groupGross, groupNet in self._promoGroups():
+            groupRatio = (groupNet / groupGross) if groupGross else 0.0
+            for item in groupItems:
+                net = item.price * groupRatio
+                if item.vatExempt:
+                    vatExemptNet += net
+                else:
+                    vatableNet += net
+
+        return vatExemptNet, vatableNet
 
 
     @property
@@ -171,25 +204,26 @@ class BaseTransaction(BaseModel):
         return totalPrice
     
     def _computeTotalPromoNetSales(self) -> float:
-        totalPromoPrice: float = 0.0
+        return self._sum(groupNet for _, _, groupNet in self._promoGroups())
 
+    def _promoGroups(self):
+        """Yields (groupItems, groupGross, groupNet) for each promo-type item group."""
         items = self._filterItems(lambda i: i.package is not None and i.package.type == PackageType.PROMO)
         items = groupby(items, lambda i: i.package.id)
-    
+
         for _, groupItems in items:
             groupItems = list(groupItems)
             discounts = self._filterDiscounts(lambda i: i.packageId == groupItems[0].package.id)
 
             prices = self._getItemPrices(groupItems)
-            totalPrice = self._sum(prices)
+            groupGross = self._sum(prices)
+            groupNet = groupGross
 
             if(len(discounts) > 0):
                 discount = discounts[0]
-                totalPrice -= discount.calculateTotalDiscount(totalPrice)
+                groupNet -= discount.calculateTotalDiscount(groupGross)
 
-            totalPromoPrice += totalPrice
-            
-        return totalPromoPrice
+            yield groupItems, groupGross, groupNet
     
     def _computeTotalDiscount(self, func, totalSales) -> float:
         discounts = self._filterDiscounts(func)

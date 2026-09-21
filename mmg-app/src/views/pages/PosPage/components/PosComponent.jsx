@@ -896,10 +896,21 @@ const PosComponent = () => {
 
     const combinedDataX = [...selectedPackagesX.packages, ...selectedPackagesX.promos, ...selectedPackagesX.labtests];
 
-    // Live preview of the same VAT rule the backend applies (Transaction.py: vatAmount) - a
-    // qualified senior/PWD/NAAC/solo-parent discount makes the sale fully VAT-exempt; otherwise
-    // `total` is treated as VAT-inclusive and 12% is backed out of it.
-    const taxAmount = appliedDiscount?.memberType ? 0 : total - total / 1.12;
+    // Live preview of the same VAT rule the backend applies (Transaction.py: vatAmount/
+    // _computeVatSplit) - a qualified senior/PWD/NAAC/solo-parent discount makes the whole sale
+    // VAT-exempt; otherwise each item's own `vatExempt` flag decides its share of `total`, and
+    // only the non-exempt share is treated as VAT-inclusive with 12% backed out. This is a
+    // proportional estimate for display only - the authoritative figure is computed server-side
+    // per package/promo bucket and is what actually prints on the receipt.
+    const cartItemsForVat = [
+        ...selectedPackagesX.packages.flatMap((p) => p.labTest || []),
+        ...selectedPackagesX.promos.flatMap((p) => p.labTest || []),
+        ...selectedPackagesX.labtests
+    ];
+    const cartGrossForVat = cartItemsForVat.reduce((sum, i) => sum + (i.price || 0), 0);
+    const cartVatableGross = cartItemsForVat.reduce((sum, i) => sum + (i.vatExempt === false ? i.price || 0 : 0), 0);
+    const vatableShare = cartGrossForVat ? cartVatableGross / cartGrossForVat : 0;
+    const taxAmount = appliedDiscount?.memberType ? 0 : total * vatableShare - (total * vatableShare) / 1.12;
 
     const combinedData = {
         id: transactionData?.id,
