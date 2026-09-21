@@ -387,6 +387,7 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                                     'Adjustment Ref #',
                                     'Date',
                                     'Status',
+                                    'Payment Method',
                                     'Cashier',
                                     'Customer',
                                     'Gross Sale',
@@ -413,7 +414,7 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                         <TableBody>
                             {!isLoading && paginated.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={12}>{renderEmptyState()}</TableCell>
+                                    <TableCell colSpan={13}>{renderEmptyState()}</TableCell>
                                 </TableRow>
                             )}
                             {!isLoading &&
@@ -497,6 +498,13 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                                                     variant="outlined"
                                                     color={STATUS_COLOR[t.status] || 'error'}
                                                 />
+                                            </TableCell>
+                                            <TableCell sx={{ textWrap: 'nowrap' }}>
+                                                {t.tender
+                                                    ? t.tender.kind === 'on-account'
+                                                        ? 'Charge'
+                                                        : t.tender.name || startCase(t.tender.type)
+                                                    : '---'}
                                             </TableCell>
                                             <TableCell sx={{ textWrap: 'nowrap' }}>{t.cashier?.name}</TableCell>
                                             <TableCell sx={{ textWrap: 'nowrap' }}>

@@ -166,8 +166,15 @@ def ensure_indexes(db):
         partialFilterExpression={"invoiceNumber": {"$type": "number"}, "status": "completed"},
         name="unique_invoice_number_per_terminal",
     )
-    db.new_transactions.create_index(
-        [("ptuNumber", ASCENDING), ("serialNumber", ASCENDING)],
+    # Scoped to (ptuNumber, status, serialNumber), not just (ptuNumber, serialNumber): CANCEL_NUMBER
+    # and REFUND_NUMBER are deliberately two independent counters per terminal (each its own
+    # gap-free BIR series — see CLAUDE.md "Invoice Number"), so a cancelled doc and a refunded doc
+    # for the same terminal legitimately both reach serialNumber=1, =2, etc. Without `status` in
+    # the key, those two series collide on this index the moment both have been used at least
+    # once on the same terminal, even though neither series actually has a duplicate within itself.
+    _create_or_replace_index(
+        db.new_transactions,
+        [("ptuNumber", ASCENDING), ("status", ASCENDING), ("serialNumber", ASCENDING)],
         unique=True,
         partialFilterExpression={"serialNumber": {"$type": "number"}},
         name="unique_serial_number_per_terminal",
