@@ -48,7 +48,7 @@ function TransactionsPage() {
     const hasOnlyOneBranch = user?.branches?.length == 1;
     const hasMultipleBranch = user?.branches?.length > 1;
 
-    const [branchFilter, setBranchFilter] = useState(matchRole(Role.ADMIN) || hasMultipleBranch ? DEFAULT_FILTER : branch?.name);
+    const [branchFilter, setBranchFilter] = useState(branch?.name || DEFAULT_FILTER);
 
     const filterByUser = matchRole(Role.ADMIN) || hasMultipleBranch;
 
@@ -163,7 +163,7 @@ function TransactionsPage() {
     const resetFilters = () => {
         setSearchFilter('');
         setStatusFilter(DEFAULT_FILTER);
-        setBranchFilter(DEFAULT_FILTER);
+        setBranchFilter(branch?.name || DEFAULT_FILTER);
         setDateFilter(DateFilterEnum.TODAY);
     };
 
