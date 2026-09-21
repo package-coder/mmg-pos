@@ -3,7 +3,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import FormHelperText from '@mui/material/FormHelperText';
+import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import * as Yup from 'yup';
@@ -110,11 +110,9 @@ const Login = () => {
                                             sx={{ ...theme.typography.customInput }}
                                         />
                                         {errors.submit && (
-                                            <Box sx={{ mt: 1 }}>
-                                                <FormHelperText sx={{ textAlign: 'center' }} error>
-                                                    {errors.submit?.message}
-                                                </FormHelperText>
-                                            </Box>
+                                            <Alert severity="error" sx={{ mt: 2 }}>
+                                                {errors.submit?.message}
+                                            </Alert>
                                         )}
 
                                         <Box sx={{ my: 2 }}>

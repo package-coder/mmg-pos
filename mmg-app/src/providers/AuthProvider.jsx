@@ -1,8 +1,8 @@
 import auth from 'api/auth';
 import { toUpper } from 'lodash';
 import Role from 'utils/Role';
-import { refreshDevTestMode } from 'utils/devTestMode';
-import { clearTerminal, getTerminal, missingTerminalFields, saveTerminal } from 'utils/terminalSession';
+import { isDevTestModeEnabled, refreshDevTestMode } from 'utils/devTestMode';
+import { clearTerminal, getDevTerminal, getTerminal, missingTerminalFields, saveTerminal } from 'utils/terminalSession';
 import { useContext, createContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
@@ -21,17 +21,21 @@ const AuthProvider = ({ children }) => {
 
     const matchRole = (role) => toUpper(user?.role?.name) === toUpper(role);
 
+    const applyUser = (user) => {
+        if (user.branches && user.branches.length === 1) {
+            setBranch(user.branches[0]);
+            localStorage.setItem('branch', JSON.stringify(user.branches[0]));
+        }
+
+        setUser(user);
+    };
+
     const getUser = async () => {
         setLoading(true);
 
         try {
             const user = await auth.GetAuthUser();
-            if (user.branches && user.branches.length === 1) {
-                setBranch(user.branches[0]);
-                localStorage.setItem('branch', JSON.stringify(user.branches[0]));
-            }
-
-            setUser(user);
+            applyUser(user);
             return user;
         } catch (e) {
             setUser(null);
@@ -50,25 +54,33 @@ const AuthProvider = ({ children }) => {
 
         if (others.code === 11) throw { message: 'Invalid username or password' };
 
-        const authUser = await getUser();
+        // The user is only put into auth state once the terminal check has passed. Setting it first
+        // would flash the app open (and unmount the login form, losing its error) for a cashier
+        // whose terminal isn't configured.
+        const authUser = await auth.GetAuthUser();
+        if (!authUser) throw { message: 'Unable to load your account. Please try again.' };
 
         if (toUpper(authUser?.role?.name) === Role.CASHIER) {
             let info;
+            let devTest = false;
             try {
-                // Dev Test Mode uses a generated terminal instead of the helper's config.
                 await refreshDevTestMode();
-                info = await getTerminalInfo?.();
+                devTest = isDevTestModeEnabled();
+                // Dev Test Mode has no helper config: it always uses this browser's generated
+                // terminal and is never blocked by the terminal check below.
+                info = devTest ? getDevTerminal() : await getTerminalInfo?.();
             } catch (e) {
                 info = { error: e?.message };
             }
 
-            const missing = info?.error || !info ? ['MIN', 'SN', 'PTU No'] : missingTerminalFields(info);
+            const missing = devTest ? [] : info?.error || !info ? ['MIN', 'SN', 'PTU No'] : missingTerminalFields(info);
             if (missing.length > 0) {
-                await logoutUser();
+                await auth.LogoutUser(); // drop the token just issued; nothing else was set yet
+                clearTerminal();
                 throw {
                     message: info?.error
-                        ? `Cannot log in: unable to read this terminal's configuration from the helper app (${info.error}).`
-                        : `Cannot log in: this terminal is not configured (missing ${missing.join(', ')}). Set them in the helper app Settings first.`
+                        ? `Cannot log in: this terminal's configuration could not be read from the helper app (${info.error}). Make sure the MMG helper is running on this computer, then try again.`
+                        : `Cannot log in: this terminal is not configured — missing ${missing.join(', ')}. Ask your administrator to set the MIN, SN and PTU No. in the MMG helper Settings on this computer.`
                 };
             }
 
@@ -76,6 +88,7 @@ const AuthProvider = ({ children }) => {
             setTerminal({ MIN: info.MIN, SN: info.SN, PTU_NO: info.PTU_NO });
         }
 
+        applyUser(authUser);
         return user;
     };
 
