@@ -56,7 +56,7 @@ const CashierReportProvider = ({
             ? CashierStatusReportEnum.CLOCKED_IN 
             : CashierStatusReportEnum.CLOCKED_OUT 
     }
-    function getDrawerBalance () { return Number(reportForToday?.openingFund?.total + reportForToday.sales.totalNetSales || 0) }
+    function getDrawerBalance () { return Number((reportForToday?.openingFund?.total || 0) + (reportForToday?.sales?.totalNetSales || 0)) }
 
     return (
         <CashierReportContext.Provider 

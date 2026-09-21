@@ -17,6 +17,9 @@ class TimeInCashierReport(BaseModel):
     cashierId: str = None
     timeIn: str = Field(default_factory=getLocalTimeStr)
     date: str = Field(default_factory=getLocalDateStr)
+    # 1-based, per branch per day. Server-assigned at time-in (see time_in_report) — never
+    # taken from the client.
+    shiftNumber: Optional[int] = None
 
     
 class TimeOutCashierReport(BaseModel):

@@ -41,9 +41,17 @@ def get_reports(user_id):
 
 
     try:
-        previous_report = reportRepository.find_one({
-            'cashierId': user_id,
-        })
+        # The drawer belongs to the branch, not the cashier: the last CLOSED shift at this branch
+        # (any cashier) is what the next shift's opening fund is counted against. Falls back to
+        # the cashier's own last closed shift when no branch is given. Open shifts are excluded —
+        # the latest row overall is often the shift currently in progress.
+        branch_id = request.args.get('branchId')
+        previous_query = { 'timeOut': { '$ne': None } }
+        if branch_id:
+            previous_query['branchId'] = branch_id
+        else:
+            previous_query['cashierId'] = user_id
+        previous_report = reportRepository.find_one(previous_query)
 
         # query = {} if cashierId is None else { 'cashierId': cashierId }
         reports = reportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date, params, include_dev_test=include_dev_test)
@@ -90,11 +98,20 @@ def time_in_report(user_id):
     # matters). TimeInCashierReport's date/timeIn default_factory only fires when the field is
     # absent from **request_data, so passing them explicitly here, after the spread, is what
     # actually forces the server's clock to win.
+    # Sequence is atomic, so concurrent time-ins at one branch never share a number. A time-in
+    # that then loses the unique-index race below burns a number — a cosmetic gap, acceptable.
+    # The date rides in `type`, not as its own field: unique_counter_key (app/database/indexes.py)
+    # only covers type/ptuNumber/cashierId/branchId, so a separate date field would make every
+    # day after the first collide on the same key.
+    shift_number = reportRepository._get_next_sequence({
+        'type': f'SHIFT_NUMBER:{date_today}', 'branchId': branch_id
+    })
     model = TimeInCashierReport(
-        **request_data,
+        **omit(request_data, 'shiftNumber'),
         cashierId=user_id,
         date=date_today,
         timeIn=getLocalTimeStr(),
+        shiftNumber=shift_number,
     )
 
     openingFund = cashCountRepository.insert_one({

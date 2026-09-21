@@ -73,7 +73,9 @@ def generate_reports(user_id):
         # guarantees at most one open (`timeOut: None`) row per cashier+branch+day, so this same
         # $match already catches the one shape of duplicate that would actually corrupt the totals.
         open_cashiers = list(cashierReportRepository._db[cashierReportRepository._collection].aggregate([
-            { '$match': { 'branchId': model.branchId, 'date': model.date, 'timeOut': None } },
+            # `$lte`, not equality: a shift forgotten open on an earlier day would otherwise
+            # never be caught, and its sales/cash would silently miss that day's close.
+            { '$match': { 'branchId': model.branchId, 'date': { '$lte': model.date }, 'timeOut': None } },
             {
                 '$addFields': { 'cashierObjectId': { '$convert': { 'input': '$cashierId', 'to': 'objectId', 'onError': None, 'onNull': None } } }
             },
@@ -83,7 +85,7 @@ def generate_reports(user_id):
         ]))
         if(len(open_cashiers) > 0):
             names = [c['name'] for c in open_cashiers]
-            message = f"Cannot generate Z-Report: cashier(s) still timed in on {model.date} — {', '.join(names)}. Time them out first."
+            message = f"Cannot generate Z-Report: cashier(s) still timed in on or before {model.date} — {', '.join(names)}. Time them out first."
             logger.insert_one(AuditLog(action=AuditCode.Z_REPORT_GENERATE_ERR, userId=user_id, message=message))
             return jsonify({ 'message': message }), 409
 

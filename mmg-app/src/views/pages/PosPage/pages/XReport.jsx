@@ -93,6 +93,20 @@ function XReportPage() {
                             color="primary"
                             disabled={isLoading}
                             onClick={() => {
+                                // CashRegister cleared the persisted branch on time-out; the
+                                // in-memory one is still valid, so restore it and go straight to
+                                // the opening-fund screen for the next shift.
+                                localStorage.setItem('selectedBranch', JSON.stringify(branch));
+                                navigate('/pos');
+                            }}
+                        >
+                            Start next shift
+                        </Button>
+                        <Button
+                            size="large"
+                            color="primary"
+                            disabled={isLoading}
+                            onClick={() => {
                                 generateZReport({ branchId: branch.id })
                                     .then(() => navigate('/pos/z-report'))
                             }}

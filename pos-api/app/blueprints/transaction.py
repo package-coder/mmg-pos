@@ -16,6 +16,7 @@ from app.new_models.Transaction import CreateCashTransaction, CreateOnAccountTra
 from app.new_models.Transaction import CreateRefundTransaction, CreateTransaction, CreateCancelledTransaction, TransactionStatus
 from app.repositories.app_settings import AppSettingsRepository, DEV_TEST_MODE_KEY
 from app.repositories.audit_log import AuditLogRepository
+from app.repositories.cashier_report import CashierReportRepository
 from app.repositories.transaction import TransactionRepository
 from app.repositories.transaction_discount import TransactionDiscountRepository
 from app.repositories.transaction_item import TransactionItemRepository
@@ -30,6 +31,7 @@ paymentMethodRepository = PaymentMethodRepository()
 discountRepository = TransactionDiscountRepository()
 itemRepository = TransactionItemRepository()
 auditLogRepository = AuditLogRepository()
+cashierReportRepository = CashierReportRepository()
 appSettingsRepository = AppSettingsRepository()
 
 # Dev Test Mode (mmg-app/src/utils/devTestMode.js) mocks terminal info with a PTU of this
@@ -37,6 +39,21 @@ appSettingsRepository = AppSettingsRepository()
 # Deriving the tag from the PTU itself (rather than trusting a client-sent boolean) means it
 # can't be spoofed independently of the one signal that's already required to produce it.
 DEV_PTU_PREFIX = 'DEV-PTU-'
+
+
+def _open_shift_id(user_id, branch_id):
+    """The cashier's currently open shift (cashier_reports row) at this branch, as a string id, or
+    None. Stamped on every sale/void so a shift's X-report is attributed by id rather than only by
+    its [timeIn, timeOut] window. Resolved server-side from the caller's own open shift — the
+    client never supplies it. At most one open shift per cashier+branch+day exists
+    (unique_active_cashier_report_per_day); if a stale one from an earlier day is also open, the
+    newest wins."""
+    shift = cashierReportRepository._db[cashierReportRepository._collection].find_one(
+        { 'cashierId': user_id, 'branchId': branch_id, 'timeOut': None },
+        { '_id': 1 },
+        sort=[('_id', -1)]
+    )
+    return str(shift['_id']) if shift else None
 
 
 def _is_dev_test(ptu_number):
@@ -303,6 +320,9 @@ def v3_create_transaction(user_id):
         try:
             data = model.model_dump(by_alias=True, exclude={'discounts', 'transactionItems'})
             data['isDevTest'] = _is_dev_test(model.ptuNumber)
+            # Also re-stamped when a hold is completed: it belongs to the shift that actually
+            # took the payment, not the one that put it on hold.
+            data['shiftId'] = _open_shift_id(user_id, model.branchId)
             if existing_hold:
                 result = transactionRepository.update_one_bare({ "_id": existing_hold["_id"] }, data)
                 # The cart may have been edited after restoring the hold (items added/removed,
@@ -497,6 +517,9 @@ def v3_cancel_transaction(user_id):
             # omit(transaction, ...) — the cancelling terminal may be in Dev Test Mode even when
             # the original sale wasn't, or vice versa.
             void_doc['isDevTest'] = _is_dev_test(model.ptuNumber)
+            # The void counts in the shift that processes it (same as the transactionDate window
+            # it's reported in), not the original sale's shift that omit() above copied over.
+            void_doc['shiftId'] = _open_shift_id(user_id, model.branchId)
             void_doc['serialNumber'] = transactionRepository._get_next_sequence({ "type": next_sequence, "ptuNumber": model.ptuNumber })
             void_doc['status'] = model.status
             void_doc['totalNetSales'] = -1 * void_doc['totalNetSales']

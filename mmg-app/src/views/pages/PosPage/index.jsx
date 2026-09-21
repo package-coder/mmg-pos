@@ -55,11 +55,23 @@ const handleBack = () => {
 
 const CashierReportContext = createContext();
 
+// A stored cash count is flat, keyed 'M1000' / 'M0P25' (see pos-api CashCount.formatKey), while
+// CashRegister's entries are keyed by plain denomination ('1000' / '0.25').
+const toCashRegisterEntries = (cashCount) => {
+    if (!cashCount) return undefined;
+    const entries = {};
+    Object.entries(cashCount).forEach(([key, count]) => {
+        if (!/^M[0-9P]+$/.test(key) || !(count > 0)) return;
+        entries[key.slice(1).replace('P', '.')] = count;
+    });
+    return entries;
+};
+
 const PosPage = () => {
     const { branch, user, loading: fetchingUser } = useAuth();
     const { data, isLoading, refetch, isRefetching } = useQuery(
-        'cashier-report',
-        () => cashier_report.GetAllCashierReport({ dateFilter: DateFilterEnum.TODAY, cashierId: user?._id }),
+        ['cashier-report', branch?.id],
+        () => cashier_report.GetAllCashierReport({ dateFilter: DateFilterEnum.TODAY, cashierId: user?._id, branchId: branch?.id }),
         {
             enabled: !fetchingUser && user != null
         }
@@ -93,7 +105,7 @@ const PosPage = () => {
     return (
         <CashierReportContext.Provider value={{ report, loading: isLoading, getDrawerBalance, isRefetching, refetch }}>
             <ToastContainer />
-            {reportIsActive ? <PosComponent /> : <CashRegister initialValues={previousReport?.endingCashOnHand?.count} />}
+            {reportIsActive ? <PosComponent /> : <CashRegister initialValues={toCashRegisterEntries(previousReport?.endingCashCount)} />}
         </CashierReportContext.Provider>
     );
 };

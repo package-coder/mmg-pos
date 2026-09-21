@@ -24,6 +24,29 @@ class CashierReportRepository(BackupRepository):
     _transaction_discount_collection = TransactionDiscountRepository()._collection
 
 
+    @staticmethod
+    def _in_shift(prefix=""):
+        """Match expression: a transaction (or, via prefix="$transaction.", a discount's joined
+        transaction) belongs to the shift bound as $$shiftId / $$timeIn / $$timeOut.
+
+        Stamped sales match on `shiftId` exactly. Sales with no shiftId (created before shift ids
+        existed, or with no open shift) fall back to the shift's [timeIn, timeOut] window — a
+        shift that has already got its own stamped id never claims another shift's stamped sale
+        through the window, so two back-to-back shifts can't both count a sale at the boundary."""
+        shift_id = f"{prefix}shiftId" if prefix else "$shiftId"
+        date = f"{prefix}transactionDate" if prefix else "$transactionDate"
+        return { "$or": [
+            { "$eq": [shift_id, "$$shiftId"] },
+            { "$and": [
+                { "$eq": [{ "$ifNull": [shift_id, None] }, None] },
+                { "$gte": [date, "$$timeIn"] },
+                { "$or": [
+                    { "$eq": ["$$timeOut", None] },
+                    { "$lte": [date, "$$timeOut"] },
+                ]},
+            ]},
+        ]}
+
     def find(self, query={}, *args, include_dev_test=False):
         # Dev Test Mode (mmg-app) is a per-browser toggle the server has no way to see on its
         # own — the frontend passes `includeDevTest=true` (see app/blueprints/cashier_report.py)
@@ -111,6 +134,7 @@ class CashierReportRepository(BackupRepository):
                         "let": {
                             "branchId": "$branchId",
                             "cashierId": "$cashierId",
+                            "shiftId": { "$toString": "$_id" },
                             "timeIn": "$timeIn",
                             "timeOut": "$timeOut"
                         },
@@ -121,11 +145,7 @@ class CashierReportRepository(BackupRepository):
                                         "$and": [
                                             { "$eq": ["$branchId", "$$branchId"] },
                                             { "$eq": ["$cashierId", "$$cashierId"] },
-                                            { "$gte": ["$transactionDate", "$$timeIn"] },
-                                            { "$or": [
-                                                { "$eq": ["$$timeOut", None] },
-                                                { "$lte": ["$transactionDate", "$$timeOut"] },
-                                            ]},
+                                            self._in_shift(),
                                             *dev_test_filter,
                                         ]
                                     }
@@ -142,6 +162,7 @@ class CashierReportRepository(BackupRepository):
                         "let": {
                             "branchId": "$branchId",
                             "cashierId": "$cashierId",
+                            "shiftId": { "$toString": "$_id" },
                             "timeIn": "$timeIn",
                             "timeOut": "$timeOut"
                         },
@@ -152,11 +173,7 @@ class CashierReportRepository(BackupRepository):
                                         "$and": [
                                             { "$eq": ["$branchId", "$$branchId"] },
                                             { "$eq": ["$cashierId", "$$cashierId"] },
-                                            { "$gte": ["$transactionDate", "$$timeIn"] },
-                                            { "$or": [
-                                                { "$eq": ["$$timeOut", None] },
-                                                { "$lte": ["$transactionDate", "$$timeOut"] },
-                                            ]},
+                                            self._in_shift(),
                                             { "$in": [ "$status", ['completed', 'refunded'] ]},
                                             *dev_test_filter,
                                         ]
@@ -188,6 +205,7 @@ class CashierReportRepository(BackupRepository):
                         "let": {
                             "branchId": "$branchId",
                             "cashierId": "$cashierId",
+                            "shiftId": { "$toString": "$_id" },
                             "timeIn": "$timeIn",
                             "timeOut": "$timeOut"
                         },
@@ -221,11 +239,7 @@ class CashierReportRepository(BackupRepository):
                                 "$match": {
                                     "$expr": {
                                         "$and": [
-                                            { "$gte": ["$transaction.transactionDate", "$$timeIn"] },
-                                            { "$or": [
-                                                { "$eq": ["$$timeOut", None] },
-                                                { "$lte": ["$transaction.transactionDate", "$$timeOut"] },
-                                            ]},
+                                            self._in_shift("$transaction."),
                                         ]
                                     }
                                 }
