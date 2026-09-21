@@ -25,11 +25,9 @@ services:
       # Browser connects to the proxy through the host-mapped port
       - VITE_APP_SERVER_PORT=8002
       # pos-helper-app never runs in this stack, so checkout would otherwise always block on
-      # the PTU/terminal check. This is only the one-time DEFAULT for the "Dev Test Mode"
-      # runtime toggle (see mmg-app/src/utils/devTestMode.js) — once someone opens Settings on
-      # a given browser and picks explicitly, this value stops applying to it. Never set this in
-      # docker-compose.prod.yml: it fakes the accredited-terminal identity.
-      - VITE_APP_SKIP_TERMINAL_CHECK=true
+      # the PTU/terminal check unless someone turns on "Dev Test Mode" once in Settings (see
+      # mmg-app/src/utils/devTestMode.js) — it's a DB-persisted, off-by-default toggle shared by
+      # this whole deployment, no longer a build-time env flag here.
     restart: always
 
   # ─── Flask API ─────────────────────────────────────────────────────────────

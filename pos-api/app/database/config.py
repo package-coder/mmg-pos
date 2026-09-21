@@ -38,6 +38,7 @@ approvals = database.approvals
 payments = database.payments
 financial_records = database.financial_records
 reports = database.reports
+app_settings = database.app_settings
 
 #CAS
 items = database.items
