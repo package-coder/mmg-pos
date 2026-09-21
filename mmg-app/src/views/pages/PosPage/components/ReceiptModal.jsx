@@ -84,7 +84,7 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint: reprintProp, o
         <Dialog open={open} onClose={!forceShow ? onClose : null} maxWidth="sm" fullWidth>
             <DialogContent >
                 <Box ref={targetRef} p={2} pr={1}>
-                    <Receipt transaction={transaction} />
+                    <Receipt transaction={transaction} hideDevTestLabel={devTestMode && !asReprint} />
                 </Box>
             </DialogContent>
             <DialogActions>

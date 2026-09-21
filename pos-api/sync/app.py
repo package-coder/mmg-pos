@@ -366,6 +366,20 @@ def pull_cloud_dev_transactions(remote_db, local_db):
                       .sort('_id', -1).limit(BATCH_SIZE))
   copied += copy('new_transactions', transactions)
 
+  # A cancel/refund flips the original in place (no serial number) and inserts a separate void
+  # document that carries `serialNumber`, and is tagged isDevTest from the CANCELLING terminal's
+  # PTU. Pull those too, by the invoice they reference, or a cancelled/refunded receipt has no
+  # serial number to print.
+  invoice_numbers = [t['invoiceNumber'] for t in transactions if t.get('invoiceNumber') is not None]
+  if invoice_numbers:
+    voids = list(remote_db['new_transactions'].find({
+      'branchId': {'$in': branch_ids},
+      'invoiceNumber': {'$in': invoice_numbers},
+      'serialNumber': {'$exists': True, '$ne': None},
+    }))
+    copied += copy('new_transactions', voids)
+    transactions += [v for v in voids if v['_id'] not in {t['_id'] for t in transactions}]
+
   transaction_ids = [t['_id'] for t in transactions]
   transaction_ids += [str(i) for i in transaction_ids]
   if transaction_ids:

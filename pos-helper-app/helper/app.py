@@ -330,7 +330,7 @@ def print_receipt(request_data: dict = {}):
                 # Printed AND journaled (this write goes through the same p.write() as everything
                 # else, so it lands in ejournal.txt too) so a dev-test entry is never mistaken for a
                 # real BIR-relevant one on either the paper copy or the audit trail.
-                if transaction.get('isDevTest') and not request_data.get('actualCopy'):
+                if transaction.get('isDevTest') and reprint:
                     p.set(align='center', bold=True)
                     p.write('*** DEV TEST — NOT A REAL RECEIPT ***\n\n')
                 p.set(align='center', bold=True)
@@ -367,7 +367,7 @@ def print_receipt(request_data: dict = {}):
                 if(transaction['status'] == 'completed'):
                     p.row("Invoice #: ", str(transaction["invoiceNumber"]).zfill(6))
                 else:
-                    p.row("Serial #: ", str(transaction["serialNumber"]).zfill(6))
+                    p.row("Serial #: ", str(transaction.get("serialNumber") or '').zfill(6) if transaction.get("serialNumber") else '---')
                     p.row("Reference #: ", str(transaction["invoiceNumber"]).zfill(6))
 
                 p.line()
