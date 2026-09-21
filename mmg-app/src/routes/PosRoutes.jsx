@@ -7,7 +7,7 @@ import MinimalLayout from 'layout/MinimalLayout';
 import AuthorizeRoute from './components/AuthorizeRoute';
 import Role from 'utils/Role';
 import { APP_ROLE } from 'api';
-import { useDevTestMode } from 'utils/devTestMode';
+import { useDevTestModeState } from 'utils/devTestMode';
 
 const PosPage = Loadable(lazy(() => import('views/pages/PosPage')));
 const PosXReportPage = Loadable(lazy(() => import('views/pages/PosPage/pages/XReport')));
@@ -24,7 +24,9 @@ const PosPageAr = Loadable(lazy(() => import('views/pages/PosPage/components/Pos
 // exercise POS routes for testing without permanently reopening a boundary that exists for
 // real data-integrity reasons (invoice numbering, sync assumptions).
 const PosGuard = () => {
-    const devTestMode = useDevTestMode();
+    const { enabled: devTestMode, loaded } = useDevTestModeState();
+    // Wait for the server value; acting on the not-yet-loaded default bounced admins to /404
+    if (APP_ROLE === 'admin' && !loaded) return null;
     if (APP_ROLE === 'admin' && !devTestMode) return <Navigate to="/404" replace />;
     return <AuthorizeRoute roles={[Role.ADMIN, Role.CASHIER]} />;
 };

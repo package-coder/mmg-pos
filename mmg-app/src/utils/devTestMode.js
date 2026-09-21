@@ -80,6 +80,21 @@ export function useDevTestMode() {
     return enabled;
 }
 
+// Like useDevTestMode, but also reports whether the server value has been fetched yet, so a
+// route guard can wait instead of acting on the not-yet-loaded default (false).
+export function useDevTestModeState() {
+    const [state, setState] = useState({ enabled: cachedEnabled, loaded });
+
+    useEffect(() => {
+        ensureLoaded().then(() => setState({ enabled: cachedEnabled, loaded: true }));
+        const handler = () => setState({ enabled: cachedEnabled, loaded });
+        window.addEventListener(CHANGE_EVENT, handler);
+        return () => window.removeEventListener(CHANGE_EVENT, handler);
+    }, []);
+
+    return state;
+}
+
 // Printing is real hardware/BIR-journaled activity — allowed on a branch deployment always,
 // and on the admin instance only while Dev Test Mode is on.
 export function canPrint() {

@@ -1,3 +1,12 @@
+// A lazy route chunk that fails to load (typically a stale hashed file after a redeploy) would
+// surface as an element error; reload once to pick up the new build.
+window.addEventListener('vite:preloadError', () => {
+    if (sessionStorage.getItem('chunk-reload')) return;
+    sessionStorage.setItem('chunk-reload', '1');
+    window.location.reload();
+});
+window.addEventListener('load', () => setTimeout(() => sessionStorage.removeItem('chunk-reload'), 5000));
+
 // Every `moment()` call in the app (40+ call sites) is bare, with no explicit
 // timezone — moment defaults to the *viewer's browser* timezone, not the
 // business's. Since the admin instance can be viewed from anywhere, and
