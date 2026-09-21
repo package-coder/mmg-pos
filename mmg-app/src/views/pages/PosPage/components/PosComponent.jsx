@@ -162,7 +162,6 @@ const PosComponent = () => {
 
     const [combinedDoctorData, setCombinedDoctorData] = useState([]);
     const [selectedPackages, setSelectedPackages] = useState([]);
-    const [selectedLabTest, setSelectedlabTest] = useState([]);
     const [transactionData, setTransactionData] = useState([]);
     // Deliberately separate from transactionData.id — that field is also populated by the
     // unrelated legacy "New Transaction" shell record (createTransactionMutation ->
@@ -243,7 +242,6 @@ const PosComponent = () => {
             setTransactionData([]);
             setHoldTransactionId(null);
             setSelectedPackages([]);
-            setSelectedlabTest([]);
             setItems([]);
             setTotal(0);
             setSubTotal(0);
@@ -444,6 +442,11 @@ const PosComponent = () => {
             default:
                 // Handle unexpected package types here (e.g., log an error)
 
+                if (selectedPackagesX.labtests.some((labTest) => labTest._id === item._id)) {
+                    alert(`${item.name} is already added.`);
+                    return;
+                }
+
                 item = {
                     source: 'labTest',
                     qty: 1,
@@ -537,7 +540,6 @@ const PosComponent = () => {
         setTransactionData([]);
         setHoldTransactionId(null);
         setSelectedPackages([]);
-        setSelectedlabTest([]);
         setItems([]);
         setTotal(0);
         setSubTotal(0);
@@ -556,7 +558,6 @@ const PosComponent = () => {
         setIsPackageOrPromoAdded(false);
         setDiscountApplied(false);
         setSelectedPackages([]);
-        setSelectedlabTest([]);
         setRegularDiscount(0);
         setRegularDiscountName(undefined);
         setRegularDiscountMemberType(undefined);
@@ -825,7 +826,6 @@ const PosComponent = () => {
             setTransactionData([]);
             setHoldTransactionId(null);
             setSelectedPackages([]);
-            setSelectedlabTest([]);
             setReferenceNumber(null);
             setAppliedDiscount(null);
             setIsAutoAppliedDiscount(false);
@@ -1152,7 +1152,7 @@ const PosComponent = () => {
                             </Typography>
                             <LabTestComponent
                                 packageTests={selectedPackagesX.packages}
-                                selectedLabTest={selectedLabTest}
+                                selectedLabTest={selectedPackagesX.labtests}
                                 handleAddItem={handleAddItem}
                                 disabled={!customerData?.name}
                                 hideTitle

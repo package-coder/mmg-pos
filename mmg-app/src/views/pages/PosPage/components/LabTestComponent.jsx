@@ -125,7 +125,7 @@ export default memo(function ({ packageTests, selectedLabTest, handleAddItem, di
                     const isLabTestInPackage = packageTests?.some(
                         (i) => i.source === 'package' && i.labTest.some((itemObj) => itemObj.name === service?.name)
                     );
-                    const selected = selectedLabTest?.some((test) => test === service?.name);
+                    const selected = selectedLabTest?.some((test) => test._id === service?._id);
 
                     return (
                         <Grid item xs="auto" key={index}>
@@ -141,7 +141,7 @@ export default memo(function ({ packageTests, selectedLabTest, handleAddItem, di
                                     fontWeight: selected ? 'bold' : 'normal'
                                 }}
                                 onClick={() => handleAddItem(service)}
-                                disabled={disabled || isLabTestInPackage}
+                                disabled={disabled || isLabTestInPackage || selected}
                             >
                                 {service.name}
                             </Button>
@@ -211,7 +211,7 @@ export default memo(function ({ packageTests, selectedLabTest, handleAddItem, di
                                     const isLabTestInPackage = packageTests?.some(
                                         (i) => i.source === 'package' && i.labTest.some((itemObj) => itemObj.name === service?.name)
                                     );
-                                    const selected = selectedLabTest?.some((test) => test === service?.name);
+                                    const selected = selectedLabTest?.some((test) => test._id === service?._id);
 
                                     return (
                                         <Grid item xs="auto" key={index}>
@@ -227,7 +227,7 @@ export default memo(function ({ packageTests, selectedLabTest, handleAddItem, di
                                                     fontWeight: selected ? 'bold' : 'normal'
                                                 }}
                                                 onClick={() => handleAddItem(service)}
-                                                disabled={disabled || isLabTestInPackage}
+                                                disabled={disabled || isLabTestInPackage || selected}
                                             >
                                                 {service.name}
                                             </Button>
