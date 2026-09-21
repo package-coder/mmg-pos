@@ -20,6 +20,9 @@ class TimeInCashierReport(BaseModel):
     # 1-based, per branch per day. Server-assigned at time-in (see time_in_report) — never
     # taken from the client.
     shiftNumber: Optional[int] = None
+    # PTU of the terminal the cashier logged in on (from the helper's config.json, captured at
+    # login). Lets X-reports and the transaction list be scoped to one accredited terminal.
+    ptuNumber: Optional[str] = None
 
     
 class TimeOutCashierReport(BaseModel):

@@ -38,6 +38,7 @@ class BranchReportRepository(BackupRepository):
                         "$and": [
                             { "$eq": ["$branchId", "$$branchId"] },
                             { "$eq": ["$date", "$$date"] },
+                            { "$eq": [{ "$ifNull": ["$ptuNumber", None] }, "$$ptuNumber"] },
                             *dev_test_filter,
                         ]
                     }
@@ -54,9 +55,10 @@ class BranchReportRepository(BackupRepository):
                 { '$match': { "status": { "$in": [TransactionStatus.COMPLETED, TransactionStatus.REFUNDED] }, **dev_test_match } },
                 {
                     "$group": {
-                        "_id": { "branchId": "$branchId", "date": "$date"  },
+                        "_id": { "branchId": "$branchId", "date": "$date", "ptuNumber": { "$ifNull": ["$ptuNumber", None] } },
                         'date': { '$first': '$date' },
                         'branchId': { '$first': '$branchId' },
+                        'ptuNumber': { '$first': { "$ifNull": ["$ptuNumber", None] } },
                         "totalGrossSales": { "$sum": "$totalGrossSales" },
                         "totalNetSales": { "$sum": "$totalNetSales" },
                         "totalDiscount": { "$sum": "$totalDiscount" },
@@ -82,7 +84,8 @@ class BranchReportRepository(BackupRepository):
                         "from": self._transaction_collection,
                         "let": {
                             "branchId": "$branchId",
-                            "date": "$date"
+                            "date": "$date",
+                            "ptuNumber": "$ptuNumber"
                         },
                         "pipeline": [
                             self._default_filter(include_dev_test),
@@ -100,7 +103,8 @@ class BranchReportRepository(BackupRepository):
                         "from": 'transaction_discounts',
                         "let": {
                             "branchId": "$branchId",
-                            "date": "$date"
+                            "date": "$date",
+                            "ptuNumber": "$ptuNumber"
                         },
                         "pipeline": [
                             self._default_filter(include_dev_test),
@@ -118,6 +122,8 @@ class BranchReportRepository(BackupRepository):
                                 }, 
                             },
                             { "$unwind": "$transaction" },
+                            # discount rows carry no PTU of their own — use the sale's
+                            { "$match": { "$expr": { "$eq": [{ "$ifNull": ["$transaction.ptuNumber", None] }, "$$ptuNumber"] } } },
                             {
                                 '$project': {
                                     "_id": 0,
@@ -204,8 +210,8 @@ class BranchReportRepository(BackupRepository):
                 item['transactionSummary'] = transactionSummary
                 item['paymentBreakdown'] = payment_breakdown(item['transactions'])
 
-                item['presentAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), True, include_dev_test)
-                item['previousAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), False, include_dev_test)
+                item['presentAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), True, include_dev_test, item.get('ptuNumber'))
+                item['previousAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), False, include_dev_test, item.get('ptuNumber'))
 
                 # item['presentAccumulatedSales'] = get(item, 'presentAccumulatedSales.totalSales', 0)
                 # item['previousAccumulatedSales'] = get(item, 'previousAccumulatedSales.totalSales', 0)
@@ -245,7 +251,7 @@ class BranchReportRepository(BackupRepository):
 
         return filtered_reports
 
-    def calculate_accumulated_sales(self, branchId: str, date: datetime, present: bool = True, include_dev_test: bool = False):
+    def calculate_accumulated_sales(self, branchId: str, date: datetime, present: bool = True, include_dev_test: bool = False, ptu_number=None):
         queryDate = date if present else (date - timedelta(days=1))
         dev_test_match = {} if include_dev_test else { "isDevTest": { "$ne": True } }
 
@@ -254,6 +260,9 @@ class BranchReportRepository(BackupRepository):
                 {
                     '$match': {
                         "branchId": { "$eq": branchId },
+                        # accumulated sales belong to one accredited machine (BIR grand total);
+                        # None still matches legacy sales that carry no PTU
+                        "ptuNumber": ptu_number if ptu_number else { "$in": [None, ""] },
                         "status": { "$in": [TransactionStatus.COMPLETED, TransactionStatus.REFUNDED] },
                         "date": { "$lte": str(queryDate.date()) },
                         **dev_test_match
@@ -315,7 +324,8 @@ class BranchReportRepository(BackupRepository):
                     "from": self._transaction_collection,
                     "let": {
                         "branchId": "$branchId",
-                        "date": "$date"
+                        "date": "$date",
+                        "ptuNumber": "$ptuNumber"
                     },
                     "pipeline": [
                         {
@@ -399,7 +409,8 @@ class BranchReportRepository(BackupRepository):
                     "from": self._collection,
                     "let": {
                         "branchId": "$branchId",
-                        "date": "$date"
+                        "date": "$date",
+                        "ptuNumber": "$ptuNumber"
                     },
                     "pipeline": [
                         self._default_filter(),
@@ -422,7 +433,8 @@ class BranchReportRepository(BackupRepository):
                         "from": self._transaction_collection,
                         "let": {
                             "branchId": "$branchId",
-                            "date": "$date"
+                            "date": "$date",
+                            "ptuNumber": "$ptuNumber"
                         },
                         "pipeline": [
                             {
@@ -431,6 +443,7 @@ class BranchReportRepository(BackupRepository):
                                         "$and": [
                                             { "$eq": ["$branchId", "$$branchId"] },
                                             { "$eq": ["$date", "$$date"] },
+                                            { "$eq": [{ "$ifNull": ["$ptuNumber", None] }, "$$ptuNumber"] },
                                             {"$eq": ["$status", type]},
                                             *dev_test_filter,
                                         ]
@@ -461,7 +474,8 @@ class BranchReportRepository(BackupRepository):
                         "from": self._cashier_report_collection,
                         "let": {
                             "branchId": "$branchId",
-                            "date": "$date"
+                            "date": "$date",
+                            "ptuNumber": "$ptuNumber"
                         },
                         "pipeline": [
                             self._default_filter(),
@@ -496,7 +510,8 @@ class BranchReportRepository(BackupRepository):
                     "from": self._cash_count_collection,
                         "let": {
                         "branchId": "$branchId",
-                        "date": "$date"
+                        "date": "$date",
+                        "ptuNumber": "$ptuNumber"
                     },
                     "pipeline": [
                         {
@@ -505,6 +520,7 @@ class BranchReportRepository(BackupRepository):
                                     "$and": [
                                         { "$eq": ["$branchId", "$$branchId"] },
                                         { "$eq": ["$date", "$$date"] },
+                                        { "$eq": [{ "$ifNull": ["$ptuNumber", None] }, "$$ptuNumber"] },
                                         { "$eq": ["$type", type] },
                                     ]
                                 }

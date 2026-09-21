@@ -142,6 +142,7 @@ def get_transactions(user_id):
     end_date = request.args.get('endDate')
     cashierId = request.args.get('cashierId')
     branchId = request.args.get('branchId')
+    ptuNumber = request.args.get('ptuNumber')
 
     try:
         query = {}
@@ -155,6 +156,13 @@ def get_transactions(user_id):
             query['cashierId'] = cashierId
         if branchId is not None:
             query['branchId'] = branchId
+        # Scope to the requesting terminal (cashier login captures its PTU). A hold never had a
+        # PTU assigned before completion, so unassigned holds stay visible for resuming.
+        if ptuNumber:
+            query['$or'] = [
+                { 'ptuNumber': ptuNumber },
+                { 'status': TransactionStatus.HOLD, 'ptuNumber': { '$in': [None, ''] } },
+            ]
 
         transaction = transactionRepository.find(query)
 

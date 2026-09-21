@@ -33,7 +33,7 @@ def get_reports(user_id):
     custom_date = request.args.get('customDate')
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
-    params = pick(request.args.to_dict(), ['date', 'cashierId'])
+    params = pick(request.args.to_dict(), ['date', 'cashierId', 'ptuNumber'])
     # Dev Test Mode (mmg-app) is a per-browser toggle the server can't see on its own — the
     # frontend sends this explicitly while it's on, so a tester's own dev-test sales still
     # count toward their drawer balance/X-report for that shift. Off by default.
@@ -116,7 +116,7 @@ def time_in_report(user_id):
 
     openingFund = cashCountRepository.insert_one({
         **model.openingFund.count,
-        **model.model_dump(include={'branchId', 'date'}),
+        **model.model_dump(include={'branchId', 'date', 'ptuNumber'}),
         "total": model.openingFund.total,
         "type": "opening"
     })
@@ -194,6 +194,8 @@ def time_out_report(user_id):
         **model.endingCashCount.count,
         **model.model_dump(include={'branchId'}),
         "date": business_date,
+        # the shift's own PTU (set at time-in), so the per-terminal Z-report can find this count
+        "ptuNumber": blocking_report.get('ptuNumber'),
         "total": model.endingCashCount.total,
         "type": "ending"
     })

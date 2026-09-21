@@ -22,8 +22,12 @@ class GetBranchReportQuery(BaseModel):
     startDate: Optional[date] = None
     endDate: Optional[date] = None
     branchIds: Optional[list[str]] = None
+    # Narrow to one terminal's Z-report; absent = every terminal (admin/manager view).
+    ptuNumber: Optional[str] = None
     
 class GenerateBranchReport(BaseModel): 
     date: str = Field(default_factory=getLocalDateStr)
     cashierId: str
     branchId: str
+    # Z-reports are per accredited terminal (BIR): one per (branch, PTU, date).
+    ptuNumber: Optional[str] = None

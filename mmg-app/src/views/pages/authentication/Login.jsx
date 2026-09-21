@@ -17,6 +17,7 @@ import { useTheme } from '@mui/system';
 import { useEffect, useState } from 'react';
 import { Link, TextField } from '@mui/material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { usePrinter } from 'providers/PrinterProvider';
 import { useAuth } from 'providers/AuthProvider';
 import FooterWatermark from 'ui-component/FooterWatermark';
 import { APP_ROLE } from 'api';
@@ -28,6 +29,7 @@ const validationSchema = Yup.object().shape({
 
 const Login = () => {
     const { loginUser } = useAuth();
+    const { getTerminalInfo } = usePrinter();
     const { state } = useLocation();
     const redirect = state?.redirect;
 
@@ -35,7 +37,7 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const navigate = useNavigate();
 
-    const { mutateAsync } = useMutation(loginUser);
+    const { mutateAsync } = useMutation((values) => loginUser(values, getTerminalInfo));
 
     const handleSubmit = (values, actions) => {
         mutateAsync(values)

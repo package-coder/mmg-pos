@@ -1,5 +1,6 @@
 import { server } from 'api';
 import { omit } from 'lodash';
+import { getPtuNumber } from 'utils/terminalSession';
 
 export const TRANSACTION_ENDPOINTS = '';
 
@@ -118,7 +119,8 @@ async function CancelHoldTransaction(model) {
 
 async function GetAllTransaction(params) {
     const { data: { data } } = await server.get(TRANSACTION_ENDPOINTS + '/v2/transactions', {
-        params
+        // Scoped to this terminal's PTU when a cashier is logged in (undefined for admin/manager).
+        params: { ptuNumber: getPtuNumber(), ...params }
     })
     return data;
 }

@@ -1,12 +1,13 @@
 import { server } from 'api';
 import { isDevTestModeEnabled } from 'utils/devTestMode';
+import { getPtuNumber } from 'utils/terminalSession';
 
 export const BRANCH_ENDPOINTS = '/v2/cashier-reports';
 
 async function TimeInCashierReport(model) {
     const {
         data: { data }
-    } = await server.post(BRANCH_ENDPOINTS + '/time-in', model);
+    } = await server.post(BRANCH_ENDPOINTS + '/time-in', { ptuNumber: getPtuNumber(), ...model });
     return data;
 }
 
@@ -22,7 +23,7 @@ async function GetAllCashierReport(model) {
         // Dev Test Mode on for this browser -> a tester's own dev-test sales count toward
         // their drawer balance/X-report for this shift, instead of being invisibly excluded
         // like on every other report (see app/blueprints/cashier_report.py).
-        params: { ...model, includeDevTest: isDevTestModeEnabled() }
+        params: { ptuNumber: getPtuNumber(), ...model, includeDevTest: isDevTestModeEnabled() }
     });
     return data;
 }

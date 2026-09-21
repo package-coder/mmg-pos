@@ -9,7 +9,7 @@ export default class SessionStorage {
     }
 
     get() {
-        value = localStorage.getItem(this.key);
+        const value = localStorage.getItem(this.key);
         return JSON.parse(value);
     }
 

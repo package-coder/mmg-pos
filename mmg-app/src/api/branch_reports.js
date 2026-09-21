@@ -1,5 +1,6 @@
 import { server } from 'api';
 import { isDevTestModeEnabled } from 'utils/devTestMode';
+import { getPtuNumber } from 'utils/terminalSession';
 
 export const BRANCH_REPORTS_ENDPOINTS = '/v2/branch-reports';
 
@@ -13,7 +14,7 @@ async function CreateBranchReport(model) {
 async function GenerateBranchReport(model) {
     const {
         data: { data }
-    } = await server.post(BRANCH_REPORTS_ENDPOINTS + '/generate', model);
+    } = await server.post(BRANCH_REPORTS_ENDPOINTS + '/generate', { ptuNumber: getPtuNumber(), ...model });
     return data;
 }
 
@@ -23,7 +24,7 @@ async function GetAllBranchReport(model) {
     } = await server.get(BRANCH_REPORTS_ENDPOINTS, {
         // Dev Test Mode on for this browser -> dev-test sales count toward this Z-report too
         // (see app/blueprints/branch_report.py).
-        params: { ...model, includeDevTest: isDevTestModeEnabled() }
+        params: { ptuNumber: getPtuNumber(), ...model, includeDevTest: isDevTestModeEnabled() }
     });
     return data;
 }

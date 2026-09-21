@@ -75,7 +75,7 @@ def generate_reports(user_id):
         open_cashiers = list(cashierReportRepository._db[cashierReportRepository._collection].aggregate([
             # `$lte`, not equality: a shift forgotten open on an earlier day would otherwise
             # never be caught, and its sales/cash would silently miss that day's close.
-            { '$match': { 'branchId': model.branchId, 'date': { '$lte': model.date }, 'timeOut': None } },
+            { '$match': { 'branchId': model.branchId, 'ptuNumber': model.ptuNumber, 'date': { '$lte': model.date }, 'timeOut': None } },
             {
                 '$addFields': { 'cashierObjectId': { '$convert': { 'input': '$cashierId', 'to': 'objectId', 'onError': None, 'onNull': None } } }
             },
@@ -93,7 +93,7 @@ def generate_reports(user_id):
         # app/database/indexes.py) — a duplicate would double the day's figures in every downstream
         # aggregate that sums over branch_reports.
         existing_report = reportRepository._db[reportRepository._collection].find_one(
-            { 'branchId': model.branchId, 'date': model.date }
+            { 'branchId': model.branchId, 'ptuNumber': model.ptuNumber, 'date': model.date }
         )
         if(existing_report is not None):
             message = f"A Z-Report for this branch on {model.date} has already been generated."
@@ -102,8 +102,10 @@ def generate_reports(user_id):
 
         transactionRepository.update_many_bare(
             {
-                **model.model_dump(exclude={'cashierId'}),
-                "status": TransactionStatus.HOLD
+                **model.model_dump(exclude={'cashierId', 'ptuNumber'}),
+                "status": TransactionStatus.HOLD,
+                # this terminal's holds, plus holds that never got a PTU
+                "$or": [{ "ptuNumber": model.ptuNumber }, { "ptuNumber": { "$in": [None, ""] } }],
             }, 
             { "status": TransactionStatus.CANCELLED }
         )
@@ -111,7 +113,7 @@ def generate_reports(user_id):
         previousDate = getLocalTime() - timedelta(days=1)
         # Persisted, sequential per-branch Z-Counter — never recomputed from a query result's list
         # position (that changes with whatever date filter happens to be applied) and never reset.
-        zCounter = reportRepository._get_next_sequence({ "type": "Z_COUNTER", "branchId": model.branchId })
+        zCounter = reportRepository._get_next_sequence({ "type": "Z_COUNTER", "branchId": model.branchId, "ptuNumber": model.ptuNumber })
         try:
             reportRepository.insert_one({
                 **model.model_dump(),

@@ -67,6 +67,9 @@ def ensure_indexes(db):
     # transactions — queried by status+cashierId+date for active transaction lookup
     db.transactions.create_index([("status", ASCENDING), ("cashierId", ASCENDING), ("date", ASCENDING)])
     db.transactions.create_index([("branchId", ASCENDING), ("date", ASCENDING)])
+    # PTU-scoped transaction list / X-report (cashier login captures the terminal's PTU)
+    db.transactions.create_index([("ptuNumber", ASCENDING), ("date", ASCENDING)])
+    db.cashier_reports.create_index([("ptuNumber", ASCENDING), ("date", ASCENDING)])
 
     # branch_reports — one Z-Report per branch per day. Previously a plain, non-unique index;
     # generate_reports() had no existence check at all, so generating twice for the same
@@ -77,9 +80,11 @@ def ensure_indexes(db):
         db.branch_reports.drop_index("branchId_1_date_1")
     except OperationFailure:
         pass
+    # Per terminal now: one Z-report per (branch, PTU, date). Reports from before PTU scoping
+    # have no ptuNumber and still occupy the single null slot per branch/date.
     _create_or_replace_index(
         db.branch_reports,
-        [("branchId", ASCENDING), ("date", ASCENDING)],
+        [("branchId", ASCENDING), ("ptuNumber", ASCENDING), ("date", ASCENDING)],
         unique=True,
         name="unique_branch_report_per_day",
     )
