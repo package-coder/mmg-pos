@@ -26,6 +26,7 @@ import transaction from 'api/transaction';
 import { useAuth } from 'providers/AuthProvider';
 import { useCashierReport } from '..';
 import { usePrinter } from 'providers/PrinterProvider';
+import { toast } from 'react-toastify';
 
 const validationSchema = Yup.object().shape({
     branchId: Yup.string().required(),
@@ -135,7 +136,10 @@ export default memo(function ({ disabled, buttonProps }) {
                         }
 
                         cancelTransaction({ ...values, ptuNumber: terminalInfo.PTU_NO, min: terminalInfo.MIN, sn: terminalInfo.SN })
-                            .then(context?.refetch)
+                            .then(() => {
+                                toast.success(`Transaction #${String(values.invoiceNumber).padStart(6, '0')} has been ${values.status}.`);
+                                return context?.refetch();
+                            })
                             .then(onToggle)
                             .catch((e) => {
                                 const errors = e.response.data.error || []

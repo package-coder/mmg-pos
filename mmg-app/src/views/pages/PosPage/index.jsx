@@ -12,6 +12,8 @@ import cashier_report from 'api/cashier_report';
 import { useAuth } from 'providers/AuthProvider';
 import PageLoader from 'ui-component/PageLoader';
 import { DateFilterEnum } from 'ui-component/filter/DateFilter';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' && prop !== 'theme' })(({ theme, open }) => ({
     ...theme.typography.mainContent,
@@ -90,6 +92,7 @@ const PosPage = () => {
 
     return (
         <CashierReportContext.Provider value={{ report, loading: isLoading, getDrawerBalance, isRefetching, refetch }}>
+            <ToastContainer />
             {reportIsActive ? <PosComponent /> : <CashRegister initialValues={previousReport?.endingCashOnHand?.count} />}
         </CashierReportContext.Provider>
     );
