@@ -128,7 +128,11 @@ const PrinterProvider = ({ children }) => {
 
         try {
             const ws = await getSocket()
-            ws.send(JSON.stringify({ device, device_type: type, request_id: id, ...data }))
+            // Receipts/reports in Dev Test Mode print the terminal info stored on the record instead
+            // of this workstation's config.json (helper terminal_info()). Set here so no print
+            // call site can forget it.
+            const devTest = device === 'printer' && (type === 'receipt' || type === 'report') && isDevTestModeEnabled()
+            ws.send(JSON.stringify({ device, device_type: type, request_id: id, ...data, ...(devTest && { devTestMode: true }) }))
         } catch (e) {
             settle(id, { error: e.message })
         }

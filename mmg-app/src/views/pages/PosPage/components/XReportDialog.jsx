@@ -7,11 +7,18 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { usePrinter } from 'providers/PrinterProvider';
 import { dvoteDetails } from 'utils/mockData';
 import moment from 'moment';
+import { useState } from 'react';
+import { useDevTestMode } from 'utils/devTestMode';
+import DevPrintToggles from './DevPrintToggles';
 
 export default ({ open, report, onClose, disableActions }) => {
     const navigate = useNavigate();
     const { print, printing } = usePrinter();
     const { toPDF, targetRef } = usePDF({filename: 'x-report.pdf'});
+
+    const devTestMode = useDevTestMode();
+    // Dev Test Mode only: null = follow the date-based default, boolean = manual override.
+    const [reprintOverride, setReprintOverride] = useState(null);
 
     if (!open) return null;
 
@@ -21,6 +28,7 @@ export default ({ open, report, onClose, disableActions }) => {
         print('printer', 'report', {
             ...report,
             reprint,
+            devTestMode,
             dvoteDetails,
             type: 'X_REPORT'
         });
@@ -31,6 +39,7 @@ export default ({ open, report, onClose, disableActions }) => {
             <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
                 <Typography variant="h4">X Reading Report</Typography>
                 <Box flex={1}></Box>
+                {devTestMode && <DevPrintToggles reprint={reprint} onReprintChange={setReprintOverride} />}
                 <Button
                     startIcon={<IoMdPrint />}
                     sx={{ bgcolor: 'grey.50', mr: 1 }}

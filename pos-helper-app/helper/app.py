@@ -36,6 +36,22 @@ for _w in CONFIG_WARNINGS:
     print(f"[CONFIG WARN] {_w}")
 
 
+def terminal_info(*sources, dev_test=False):
+    """(MIN, SN, PTU No) to print. Normally this workstation's config.json. In Dev Test Mode
+    there is no real terminal, so use the ones stored on the record being printed (transaction,
+    or the X/Z report and its cashier report) and fall back to config for anything missing.
+    Outside Dev Test Mode (the `devTestMode` flag mmg-app sends) it is always config.json."""
+    sources = [x for x in sources if isinstance(x, dict)]
+    ptu = next((x.get('ptuNumber') for x in sources if x.get('ptuNumber')), None)
+    if not dev_test:
+        return TERMINAL_MIN, TERMINAL_SN, TERMINAL_PTU_NO
+
+    def pick(key, default):
+        return next((x.get(key) for x in sources if x.get(key)), default)
+
+    return pick('min', TERMINAL_MIN), pick('sn', TERMINAL_SN), ptu or TERMINAL_PTU_NO
+
+
 def format_tin(value):
     """000-000-000-000, matching the mmg-app formatTin() display format."""
     if not value:
@@ -278,6 +294,8 @@ def print_receipt(request_data: dict = {}):
     customer = transaction['customer']
     reprint = request_data.get('reprint')
     reprintLabel = '(RE-PRINT)' if reprint else ''
+    term_min, term_sn, term_ptu = terminal_info(
+        transaction, dev_test=bool(request_data.get('devTestMode')))
 
     # How many physical copies to print for this one logical sale. Defaults to 1, in which case
     # the legacy single-shot `companyCopy` flag (a manual, one-copy-at-a-time reprint) still
@@ -341,9 +359,9 @@ def print_receipt(request_data: dict = {}):
                     p.row("Reprint Date: ", dateNow.strftime("%Y-%m-%d %I:%M%p"))
 
             
-                p.row("MIN: ", TERMINAL_MIN)
-                p.row("SN: ", TERMINAL_SN)
-                p.row("PTU No: ", TERMINAL_PTU_NO)
+                p.row("MIN: ", term_min)
+                p.row("SN: ", term_sn)
+                p.row("PTU No: ", term_ptu)
                 p.row("Date & Time: ", dt.strftime("%Y-%m-%d %I:%M%p"))
                 p.row("Cashier: ", start_case(cashier["first_name"] + " " + cashier["last_name"]))
                 if(transaction['status'] == 'completed'):
@@ -521,6 +539,8 @@ def print_report(data: dict = {}):
 
     reprint = data.get('reprint') 
     reprintLabel = '(RE-PRINT)' if reprint else ''
+    term_min, term_sn, term_ptu = terminal_info(
+        data, cashierReport, dev_test=bool(data.get('devTestMode')))
     dateNow = get_local_time()
 
     try:
@@ -548,9 +568,9 @@ def print_report(data: dict = {}):
             if(reprint):
                 p.row("Reprint: ", dateNow.strftime("%Y-%m-%d %I:%M%p"))
 
-            p.row("MIN: ", TERMINAL_MIN)
-            p.row("SN: ", TERMINAL_SN)
-            p.row("PTU No: ", TERMINAL_PTU_NO)
+            p.row("MIN: ", term_min)
+            p.row("SN: ", term_sn)
+            p.row("PTU No: ", term_ptu)
 
             if(type == 'X_REPORT'):
                 cashier = data['cashier']

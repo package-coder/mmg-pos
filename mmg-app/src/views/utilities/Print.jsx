@@ -77,8 +77,9 @@ const WithPrintMutation = ({ children }) => {
        
     const onPrint = async(data) => {
         // One request: the helper prints `copies` physical copies within a single journaled
-        // session. Dev Test Mode prints one copy, otherwise two.
-        const copies = isDevTestModeEnabled() ? 1 : 2
+        // session. A caller-supplied `copies` (ReceiptModal's Dev Test Mode toggle) wins;
+        // otherwise Dev Test Mode prints one copy, else two.
+        const copies = data?.copies ?? (isDevTestModeEnabled() ? 1 : 2)
         return print("printer", "receipt", { ...data, copies })
     }
 

@@ -5,27 +5,35 @@ import PrintIcon from '@mui/icons-material/Print';
 import DownloadIcon from '@mui/icons-material/Download';
 import { dvoteDetails } from "utils/mockData";
 import SplitButton from "ui-component/buttons/SplitButton";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { IoMdPrint } from 'react-icons/io';
 import { usePrinter } from 'providers/PrinterProvider';
 import { useDevTestMode } from 'utils/devTestMode';
 import { APP_ROLE } from 'api';
+import DevPrintToggles from './DevPrintToggles';
 
 
-const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPrint, receipt, transaction, forceShow }) => {
+const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint: reprintProp, onClose, onPrint, receipt, transaction, forceShow }) => {
 
     const { toPDF, targetRef } = usePDF({ filename: `invoice-${transaction?.invoiceNumber}.pdf`, page: { format: 'letter' } });
     const printing = usePrinter()?.printing
+    // Dev Test Mode only: lets a reprint be printed as an actual (non-reprint) receipt, e.g. for
+    // BIR requirement submission. Outside Dev Test Mode the caller's `reprint` always applies.
+    const [asReprint, setAsReprint] = useState(!!reprintProp)
+    const [twoCopies, setTwoCopies] = useState(false)
     // Dev Test Mode means every print is a throwaway test, not a real customer's/company's copy
     // pair — printing 2 physical copies for every test click just burns paper for nothing.
     const devTestMode = useDevTestMode()
     // Same restriction PrinterProvider/api/print.js enforce — disabled here too so the button
     // doesn't just fail with an error on the admin/cloud portal (no real printer attached there)
     // unless Dev Test Mode is on.
+    const reprint = devTestMode ? asReprint : reprintProp
     const printDisabled = APP_ROLE === 'admin' && !devTestMode
 
     useEffect(() => {
         if (open) {
+            setAsReprint(!!reprintProp)
+            setTwoCopies(false)
             console.warn('transaction', transaction)
         }
     }, [open])
@@ -55,9 +63,10 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPri
             await onPrint({
                 ...receipt,
                 reprint,
+                devTestMode,
                 transaction,
                 dvoteDetails,
-                copies: devTestMode ? 1 : 2
+                copies: devTestMode && !twoCopies ? 1 : 2
             })
             if (!disableCloseAfterPrinting) {
                 onClose()
@@ -76,7 +85,15 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPri
                 </Box>
             </DialogContent>
             <DialogActions>
-                <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={1}>
+                    {devTestMode && (
+                        <DevPrintToggles
+                            reprint={asReprint}
+                            onReprintChange={setAsReprint}
+                            twoCopies={twoCopies}
+                            onTwoCopiesChange={setTwoCopies}
+                        />
+                    )}
                     <Button variant="outlined" color="primary" onClick={onClose}>
                         Back
                     </Button>
