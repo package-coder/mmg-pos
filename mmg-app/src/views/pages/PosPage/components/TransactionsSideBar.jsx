@@ -17,7 +17,6 @@ import {
     IconButton,
     TablePagination,
     CircularProgress,
-    Tooltip,
     Card,
     Dialog,
     DialogTitle,
@@ -99,11 +98,11 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
         transaction.GetAllTransaction({ branchId: branch?.id })
     );
 
-    const [actionTarget, setActionTarget] = useState(null); // { t, type: 'cancel-hold' | 'refund' }
+    const [actionTarget, setActionTarget] = useState(null); // { t, type: 'cancel-hold' | 'cancel' | 'refund' }
     const [actionReason, setActionReason] = useState('');
     const [actionSubmitting, setActionSubmitting] = useState(false);
     const { mutateAsync: cancelHoldTransaction } = useMutation(transaction.CancelHoldTransaction);
-    const { mutateAsync: refundTransaction } = useMutation(transaction.CancelTransaction);
+    const { mutateAsync: adjustTransaction } = useMutation(transaction.CancelTransaction);
 
     const closeActionDialog = () => {
         setActionTarget(null);
@@ -116,23 +115,27 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
         try {
             if (actionTarget.type === 'cancel-hold') {
                 await cancelHoldTransaction({ id: actionTarget.t._id, reason: actionReason });
-                toast.success('Held transaction cancelled.');
+                toast.success('Held transaction deleted.');
             } else {
+                // 'cancel' (charge/on-account transactions - nothing was actually collected) vs
+                // 'refund' (cash - money is being given back) hit the same endpoint, differing
+                // only in the resulting status/BIR serial number series it issues.
+                const targetStatus = actionTarget.type === 'cancel' ? 'cancelled' : 'refunded';
                 const terminalInfo = await getTerminalInfo();
                 if (!terminalInfo?.PTU_NO) {
                     toast.error("Cannot process: unable to reach this terminal's printer helper to confirm its accreditation (PTU).");
                     return;
                 }
-                await refundTransaction({
+                await adjustTransaction({
                     reason: actionReason,
                     branchId: actionTarget.t.branch?._id,
                     invoiceNumber: actionTarget.t.invoiceNumber,
-                    status: 'refunded',
+                    status: targetStatus,
                     ptuNumber: terminalInfo.PTU_NO,
                     min: terminalInfo.MIN,
                     sn: terminalInfo.SN
                 });
-                toast.success(`Transaction #${String(actionTarget.t.invoiceNumber).padStart(6, '0')} has been refunded.`);
+                toast.success(`Transaction #${String(actionTarget.t.invoiceNumber).padStart(6, '0')} has been ${targetStatus}.`);
             }
             refetch();
             closeActionDialog();
@@ -419,49 +422,55 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                                     const avatarColor = stringToAvatarColor(t.customer?._id || t._id);
                                     return (
                                         <TableRow key={t._id} hover>
-                                            <TableCell>
-                                                <Stack direction="row">
-                                                    <Tooltip
-                                                        title={
-                                                            t?.status === 'hold'
-                                                                ? 'Restore held transaction'
-                                                                : 'Only held transactions can be restored'
-                                                        }
-                                                    >
-                                                        <span>
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={() => onRestoreTransaction(t)}
-                                                                disabled={t?.status !== 'hold'}
-                                                                aria-label="Restore held transaction"
-                                                            >
-                                                                <MdUndo />
-                                                            </IconButton>
-                                                        </span>
-                                                    </Tooltip>
+                                            <TableCell sx={{ textWrap: 'nowrap' }}>
+                                                <Stack direction="row" spacing={1}>
                                                     {t?.status === 'hold' && (
-                                                        <Tooltip title="Cancel held transaction">
-                                                            <IconButton
+                                                        <>
+                                                            <Button
                                                                 size="small"
+                                                                variant="outlined"
+                                                                startIcon={<MdUndo />}
+                                                                onClick={() => onRestoreTransaction(t)}
+                                                                aria-label="Resume held transaction"
+                                                            >
+                                                                Resume
+                                                            </Button>
+                                                            <Button
+                                                                size="small"
+                                                                variant="outlined"
                                                                 color="error"
+                                                                startIcon={<MdOutlineCancel />}
                                                                 onClick={() => setActionTarget({ t, type: 'cancel-hold' })}
-                                                                aria-label="Cancel held transaction"
+                                                                aria-label="Delete held transaction"
                                                             >
-                                                                <MdOutlineCancel />
-                                                            </IconButton>
-                                                        </Tooltip>
+                                                                Delete
+                                                            </Button>
+                                                        </>
                                                     )}
-                                                    {t?.status === 'completed' && (
-                                                        <Tooltip title="Refund transaction">
-                                                            <IconButton
-                                                                size="small"
-                                                                color="warning"
-                                                                onClick={() => setActionTarget({ t, type: 'refund' })}
-                                                                aria-label="Refund transaction"
-                                                            >
-                                                                <MdOutlineAssignmentReturn />
-                                                            </IconButton>
-                                                        </Tooltip>
+                                                    {t?.status === 'completed' && t?.tender?.type === 'on-account' && (
+                                                        <Button
+                                                            size="small"
+                                                            variant="outlined"
+                                                            color="error"
+                                                            startIcon={<MdOutlineCancel />}
+                                                            onClick={() => setActionTarget({ t, type: 'cancel' })}
+                                                            aria-label="Cancel charge transaction"
+                                                        >
+                                                            Cancel
+                                                        </Button>
+                                                    )}
+                                                    {t?.status === 'completed' && t?.tender?.type === 'cash' && (
+                                                        <Button
+                                                            size="small"
+                                                            variant="outlined"
+                                                            color="primary"
+                                                            startIcon={<MdOutlineAssignmentReturn />}
+                                                            onClick={() => setActionTarget({ t, type: 'refund' })}
+                                                            aria-label="Refund transaction"
+                                                            sx={{ border: '1px solid', borderColor: 'primary.main' }}
+                                                        >
+                                                            Refund
+                                                        </Button>
                                                     )}
                                                 </Stack>
                                             </TableCell>
@@ -557,13 +566,21 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
 
             <Dialog open={!!actionTarget} onClose={!actionSubmitting ? closeActionDialog : undefined} maxWidth="xs" fullWidth>
                 <DialogTitle>
-                    <Typography variant="h4">{actionTarget?.type === 'cancel-hold' ? 'Cancel Held Transaction' : 'Refund Transaction'}</Typography>
+                    <Typography variant="h4">
+                        {actionTarget?.type === 'cancel-hold'
+                            ? 'Delete Held Transaction'
+                            : actionTarget?.type === 'cancel'
+                              ? 'Cancel Charge Transaction'
+                              : 'Refund Transaction'}
+                    </Typography>
                 </DialogTitle>
                 <DialogContent>
                     <Typography variant="body2" color="text.secondary" mb={2}>
                         {actionTarget?.type === 'cancel-hold'
                             ? 'This held transaction has no invoice yet and will be discarded.'
-                            : `Invoice #${String(actionTarget?.t?.invoiceNumber).padStart(6, '0')} will be refunded.`}
+                            : actionTarget?.type === 'cancel'
+                              ? `Invoice #${String(actionTarget?.t?.invoiceNumber).padStart(6, '0')} will be cancelled.`
+                              : `Invoice #${String(actionTarget?.t?.invoiceNumber).padStart(6, '0')} will be refunded.`}
                     </Typography>
                     <TextField
                         autoFocus
@@ -582,7 +599,7 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                     </Button>
                     <Button
                         variant="contained"
-                        color={actionTarget?.type === 'cancel-hold' ? 'error' : 'warning'}
+                        color={actionTarget?.type === 'refund' ? 'primary' : 'error'}
                         disabled={actionSubmitting || !actionReason.trim()}
                         onClick={handleConfirmAction}
                     >
