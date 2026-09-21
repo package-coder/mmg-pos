@@ -9,6 +9,8 @@ from app.filters.date_filter import DateFilter, compare_date_filter
 from app.new_models.CashierReport import CashierReport
 from app.new_models.Transaction import TenderType, TransactionStatus
 from app.utils.sales_summary import summarize_sales
+from app.features.payment_method.models import PaymentKind
+from app.features.payment_method.service import payment_breakdown, tender_kind
 from app.repositories.base import BackupRepository
 from app.repositories.cashier_report import CashierReportRepository
 from app.repositories.report_cash_count import CashCountRepository
@@ -178,9 +180,9 @@ class BranchReportRepository(BackupRepository):
 
                 # On-account sales are receivables, not money received: they are excluded from
                 # "payments" here and taken out of the expected drawer total below.
-                transactions = filter(lambda i: i['status'] == TransactionStatus.COMPLETED and get(i, 'tender.type') not in (TenderType.CASH, TenderType.ON_ACCOUNT), item['transactions'])
+                transactions = filter(lambda i: i['status'] == TransactionStatus.COMPLETED and tender_kind(i.get('tender')) not in (PaymentKind.CASH.value, PaymentKind.ON_ACCOUNT.value), item['transactions'])
                 item['totalPayments'] = sum(map(lambda i: i['tender']['amount'], transactions))
-                item['totalOnAccount'] = sum(i['totalNetSales'] for i in item['transactions'] if i['status'] == TransactionStatus.COMPLETED and get(i, 'tender.type') == TenderType.ON_ACCOUNT)
+                item['totalOnAccount'] = sum(i['totalNetSales'] for i in item['transactions'] if i['status'] == TransactionStatus.COMPLETED and tender_kind(i.get('tender')) == PaymentKind.ON_ACCOUNT.value)
                 item['totalPayments'] += get(item, 'endingCashCount.total', 0)
                 
                 openingFundTotal = get(item, 'openingFund.total', 0)
@@ -200,6 +202,7 @@ class BranchReportRepository(BackupRepository):
                     total += transactionSummary.get(key, 0)
                     transactionSummary[key] = total
                 item['transactionSummary'] = transactionSummary
+                item['paymentBreakdown'] = payment_breakdown(item['transactions'])
 
                 item['presentAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), True, include_dev_test)
                 item['previousAccumulatedSales'] = self.calculate_accumulated_sales(item['branch']['_id'], datetime.strptime(item['date'], '%Y-%m-%d'), False, include_dev_test)

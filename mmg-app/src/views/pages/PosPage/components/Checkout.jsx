@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { useMutation, useQueryClient } from 'react-query';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
+import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { toast } from 'react-toastify';
 import { Card, Typography, Grid, Button, Stack, Divider, Modal, TextField, InputAdornment, IconButton, Chip, CircularProgress, Box, Avatar } from '@mui/material';
 import { MdChevronLeft, MdClose, MdCalendarToday, MdPhone, MdLocationOn } from 'react-icons/md';
@@ -12,6 +10,7 @@ import { FaPesoSign } from 'react-icons/fa6';
 import { IoIosCheckmarkCircle } from 'react-icons/io';
 // api
 import transaction from 'api/transaction';
+import payment_method, { DEFAULT_PAYMENT_METHODS } from 'api/payment_method';
 import FooterWatermark from 'ui-component/FooterWatermark';
 import { useCashierReport } from '..';
 import ReceiptModal from './ReceiptModal';
@@ -21,20 +20,6 @@ import print from 'api/print';
 import { usePrinter } from 'providers/PrinterProvider';
 import BillToPanel, { BILL_TO_LABELS } from './BillToPanel';
 
-const schema = yup.object().shape({
-    chequeNumber: yup
-        .string()
-        .matches(/^\d{6,}$/, 'Valid cheque number is required (at least 6 digits)')
-        .required('Cheque number is required'),
-    accountNumber: yup
-        .string()
-        .matches(/^\d{10,}$/, 'Valid account number is required (at least 10 digits)')
-        .required('Account number is required'),
-    accountName: yup.string().required('Account name is required'),
-    bankName: yup.string().required('Bank name is required'),
-    branchName: yup.string().required('Branch name is required'),
-});
-
 const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
     const { display: showCustomerDisplay, getTerminalInfo } =  usePrinter()
     // const { mutate: showCustomerDisplay } = useMutation(print.Display)
@@ -42,13 +27,31 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
     // Bill To "Charge to Account": the whole sale goes on account to a payor, so there is no
     // tender to collect - the only payment method is 'on-account'.
     const customerData = combinedData?.customerData;
-    const [billToMode, setBillToMode] = useState('customer');
-    const [billToPayor, setBillToPayor] = useState(null);
-    const isOnAccount = billToMode === 'charge';
-    const needsTender = !isOnAccount;
+    // The AR (accounts receivable) POS starts in Charge to Account with the selected customer as payor.
+    const [billToMode, setBillToMode] = useState(ar ? 'charge' : 'customer');
+    const [billToPayor, setBillToPayor] = useState(
+        ar && customerData?.id
+            ? { type: customerData.type === 'corporate' ? 'corporate' : 'customer', id: customerData.id, name: customerData.name }
+            : null
+    );
+    // Payment methods are admin-managed (Settings > Payment Methods). The defaults keep checkout
+    // working offline / before the list has loaded.
+    const { data: methodList } = useQuery('payment-methods', payment_method.GetPaymentMethods, {
+        staleTime: 60 * 1000,
+        placeholderData: DEFAULT_PAYMENT_METHODS
+    });
+    const allMethods = methodList?.length ? methodList : DEFAULT_PAYMENT_METHODS;
+    const payableMethods = allMethods.filter((m) => m.kind !== 'on-account');
+    const canChargeToAccount = allMethods.some((m) => m.kind === 'on-account');
+    const [paymentMethod, setPaymentMethod] = useState('cash');
+    const selectedMethod = payableMethods.find((m) => m.code === paymentMethod) || payableMethods[0];
+    const isOnAccount = billToMode === 'charge' && canChargeToAccount;
+    const methodKind = isOnAccount ? 'on-account' : selectedMethod?.kind;
+    // `activeMethod` is the method code sent to the API as tender.type.
+    const activeMethod = isOnAccount ? 'on-account' : selectedMethod?.code;
+    // Only cash is keyed in as a tender amount; card/e-wallet/etc. pay the exact amount due.
+    const needsTender = methodKind === 'cash';
     const billTo = isOnAccount && billToPayor ? { type: billToPayor.type, id: billToPayor.id, name: billToPayor.name } : null;
-    const [paymentMethod, setPaymentMethod] = useState(ar ? 'charge' : 'cash');
-    const activeMethod = isOnAccount ? 'on-account' : paymentMethod;
     // Charge to Account needs a payor before it can be submitted.
     const missingPayor = isOnAccount && !billTo;
     const [receiptOpen, setReceiptOpen] = useState(false);
@@ -69,10 +72,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
     // double-click/double-tap can call this twice in the same tick). Checked and set
     // synchronously as the very first thing in the handler, unlike `loading`.
     const isSubmittingRef = useRef(false);
-    const paymentTypes = ['cash', 'cheque'];
 
-    // const paymentTypes = ['cash', 'cheque',  'charge'];
-    // const paymentTypes = ['cash', 'cheque',  'charge', 'credit card', 'debit card', 'e-wallet',];
 
     const { refetch: refetchCashierReport } = useCashierReport()
     const queryClient = useQueryClient();
@@ -107,24 +107,6 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
         showCustomerDisplay('total', { total: combinedData?.paymentDue })
     }, [])
 
-    // Function to determine if a payment method should be disabled
-    const isDisabled = (item) => {
-        const lowerCaseItem = item.toLowerCase();
-        if (ar) {
-            return ['cash', 'credit card', 'debit card', 'cheque', 'e-wallet'].includes(lowerCaseItem);
-        } else {
-            return ['credit card', 'debit card', 'e-wallet', 'charge'].includes(lowerCaseItem);
-        }
-    };
-
-    useEffect(() => {
-        // Update the payment method if needed
-        if (ar && paymentMethod !== 'Charge') {
-            setPaymentMethod('Charge');
-        } else if (!ar && paymentMethod === 'Charge') {
-            setPaymentMethod('Cash'); // or any default value
-        }
-    }, [ar, paymentMethod]);
 
     const {
         control,
@@ -138,13 +120,13 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
             const key = event.key;
             const activeElement = document.activeElement;
 
-            // Check if the active element is the chequeNumber input
-            if (activeElement.name === 'chequeNumber' || activeElement.name === 'accountNumber' || activeElement.name === 'accountName' || activeElement.name === 'branchName' || activeElement.name === 'bankName') {
-                return; // Exit the function if focused on chequeNumber
+            // Typing a reference number must not be treated as a tender amount / hotkey
+            if (activeElement.name === 'referenceNumber') {
+                return;
             }
 
             if (key >= '0' && key <= '9') {
-                if (isOnAccount) return;
+                if (!needsTender) return;
                 event.preventDefault();
                 handleAmountClick(undefined, Number(key));
             } else if (key === 'Backspace') {
@@ -165,7 +147,9 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
         return () => {
             window.removeEventListener('keydown', handleKeyPress);
         };
-    }, [amountGiven, loading]);
+        // Everything the handlers read must be listed: a stale closure here could submit the sale with
+        // the payment method / payor that was selected before the cashier changed them.
+    }, [amountGiven, loading, activeMethod, methodKind, needsTender, missingPayor, billTo?.id, combinedData]);
 
 
     const handleAmountClick = ({ add, exact, reset } = { add: false, exact: false, reset: false }, value = 0) => {
@@ -200,7 +184,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
         return change < 0 ? 'error.main' : 'success.dark';
     };
 
-    const buildNewData = (value, amountGiven) => {
+    const buildNewData = (kind, code, amountGiven) => {
         const baseData = {
             ...combinedData,
             id: combinedData?.id,
@@ -219,7 +203,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
             tenderAmount: amountGiven
         };
 
-        switch (value) {
+        switch (kind) {
             case 'on-account':
                 return {
                     ...baseData,
@@ -229,7 +213,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                         paymentDue: combinedData?.paymentDue,
                         change: 0,
                         tenderAmount: combinedData?.paymentDue,
-                        tenderType: value
+                        tenderType: code
                     }
                 };
             case 'cash':
@@ -237,24 +221,19 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                     ...baseData,
                     paymentDetails: {
                         ...paymentDetails,
-                        tenderType: value
+                        tenderType: code
                     }
                 };
-            case 'cheque':
+            case 'reference':
                 return {
                     ...baseData,
                     paymentDetails: {
-                        ...paymentDetails,
-                        ...control._formValues,
-                        tenderType: value
-                    }
-                };
-            case 'charge':
-                return {
-                    ...baseData,
-                    paymentDetails: {
-                        ...paymentDetails,
-                        tenderType: value
+                        subTotal: combinedData?.subTotal,
+                        paymentDue: combinedData?.paymentDue,
+                        change: 0,
+                        tenderAmount: combinedData?.paymentDue,
+                        referenceNumber: (control._formValues.referenceNumber || '').trim(),
+                        tenderType: code
                     }
                 };
             default:
@@ -281,7 +260,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                 return;
             }
 
-            const newData = buildNewData(activeMethod, amountGiven);
+            const newData = buildNewData(methodKind, activeMethod, amountGiven);
             await editTransactionMutation.mutateAsync({
                 ...newData,
                 branchId: branch.id,
@@ -393,10 +372,10 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                             </Typography>
                         </Stack>
                         <Grid container spacing={1} mb={4}>
-                            {paymentTypes.map((item, index) => (
-                                <Grid key={item} item xs={4} sm={3} md={4} xl={4}>
+                            {payableMethods.map((item) => (
+                                <Grid key={item.code} item xs={4} sm={3} md={4} xl={4}>
                                     <Button
-                                        startIcon={paymentMethod === item && <IoIosCheckmarkCircle style={{ marginRight: 6 }} />}
+                                        startIcon={activeMethod === item.code && <IoIosCheckmarkCircle style={{ marginRight: 6 }} />}
                                         sx={{
                                             py: 2,
                                             px: 1,
@@ -407,13 +386,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                             color: 'grey.400',
                                             borderColor: 'grey.400',
                                             borderWidth: '2px !important',
-                                            ...(isDisabled(item)
-                                                ? {
-                                                    backgroundColor: 'grey.50',
-                                                    borderColor: 'transparent !important'
-                                                }
-                                                : {}),
-                                            ...(paymentMethod === item
+                                            ...(activeMethod === item.code
                                                 ? {
                                                     borderWidth: '3px !important',
                                                     borderColor: 'primary.main',
@@ -423,10 +396,9 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                         }}
                                         fullWidth
                                         variant="outlined"
-                                        onClick={() => setPaymentMethod(item)}
-                                        disabled={isDisabled(item)}
+                                        onClick={() => setPaymentMethod(item.code)}
                                     >
-                                        {item}
+                                        {item.name}
                                     </Button>
                                 </Grid>
                             ))}
@@ -558,6 +530,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                     <Card sx={{ py: 3, px: 3, height: '100%', overflowY: 'auto' }}>
                         <Stack mb={2} p={2} bgcolor="grey.50" borderRadius={3}>
                             <BillToPanel
+                                allowCharge={canChargeToAccount}
                                 mode={billToMode}
                                 onModeChange={(mode) => {
                                     setBillToMode(mode);
@@ -703,7 +676,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                     </Stack>
                                 </Grid>
                         )}
-                            {activeMethod === 'cash' && (
+                            {methodKind === 'cash' && (
                                 <>
                                 
                                     <Grid item xs={12}>
@@ -749,103 +722,31 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
 
                                 </>
                             )}
-                            {activeMethod === 'cheque' && (
+                            {methodKind === 'reference' && (
                                 <Grid item xs={12}>
-                                    <Stack direction='column' spacing={1.5} width='100%'>
+                                    <Stack p={2.5} spacing={1.5} bgcolor="grey.50" borderRadius={3}>
+                                        <Typography variant="body1" color="text.secondary">
+                                            Paid in full by {selectedMethod?.name}. Enter the reference / approval number from the payment.
+                                        </Typography>
                                         <Controller
-                                                name="chequeNumber"
-                                                control={control}
-                                                defaultValue=""
-                                                rules={{
-                                                    required: 'Cheque Number is required',
-                                                    pattern: { value: /^[0-9]+$/, message: 'Invalid Cheque Number' }
-                                                }}
-                                                render={({ field }) => (
-                                                    <TextField
-                                                        {...field}
-                                                        label="Cheque Number"
-                                                        fullWidth
-                                                        onBlur={() => trigger('chequeNumber')}
-                                                        error={!!errors.chequeNumber}
-                                                        helperText={errors.chequeNumber ? errors.chequeNumber.message : ''}
-
-                                                    />
-                                                )}
-                                            />
-                                            <Controller
-                                                name="accountNumber"
-                                                control={control}
-                                                defaultValue=""
-                                                rules={{ required: 'Account Number is required' }}
-                                                onFocus={() => {
-                                                    trigger('accountNumber');
-                                                }}
-                                                render={({ field }) => (
-                                                    <TextField
-                                                        {...field}
-                                                        label="Account Number"
-                                                        fullWidth
-                                                        onBlur={() => trigger('accountNumber')}
-                                                        error={!!errors.accountName}
-                                                    />
-                                                )}
-                                            />
-                                            <Controller
-                                                name="accountName"
-                                                control={control}
-                                                defaultValue=""
-                                                rules={{ required: 'Account Name is required' }}
-                                                onFocus={() => {
-                                                    trigger('accountName');
-                                                }}
-                                                render={({ field }) => (
-                                                    <TextField
-                                                        {...field}
-                                                        label="Account Name"
-                                                        fullWidth
-                                                        onBlur={() => trigger('accountName')}
-                                                        error={!!errors.accountName}
-                                                        helperText={errors.accountName ? errors.accountName.message : ''}
-
-                                                    />
-                                                )}
-                                            />
-                                            <Controller
-                                                name="bankName"
-                                                control={control}
-                                                defaultValue=""
-                                                rules={{ required: 'Bank Name is required' }}
-                                                onFocus={() => {
-                                                    trigger('bankName');
-                                                }}
-                                                render={({ field }) => (
-                                                    <TextField
-                                                        {...field}
-                                                        label="Bank Name"
-                                                        fullWidth
-                                                        onBlur={() => trigger('bankName')}
-                                                        error={!!errors.bankName}
-                                                    />
-                                                )}
-                                            />
-                                            <Controller
-                                                name="branchName"
-                                                control={control}
-                                                defaultValue=""
-                                                rules={{ required: 'Branch Name is required' }}
-                                                onFocus={() => {
-                                                    trigger('branchName');
-                                                }}
-                                                render={({ field }) => (
-                                                    <TextField
-                                                        {...field}
-                                                        label="Branch Name"
-                                                        fullWidth
-                                                        onBlur={() => trigger('branchName')}
-                                                        error={!!errors.branchName}
-                                                    />
-                                                )}
-                                            />
+                                            name="referenceNumber"
+                                            control={control}
+                                            defaultValue=""
+                                            rules={{
+                                                validate: (value) => (value || '').trim().length > 0 || 'Reference number is required'
+                                            }}
+                                            render={({ field }) => (
+                                                <TextField
+                                                    {...field}
+                                                    autoFocus
+                                                    label="Reference Number"
+                                                    fullWidth
+                                                    onBlur={() => trigger('referenceNumber')}
+                                                    error={!!errors.referenceNumber}
+                                                    helperText={errors.referenceNumber ? errors.referenceNumber.message : ''}
+                                                />
+                                            )}
+                                        />
                                     </Stack>
                                 </Grid>
                             )}

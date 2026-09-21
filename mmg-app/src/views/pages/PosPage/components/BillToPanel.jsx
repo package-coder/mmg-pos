@@ -12,7 +12,7 @@ export const BILL_TO_LABELS = {
 // Bill To: who settles the sale. "Customer" = paid at the counter (the normal flow). "Charge to
 // Account" = the sale goes on account to a payor - a customer (labelled "Pay Later") or a
 // corporate (labelled "Charge to Account"); no tender is collected at checkout.
-const BillToPanel = ({ mode, onModeChange, payor, onPayorChange, disabled }) => {
+const BillToPanel = ({ mode, onModeChange, payor, onPayorChange, disabled, allowCharge = true }) => {
     const { data: customers, isLoading: loadingCustomers } = useQuery('customers', customer.GetAllCustomers, {
         enabled: mode === 'charge'
     });
@@ -35,6 +35,9 @@ const BillToPanel = ({ mode, onModeChange, payor, onPayorChange, disabled }) => 
         ],
         [customers, corporates]
     );
+
+    // The admin can switch the On Account payment method off (Settings > Payment Methods).
+    if (!allowCharge) return null;
 
     const label = payor ? BILL_TO_LABELS[payor.type] : 'Charge to Account / Pay Later';
 

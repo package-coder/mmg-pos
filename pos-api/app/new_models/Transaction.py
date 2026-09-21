@@ -38,7 +38,7 @@ class TransactionPackage(Package):
 
 class TenderType(str, Enum):
     CASH = "cash"
-    CHEQUE = "cheque"
+    CHEQUE = "cheque"  # retired payment method; old transactions still carry it
     # Sale billed to a payor (customer "pay later" or corporate charge account) instead of being
     # paid at the counter - no cash enters the drawer.
     ON_ACCOUNT = "on-account"
@@ -53,20 +53,24 @@ class BillTo(BaseModel):
     name: str
 
 class Tender(BaseModel):
-    type: TenderType = TenderType.CASH
-    amount: float
-
-class ChequeTender(Tender):
-    type: TenderType = TenderType.CHEQUE
-    chequeNumber: str
-    accountNumber: str
-    accountName: str
-    bankName: str
-    branchName: str
+    # `type` is the payment method code (see app/features/payment_method) - no longer limited to
+    # the TenderType values, since admins can add methods. `kind` and `name` are stamped from the
+    # method when the sale is created, so reports and receipts never need to look the method up
+    # again (and keep working if it is later renamed or switched off).
+    type: str = TenderType.CASH.value
+    kind: str = "cash"
+    name: Optional[str] = None
     amount: float
 
 class OnAccountTender(Tender):
-    type: TenderType = TenderType.ON_ACCOUNT
+    type: str = TenderType.ON_ACCOUNT.value
+    kind: str = "on-account"
+    amount: float
+
+class ReferenceTender(Tender):
+    # Card, e-wallet, bank transfer... paid in full, identified by a reference/approval number.
+    kind: str = "reference"
+    referenceNumber: str = Field(min_length=1)
     amount: float
 
 class TransactionItem(Labtest):
@@ -330,16 +334,6 @@ class CreateTransaction(BaseTransaction):
             raise ValueError('ptuNumber is required to complete a transaction (invoice numbers are issued per accredited terminal)')
         return self
 
-class CreateChequeTransaction(CreateTransaction):
-    tender: Optional[ChequeTender] = None
-
-    @computed_field
-    @property
-    def change(self) -> Optional[float]:
-        if(self.tender is None):
-            return None
-        return self.tender.amount - self.totalNetSales
-
 class CreateOnAccountTransaction(CreateTransaction):
     tender: Optional[OnAccountTender] = None
     billTo: Optional[BillTo] = None
@@ -350,7 +344,30 @@ class CreateOnAccountTransaction(CreateTransaction):
             if self.billTo is None:
                 raise ValueError('billTo is required for an on-account transaction')
             # The whole net sale goes on account - never trust a client-sent amount.
-            self.tender = OnAccountTender(amount=self.totalNetSales)
+            self.tender = OnAccountTender(
+                type=self.tender.type if self.tender else TenderType.ON_ACCOUNT.value,
+                name=self.tender.name if self.tender else None,
+                amount=self.totalNetSales,
+            )
+        return self
+
+    @computed_field
+    @property
+    def change(self) -> Optional[float]:
+        if(self.tender is None):
+            return None
+        return 0.0
+
+class CreateReferenceTransaction(CreateTransaction):
+    tender: Optional[ReferenceTender] = None
+
+    @model_validator(mode='after')
+    def requireReferenceAndFullTender(self):
+        if self.status == TransactionStatus.COMPLETED:
+            if self.tender is None:
+                raise ValueError('tender is required for this payment method')
+            # Paid in full by card/e-wallet/transfer - never trust a client-sent amount.
+            self.tender.amount = self.totalNetSales
         return self
 
     @computed_field

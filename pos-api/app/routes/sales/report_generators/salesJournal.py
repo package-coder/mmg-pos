@@ -1,7 +1,8 @@
-# 1. Sales Journal (All Payment Methods) / Cash Receipts Journal (cash tender only)
+# 1. Sales Journal (All Payment Methods) / Cash Receipts Journal (every payment received: all methods except on-account)
 #
 # Ref No. | Date | Customer | Address | Gross Sales | Discount | Discount Type | Net Sales Amount
 
+from app.features.payment_method.service import tender_kind
 from app.routes.sales.report_generators._data import (customer_address,
                                                         customer_full_name,
                                                         fetch_completed_transactions,
@@ -19,6 +20,9 @@ def getSalesJournal(args, filter):
     if filter and filter.get('tenderType'):
         wanted = filter['tenderType'].lower()
         transactions = [t for t in transactions if (t.get('tender') or {}).get('type') == wanted]
+    if filter and filter.get('excludeKind'):
+        # e.g. the Cash Receipts Journal: every payment received, i.e. all methods except on-account.
+        transactions = [t for t in transactions if tender_kind(t.get('tender')) != filter['excludeKind']]
 
     customers_by_id = fetch_customers_by_id([t.get('customerId') for t in transactions])
     discounts_by_transaction = fetch_discounts_by_transaction([t['_id'] for t in transactions])

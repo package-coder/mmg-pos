@@ -108,7 +108,7 @@ def ensure_indexes(db):
     # by this across the whole collection each cycle, not just a "pending"
     # subset (downstream has no per-document status field at all; see
     # sync/app.py:pull_pending for why).
-    for collection_name in ['branches', 'users', 'customers', 'discounts', 'doctors', 'corporates', 'roles', 'items', 'audit_logs_lookup', 'products', 'packages', 'product_categories']:
+    for collection_name in ['branches', 'users', 'customers', 'discounts', 'doctors', 'corporates', 'roles', 'items', 'audit_logs_lookup', 'products', 'packages', 'product_categories', 'payment_methods']:
         db[collection_name].create_index([("_sync.stamp_id", ASCENDING)])
 
     # customers — one person, one record. `identityKey` is computed by sync/customer_identity.py
@@ -122,6 +122,16 @@ def ensure_indexes(db):
         unique=True,
         partialFilterExpression={"identityKey": {"$type": "string"}},
         name="unique_customer_identity",
+    )
+
+    # payment_methods — one row per method `code` (the value stored on every transaction's tender),
+    # so a sync/pull or two admins can never create two methods with the same code.
+    _create_or_replace_index(
+        db.payment_methods,
+        [("code", ASCENDING)],
+        unique=True,
+        partialFilterExpression={"code": {"$type": "string"}},
+        name="unique_payment_method_code",
     )
 
     # new_transactions — BIR compliance guardrail: invoice numbers (and cancel/refund serial

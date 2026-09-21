@@ -1,11 +1,12 @@
 // assets
-import { IconPrinter, IconFlask } from '@tabler/icons-react';
+import { IconPrinter, IconFlask, IconCreditCard } from '@tabler/icons-react';
 import Role from 'utils/Role';
 
 // constant
 const icons = {
     IconPrinter,
-    IconFlask
+    IconFlask,
+    IconCreditCard
 };
 
 // ==============================|| EXTRA PAGES MENU ITEMS ||============================== //
@@ -22,6 +23,14 @@ const settings = {
             type: 'item',
             url: '/dashboard/printer-settings',
             icon: icons.IconPrinter,
+            breadcrumbs: false
+        },
+        {
+            id: 'paymentmethodsettings',
+            title: 'Payment Methods',
+            type: 'item',
+            url: '/dashboard/payment-method-settings',
+            icon: icons.IconCreditCard,
             breadcrumbs: false
         },
         // Shown on both deployment roles — what it controls differs by role, see

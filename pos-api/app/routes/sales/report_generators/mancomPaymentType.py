@@ -1,5 +1,7 @@
 import copy
 
+from app.features.payment_method.service import tender_kind
+
 from app.routes.sales.report_generators._data import (fetch_branches,
                                                         fetch_categories,
                                                         fetch_completed_transactions,
@@ -35,9 +37,9 @@ def getMancomPaymentType(args):
         if not branch:
             continue
         by_category_id = {c['id']: c for c in branch['categories']}
-        # Non-cash tender (cheque) is treated as Account Receivable, matching the same
-        # cash-vs-charge split used in the Summary Income report.
-        is_cash = (transaction.get('tender') or {}).get('type') == 'cash'
+        # Only on-account sales are Account Receivable; cheque, card and e-wallet payments are
+        # money received, same cash-vs-charge split as the Summary Income report.
+        is_cash = tender_kind(transaction.get('tender')) != 'on-account'
 
         for item in items_by_transaction.get(str(transaction['_id']), []):
             category = by_category_id.get(item_category_id(item))

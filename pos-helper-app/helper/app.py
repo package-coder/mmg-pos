@@ -434,7 +434,13 @@ def print_receipt(request_data: dict = {}):
                 p.line()
             
                 p.row("Tender Amount: ", get(transaction, 'tender.amount'))
-                p.row("Tender Type: ", upper_case(get(transaction, 'tender.type')))
+                # On-account sales always print the fixed ON-ACCOUNT label; other methods print the
+                # admin-managed name stamped on the tender when the sale was made.
+                tender_label = get(transaction, 'tender.type') if get(transaction, 'tender.kind') == 'on-account' else (get(transaction, 'tender.name') or get(transaction, 'tender.type'))
+                p.row("Tender Type: ", upper_case(tender_label))
+                reference_number = get(transaction, 'tender.referenceNumber')
+                if reference_number:
+                    p.row("Reference No: ", str(reference_number)[:20])
                 bill_to = transaction.get('billTo')
                 if bill_to:
                     p.row("Pay Later: " if bill_to.get('type') == 'customer' else "Charged To: ", str(bill_to.get('name', ''))[:24])
@@ -630,10 +636,11 @@ def print_report(data: dict = {}):
             p.line()
             p.title("TRANSACTION SUMMARY")
             p.row("Cash In Drawer: ", get(data, 'endingCashCount.total', 0))
-            p.row("Cheque: ", transactionSummary.get('cheque', 0))
-            p.row("On Account: ", transactionSummary.get('on-account', 0))
-            p.row("Credit Card: ", 0)
-            p.row("Gift Certificate: ", 0)
+            # One row per non-cash payment method used (names are admin-managed, see the API's
+            # payment_methods), replacing the old fixed Cheque / On Account / Credit Card rows.
+            for method in data.get('paymentBreakdown', []):
+                if method.get('kind') != 'cash':
+                    p.row(f"{method.get('name', '')[:18]}: ", method.get('amount', 0))
             p.row("Opening Fund: ", get(data, 'openingFund.total', 0))
             p.row("Less Withdrawal: ", withdraw)
             p.row("Payments Received: ", data.get('totalPayments', 0))

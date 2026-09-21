@@ -216,7 +216,7 @@ The sync service polls `{ "_sync.status": "pending" }`, pushes to cloud MongoDB 
 
 **Upstream collections** (branch → staging): `transactions`, `cashier_reports`, `branch_reports`, `sales`, `sales_deposits`, `audit_logs`, `bookings`
 
-**Downstream collections** (staging → branch, lookup/config only): `branches`, `users`, `customers`, `discounts`, `packages`, `products`, `product_categories`, `doctors`, `roles`, `corporates`
+**Downstream collections** (staging → branch, lookup/config only): `branches`, `users`, `customers`, `discounts`, `packages`, `products`, `product_categories`, `doctors`, `roles`, `corporates`, `payment_methods`
 
 **Multi-branch safety:** Each document has a globally unique MongoDB `ObjectId`. Multiple branch servers upserting by `_id` on staging is safe and idempotent — no ID collisions, no conflict resolution needed.
 

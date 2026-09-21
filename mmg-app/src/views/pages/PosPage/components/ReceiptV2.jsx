@@ -272,8 +272,19 @@ export default function ({ transaction }) {
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Tender Type:</Typography>
-                    <Typography variant="h5">{transaction?.tender?.type?.toUpperCase()}</Typography>
+                    <Typography variant="h5">
+                        {(transaction?.tender?.kind === 'on-account'
+                            ? transaction.tender.type
+                            : transaction?.tender?.name || transaction?.tender?.type
+                        )?.toUpperCase()}
+                    </Typography>
                 </Stack>
+                {transaction?.tender?.referenceNumber && (
+                    <Stack direction="row" justifyContent="space-between">
+                        <Typography>Reference No:</Typography>
+                        <Typography variant="h5">{transaction.tender.referenceNumber}</Typography>
+                    </Stack>
+                )}
                 {transaction?.billTo && (
                     <Stack direction="row" justifyContent="space-between">
                         <Typography>{transaction.billTo.type === 'customer' ? 'Pay Later:' : 'Charged To:'}</Typography>

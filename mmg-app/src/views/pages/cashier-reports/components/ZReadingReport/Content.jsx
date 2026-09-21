@@ -138,10 +138,10 @@ function Content({ report, reprint }) {
             {renderDivider()}
             {renderTitle('TRANSACTION SUMMARY')}
             {renderGridItem('Cash In Drawer:', clip(report.endingCashCount?.total))}
-            {renderGridItem('Cheque:', clip(report.transactionSummary.cheque))}
-            {renderGridItem('On Account:', clip(report.transactionSummary['on-account']))}
-            {renderGridItem('Credit Card:', clip(0))}
-            {renderGridItem('Gift Certificate:', clip(0))}
+            {/* One row per non-cash payment method used (names are admin-managed in Settings > Payment Methods). */}
+            {(report.paymentBreakdown || [])
+                .filter((method) => method.kind !== 'cash')
+                .map((method) => renderGridItem(`${method.name}:`, clip(method.amount)))}
             {renderGridItem('Opening Fund:', clip(report.openingFund?.total))}
             {renderGridItem('Less Withdrawal:', clip(report.cashierReport?.withdraw))}
             {renderGridItem('Payments Received:', clip(report?.totalPayments))}

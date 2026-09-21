@@ -33,7 +33,7 @@ def _get_reports():
    if type == 'salesJournal':
       return { 'data': getSalesJournal(args = request.args, filter = None) }, 200
    if type == 'cashReceiptsJournal':
-      return { 'data': getSalesJournal(args = request.args, filter = {'tenderType': 'Cash'})  }, 200
+      return { 'data': getSalesJournal(args = request.args, filter = {'excludeKind': 'on-account'})  }, 200
    if type == 'chargeJournal':
       return { 'data': getSalesJournal(args = request.args, filter = {'tenderType': 'on-account'})  }, 200
    return {

@@ -67,6 +67,7 @@ LOOKUPS = [
     'products',
     'packages',
     'product_categories',
+    'payment_methods',
 ]
 
 # collection -> fields that identify "the same real-world record" across
@@ -82,6 +83,7 @@ NATURAL_KEYS = {
     'product_categories': ['name'],
     'packages': ['name'],
     'products': ['name'],
+    'payment_methods': ['code'],
 }
 
 # Collections that hold sales/report data produced at a branch and that the

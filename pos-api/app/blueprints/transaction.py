@@ -6,10 +6,13 @@ from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from app.database.config import roles, users
+from app.features.payment_method import service as payment_method_service
+from app.features.payment_method.models import PaymentKind
+from app.features.payment_method.repository import PaymentMethodRepository
 from app.filters.date_filter import DateFilter, compare_date_filter
 from app.middlewares.authorized_attribute import authorized
 from app.new_models.AuditLog import AuditCode, AuditLog
-from app.new_models.Transaction import ChequeTender, CreateCashTransaction, CreateChequeTransaction, CreateOnAccountTransaction, CreateTransaction, TenderType
+from app.new_models.Transaction import CreateCashTransaction, CreateOnAccountTransaction, CreateReferenceTransaction, CreateTransaction, TenderType
 from app.new_models.Transaction import CreateRefundTransaction, CreateTransaction, CreateCancelledTransaction, TransactionStatus
 from app.repositories.app_settings import AppSettingsRepository, DEV_TEST_MODE_KEY
 from app.repositories.audit_log import AuditLogRepository
@@ -23,6 +26,7 @@ from app.utils.utils import convert_objectid_to_str, getLocalDateStr, getLocalTi
 api = '/v2/transactions'
 transaction_bp = Blueprint('transactions', __name__)
 transactionRepository = TransactionRepository()
+paymentMethodRepository = PaymentMethodRepository()
 discountRepository = TransactionDiscountRepository()
 itemRepository = TransactionItemRepository()
 auditLogRepository = AuditLogRepository()
@@ -240,17 +244,25 @@ def v3_create_transaction(user_id):
         # the transaction's own business fields, so it's pulled out before the pydantic model
         # sees the payload.
         hold_transaction_id = request_data.pop('holdTransactionId', None)
-        args = { **request_data, "cashierId": user_id }
-
-        tenderType = get(request_data, 'tender.type', None)
+        tenderCode = get(request_data, 'tender.type', None)
         status = get(request_data, 'status')
 
-        if(status == TransactionStatus.COMPLETED and tenderType == TenderType.CHEQUE):
-            model = CreateChequeTransaction(**args)
-        elif(status == TransactionStatus.COMPLETED and tenderType == TenderType.ON_ACCOUNT):
-            model = CreateOnAccountTransaction(**args)
-        else:
-            model = CreateCashTransaction(**args)
+        # The payment method is admin-managed (Settings > Payment Methods), so the tender code the
+        # client sends is checked against the live list and its kind/name are stamped from it -
+        # the client never decides what kind a method is.
+        modelClass = CreateCashTransaction
+        if(status == TransactionStatus.COMPLETED and tenderCode is not None):
+            method = payment_method_service.get_active_method(paymentMethodRepository, tenderCode)
+            if method is None:
+                return jsonify({'message': 'This payment method is not available. Please choose another.'}), 400
+            request_data['tender'] = { **request_data['tender'], 'kind': method['kind'], 'name': method['name'] }
+            modelClass = {
+                PaymentKind.ON_ACCOUNT.value: CreateOnAccountTransaction,
+                PaymentKind.REFERENCE.value: CreateReferenceTransaction,
+            }.get(method['kind'], CreateCashTransaction)
+
+        args = { **request_data, "cashierId": user_id }
+        model = modelClass(**args)
 
         if(model.idempotencyKey):
             # Same click/submission arriving again (double-click that beat the frontend's own

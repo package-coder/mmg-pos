@@ -16,6 +16,7 @@ from app.blueprints.branch import branch_bp
 from app.blueprints.category import category_bp as category_pos_bp
 from app.blueprints.transaction import transaction_bp
 from app.blueprints.app_settings import app_settings_bp
+from app.features.payment_method.routes import payment_methods_bp
 from app.cas_app.blueprints.accounts_group import accounts_group_bp
 from app.cas_app.blueprints.accounts_type import accounts_type_bp
 from app.cas_app.blueprints.category import category_bp
@@ -143,6 +144,7 @@ app.register_blueprint(branch_report_bp)
 app.register_blueprint(branch_bp)
 app.register_blueprint(transaction_bp)
 app.register_blueprint(app_settings_bp)
+app.register_blueprint(payment_methods_bp)
 app.register_blueprint(item_bp)
 app.register_blueprint(inventory_bp)
 app.register_blueprint(category_pos_bp)

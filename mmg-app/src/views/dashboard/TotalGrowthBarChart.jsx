@@ -35,10 +35,11 @@ const TotalGrowthBarChart = ({ data: categories, branchOptions, onChangeBranch, 
     // const selectedBranchData = branches.find((branch) => branch.id === selectedBranch) || { categories: [] };
 
     const categoryNames = categories.map(i => i.name)
-    const cashData = categories.map(i => i.transactionSummary?.cash || 0)
-    // Everything not paid in cash (on-account / pay later, cheque) is shown as charge - same split as Summary Income.
-    const chargeData = categories.map(i =>
-        Object.entries(i.transactionSummary || {}).reduce((sum, [type, amount]) => (type === 'cash' ? sum : sum + amount), 0)
+    // Only on-account (pay later / charge to account) sales are charge; every other payment method
+    // (cash, cheque, card, e-wallet...) counts as paid - same split as Summary Income.
+    const chargeData = categories.map(i => i.transactionSummary?.['on-account'] || 0)
+    const cashData = categories.map(i =>
+        Object.entries(i.transactionSummary || {}).reduce((sum, [type, amount]) => (type === 'on-account' ? sum : sum + amount), 0)
     )
 
     const totalGrowth = categories.reduce((total, category) => total + category.totalNetSales, 0);
