@@ -25,7 +25,7 @@ export default function ({ transaction }) {
     console.log('transaction', discounts)
 
     return (
-        <Box sx={{ p: 3, border: '1px solid #000' }}>
+        <Box sx={{ p: 3 }}>
             {transaction.isDevTest && (
                 <Box sx={{ bgcolor: '#161616', color: '#fff', textAlign: 'center', py: 0.5, mb: 2, fontWeight: 700 }}>
                     DEV TEST — NOT A REAL RECEIPT
