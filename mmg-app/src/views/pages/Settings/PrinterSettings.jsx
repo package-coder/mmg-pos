@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Typography, FormControlLabel, Switch, Stack, Grid, Divider, TextField, Alert } from '@mui/material';
+import { Button, Typography, Stack, Grid, Divider, TextField, Alert } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
 import { usePrinter } from 'providers/PrinterProvider';
 import MainCard from 'ui-component/cards/MainCard';
 import { APP_ROLE } from 'api';
 import { useDevTestMode } from 'utils/devTestMode';
-import { usePrinterTrialMode, setPrinterTrialMode } from 'utils/printerTrialMode';
 
 const PrinterSettings = () => {
     const [printerIP, setPrinterIP] = useState('192.168.192.168');
@@ -13,7 +12,6 @@ const PrinterSettings = () => {
     const [testMessage, setTestMessage] = useState('Test print message');
     const [statusMessage, setStatusMessage] = useState('');
     const [statusType, setStatusType] = useState('');
-    const trialMode = usePrinterTrialMode();
     const { print, status, printing } = usePrinter()
     const devTestMode = useDevTestMode();
     // Same restriction PrinterProvider/api/print.js enforce — disabled here too so a click
@@ -53,10 +51,6 @@ const PrinterSettings = () => {
         const value = e.target.value;
         setPrinterPort(value);
         localStorage.setItem('printerPort', value);
-    };
-
-    const handleTrialModeChange = (e) => {
-        setPrinterTrialMode(e.target.checked);
     };
 
     const handlePrintEjournal = async () => {
@@ -133,29 +127,6 @@ const PrinterSettings = () => {
                     >
                         Send Test Print
                     </Button>
-                </Stack>
-
-                <Divider />
-
-                {/* Trial Mode Section */}
-                <Stack spacing={2}>
-                    <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-                        Trial Mode
-                    </Typography>
-                    <FormControlLabel
-                        control={<Switch checked={trialMode} onChange={handleTrialModeChange} />}
-                        label={
-                            <Stack spacing={0.5}>
-                                <Typography variant="body2" sx={{ fontWeight: '600' }}>
-                                    Paper Saver Mode
-                                </Typography>
-                                <Typography variant="caption" color="textSecondary">
-                                    When enabled: prints the receipt once (customer's copy only). When disabled: prints twice (customer's + company's copy — normal operation).
-                                </Typography>
-                            </Stack>
-                        }
-                        sx={{ alignItems: 'flex-start', m: 0 }}
-                    />
                 </Stack>
 
                 <Divider />

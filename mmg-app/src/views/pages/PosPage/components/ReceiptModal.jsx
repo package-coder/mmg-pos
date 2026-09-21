@@ -9,7 +9,6 @@ import { useEffect } from "react";
 import { IoMdPrint } from 'react-icons/io';
 import { usePrinter } from 'providers/PrinterProvider';
 import { useDevTestMode } from 'utils/devTestMode';
-import { usePrinterTrialMode } from 'utils/printerTrialMode';
 import { APP_ROLE } from 'api';
 
 
@@ -20,10 +19,6 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPri
     // Dev Test Mode means every print is a throwaway test, not a real customer's/company's copy
     // pair — printing 2 physical copies for every test click just burns paper for nothing.
     const devTestMode = useDevTestMode()
-    // Settings > Printer Settings > Paper Saver Mode — same single-print effect, independently
-    // switchable for a real branch that just wants to save paper every day.
-    const trialMode = usePrinterTrialMode()
-    const singlePrintOnly = devTestMode || trialMode
     // Same restriction PrinterProvider/api/print.js enforce — disabled here too so the button
     // doesn't just fail with an error on the admin/cloud portal (no real printer attached there)
     // unless Dev Test Mode is on.
@@ -62,7 +57,7 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint, onClose, onPri
                 reprint,
                 transaction,
                 dvoteDetails,
-                copies: singlePrintOnly ? 1 : 2
+                copies: devTestMode ? 1 : 2
             })
             if (!disableCloseAfterPrinting) {
                 onClose()

@@ -2,6 +2,7 @@ import print from "api/print"
 import { PrinterWrapper, usePrinter } from "providers/PrinterProvider";
 import { useState } from "react";
 import { useMutation } from "react-query"
+import { isDevTestModeEnabled } from "utils/devTestMode"
 
 
 const WithPrintMutation = ({ children }) => {
@@ -75,21 +76,10 @@ const WithPrintMutation = ({ children }) => {
     // }
        
     const onPrint = async(data) => {
-        try {
-            const trialMode = JSON.parse(localStorage.getItem('printerTrialMode') || 'false')
-
-            // Print once in trial mode, 3 times in normal mode
-            const printCount = trialMode ? 1 : 3
-
-            for (let i = 0; i < printCount; i++) {
-                const result = await print("printer", "receipt", data)
-                // Another print is running, or the printer is unavailable: the remaining copies
-                // would only fail the same way (and each waits out the helper's connection retry).
-                if (result?.busy || result?.error) break
-            }
-        } catch (e) {
-            throw e
-        }
+        // One request: the helper prints `copies` physical copies within a single journaled
+        // session. Dev Test Mode prints one copy, otherwise two.
+        const copies = isDevTestModeEnabled() ? 1 : 2
+        return print("printer", "receipt", { ...data, copies })
     }
 
     return children({ onPrint: onPrint })
