@@ -88,7 +88,9 @@ const getInitials = (name) =>
 const TransactionsSlideBar = ({ onRestoreTransaction }) => {
     const { branch } = useAuth();
 
-    const { data, isLoading, isRefetching, isError, error } = useQuery('transactions', () => transaction.GetAllTransaction());
+    const { data, isLoading, isRefetching, isError, error } = useQuery(['transactions', branch?.id], () =>
+        transaction.GetAllTransaction({ branchId: branch?.id })
+    );
 
     const [searchFilter, setSearchFilter] = useState('');
     const [transactions, setTransactions] = useState(data);

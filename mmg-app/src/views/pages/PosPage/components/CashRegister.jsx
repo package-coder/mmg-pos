@@ -219,26 +219,50 @@ const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
             <Card sx={{ p: { xs: 2.5, md: 4 }, width: '100%', maxWidth: 1200 }}>
                 {/* Header */}
                 <Stack direction="row" flexWrap="wrap" gap={2} justifyContent="space-between" alignItems="center" mb={3}>
-                    <Box>
-                        <Typography variant="h3" fontWeight={600}>
-                            {branch?.name || 'Branch'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Cash Float & Terminal Operations
-                        </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Avatar sx={{ width: 34, height: 34, fontSize: '0.8rem' }}>
-                            {getInitials(`${user?.first_name || ''} ${user?.last_name || ''}`)}
-                        </Avatar>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <Button
+                            size="small"
+                            startIcon={<MdChevronLeft />}
+                            onClick={isEndingBalance ? handleBack : () => navigate('/dashboard/home')}
+                        >
+                            Back
+                        </Button>
                         <Box>
-                            <Typography variant="body2" fontWeight={600} lineHeight={1.2}>
-                                {user?.first_name} {user?.last_name}
+                            <Typography variant="h3" fontWeight={600}>
+                                {branch?.name || 'Branch'}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                {(user?.role?.name || '').toUpperCase()}
+                            <Typography variant="body2" color="text.secondary">
+                                Cash Float & Terminal Operations
                             </Typography>
                         </Box>
+                    </Stack>
+                    <Stack direction="row" spacing={3} alignItems="center">
+                        <Box textAlign="right">
+                            <Typography variant="body2" color="text.secondary">
+                                Date:{' '}
+                                {moment(report?.date).isValid()
+                                    ? moment(report?.date).format('MMM DD, YYYY')
+                                    : moment().format('MMM DD, YYYY')}
+                            </Typography>
+                            {isEndingBalance && report?.timeIn && (
+                                <Typography variant="caption" color="text.secondary">
+                                    Time In: {moment(report.timeIn).format('hh:mm A')}
+                                </Typography>
+                            )}
+                        </Box>
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                            <Avatar sx={{ width: 34, height: 34, fontSize: '0.8rem' }}>
+                                {getInitials(`${user?.first_name || ''} ${user?.last_name || ''}`)}
+                            </Avatar>
+                            <Box>
+                                <Typography variant="body2" fontWeight={600} lineHeight={1.2}>
+                                    {user?.first_name} {user?.last_name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    {(user?.role?.name || '').toUpperCase()}
+                                </Typography>
+                            </Box>
+                        </Stack>
                     </Stack>
                 </Stack>
 
@@ -247,14 +271,6 @@ const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
                 {/* Title */}
                 <Stack direction="row" flexWrap="wrap" gap={2} justifyContent="space-between" alignItems="flex-start" mb={3}>
                     <Box>
-                        <Button
-                            size="small"
-                            startIcon={<MdChevronLeft />}
-                            sx={{ mb: 1 }}
-                            onClick={isEndingBalance ? handleBack : () => navigate('/dashboard/home')}
-                        >
-                            Back
-                        </Button>
                         <Stack direction="row" spacing={1.5} alignItems="center">
                             <Typography variant="h2" fontWeight={600}>
                                 {!isEndingBalance ? 'Opening Fund' : 'Ending Balance Entry'}
@@ -271,17 +287,6 @@ const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
                                 : 'Record and verify physical cash currency before completing your terminal drawer closure.'}
                         </Typography>
                     </Box>
-                    <Box textAlign="right">
-                        <Typography variant="body2" color="text.secondary">
-                            Date:{' '}
-                            {moment(report?.date).isValid() ? moment(report?.date).format('MMM DD, YYYY') : moment().format('MMM DD, YYYY')}
-                        </Typography>
-                        {isEndingBalance && report?.timeIn && (
-                            <Typography variant="caption" color="text.secondary">
-                                Time In: {moment(report.timeIn).format('hh:mm A')}
-                            </Typography>
-                        )}
-                    </Box>
                 </Stack>
 
                 <Grid container spacing={4}>
@@ -290,12 +295,12 @@ const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
                         <Stack spacing={2.5}>
                             <Card variant="outlined" sx={{ p: 2.5, bgcolor: 'info.light', borderColor: 'info.main' }}>
                                 <Stack direction="row" spacing={1} alignItems="center" mb={1}>
-                                    <HelpOutlineIcon fontSize="small" color="info" />
-                                    <Typography variant="subtitle2" fontWeight={600}>
+                                    <HelpOutlineIcon fontSize="small" sx={{ color: 'common.white' }} />
+                                    <Typography variant="subtitle2" fontWeight={600} sx={{ color: 'common.white' }}>
                                         Help & Drawer Guidelines
                                     </Typography>
                                 </Stack>
-                                <Typography variant="body2" color="text.secondary">
+                                <Typography variant="body2" sx={{ color: 'common.white' }}>
                                     Enter the quantity of each denomination in the fields on the right. The total value updates
                                     automatically. Review the breakdown before confirming — once submitted, this count is recorded against
                                     your shift.

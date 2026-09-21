@@ -110,9 +110,14 @@ def get_transactions(user_id):
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
     cashierId = request.args.get('cashierId')
+    branchId = request.args.get('branchId')
 
     try:
-        query = {} if cashierId is None else { 'cashierId': cashierId }
+        query = {}
+        if cashierId is not None:
+            query['cashierId'] = cashierId
+        if branchId is not None:
+            query['branchId'] = branchId
 
         transaction = transactionRepository.find(query)
 
@@ -464,9 +469,11 @@ def v3_cancel_transaction(user_id):
             void_doc['totalSalesWithoutMemberDiscount'] = -1 * void_doc['totalSalesWithoutMemberDiscount']
             void_doc['totalDiscount'] = -1 * void_doc['totalDiscount']
             void_doc['totalMemberDiscount'] = -1 * void_doc['totalMemberDiscount']
-            void_doc['vatableAmount'] = -1 * void_doc['vatableAmount']
-            void_doc['vatExemptAmount'] = -1 * void_doc['vatExemptAmount']
-            void_doc['vatAmount'] = -1 * void_doc['vatAmount']
+            # .get(..., 0): these three fields didn't exist before VAT computation was added, so
+            # transactions completed before that change don't have them persisted.
+            void_doc['vatableAmount'] = -1 * void_doc.get('vatableAmount', 0)
+            void_doc['vatExemptAmount'] = -1 * void_doc.get('vatExemptAmount', 0)
+            void_doc['vatAmount'] = -1 * void_doc.get('vatAmount', 0)
             void_doc['transactionDate'] = getLocalTimeStr()
             void_doc['date'] = getLocalDateStr()
             void_doc['reason'] = model.reason
