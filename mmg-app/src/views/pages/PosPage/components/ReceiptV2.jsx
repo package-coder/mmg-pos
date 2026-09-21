@@ -102,8 +102,8 @@ export default function ({ transaction }) {
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Address:</Typography>
-                    <Typography sx={{ textAlign: 'right' }}>
-                        {startCase(toLower(`${address?.street} ${address?.barangay} ${address?.cityMunicipality} ${address?.province}`)).substring(0, 12)}
+                    <Typography sx={{ textAlign: 'right', maxWidth: '65%' }}>
+                        {startCase(toLower(`${address?.street} ${address?.barangay} ${address?.cityMunicipality} ${address?.province}`))}
                     </Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">

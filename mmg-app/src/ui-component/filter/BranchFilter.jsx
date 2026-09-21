@@ -4,7 +4,7 @@ import { memo, useEffect, useState } from 'react';
 
 export const DEFAULT_BRANCH_FILTER = 'all';
 
-export default memo(({ filter, onChange, values, options, setValues, ...otherProps }) => {
+export default memo(({ filter, onChange, values, options, setValues, hideAllOption, ...otherProps }) => {
     useEffect(() => {
         let data = values || [];
         if (filter == DEFAULT_BRANCH_FILTER) setValues(data);
@@ -23,7 +23,7 @@ export default memo(({ filter, onChange, values, options, setValues, ...otherPro
             sx={{ minWidth: 150 }}
             {...otherProps}
         >
-            <MenuItem value={DEFAULT_BRANCH_FILTER}>All</MenuItem>
+            {!hideAllOption && <MenuItem value={DEFAULT_BRANCH_FILTER}>All</MenuItem>}
             {options
                 ? options.map((option) => (
                       <MenuItem key={option} value={option}>

@@ -67,7 +67,16 @@ function CashierReportsPage() {
     const hasOnlyOneBranch = user?.branches?.length == 1;
     const hasMultipleBranch = user?.branches?.length > 1;
 
-    const [branchFilter, setBranchFilter] = useState(hasOnlyOneBranch ? branch?.name : DEFAULT_BRANCH_FILTER);
+    // A cashier is restricted to their own assigned branches (see the BranchFilter `options`
+    // prop below), so "All" doesn't apply to them — default straight to their first branch
+    // instead of the aggregate view every other role starts on.
+    const [branchFilter, setBranchFilter] = useState(
+        hasOnlyOneBranch
+            ? branch?.name
+            : matchRole(Role.CASHIER) && hasMultipleBranch
+              ? user?.branches?.[0]?.name
+              : DEFAULT_BRANCH_FILTER
+    );
     const [dateFilter, setDateFilter] = useState(DateFilterEnum.THIS_MONTH);
     const [customDate, setCustomDate] = useState({});
 
@@ -184,7 +193,8 @@ function CashierReportsPage() {
                         {...(matchRole(Role.CASHIER)
                             ? {
                                   options: user?.branches?.map((branch) => branch.name),
-                                  disabled: hasOnlyOneBranch
+                                  disabled: hasOnlyOneBranch,
+                                  hideAllOption: true
                               }
                             : {})}
                     />
