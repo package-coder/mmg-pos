@@ -11,9 +11,12 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import TotalGrowthBarChart from 'views/dashboard/TotalGrowthBarChart';
 import category from 'api/category';
+import { APP_ROLE } from 'api';
+import { useAuth } from 'providers/AuthProvider';
 
 const AdminPage = () => {
     const [selectedBranch, setSelectedBranch] = useState('')
+    const { user } = useAuth();
 
     const date = moment()
     const format = 'YYYY-MM-DD'
@@ -34,6 +37,14 @@ const AdminPage = () => {
         enabled: !loadingBranches
     });
 
+    // Branch deployments only show tiles for branches assigned to the logged-in user
+    const visibleBranches = useMemo(() => {
+        if (!branches) return [];
+        if (APP_ROLE === 'admin') return branches;
+        const ids = (user?.branches || []).map((b) => String(b?._id ?? b));
+        return branches.filter((b) => ids.includes(String(b._id)));
+    }, [branches, user]);
+
     const renderLoading = () => (
         <Stack alignItems="center" my={4}>
             <CircularProgress size={28} />
@@ -49,7 +60,7 @@ const AdminPage = () => {
                             <Grid item xs={12}>{ renderLoading()}</Grid>
                         )
                         : (
-                            branches.map(branch => (
+                            visibleBranches.map(branch => (
                                 <Grid key={branch._id} item xs={12} md={6} lg={3}>
                                     <EarningCard branch={branch} />
                                 </Grid>
@@ -63,7 +74,7 @@ const AdminPage = () => {
                             {loadingBranches || loadingCategories || !categories?.length ? renderLoading() : (
                                 <TotalGrowthBarChart 
                                     data={categories} 
-                                    branchOptions={branches}
+                                    branchOptions={visibleBranches}
                                     branch={selectedBranch}
                                     onChangeBranch={value => setSelectedBranch(value)}
                                 />
