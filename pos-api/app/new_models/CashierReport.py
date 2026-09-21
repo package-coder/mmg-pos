@@ -23,6 +23,9 @@ class TimeInCashierReport(BaseModel):
     # PTU of the terminal the cashier logged in on (from the helper's config.json, captured at
     # login). Lets X-reports and the transaction list be scoped to one accredited terminal.
     ptuNumber: Optional[str] = None
+    # MIN/SN of that terminal, shown on the X-report.
+    min: Optional[str] = None
+    sn: Optional[str] = None
 
     
 class TimeOutCashierReport(BaseModel):

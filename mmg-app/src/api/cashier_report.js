@@ -1,13 +1,13 @@
 import { server } from 'api';
 import { isDevTestModeEnabled } from 'utils/devTestMode';
-import { getPtuNumber } from 'utils/terminalSession';
+import { getPtuNumber, getTerminal } from 'utils/terminalSession';
 
 export const BRANCH_ENDPOINTS = '/v2/cashier-reports';
 
 async function TimeInCashierReport(model) {
     const {
         data: { data }
-    } = await server.post(BRANCH_ENDPOINTS + '/time-in', { ptuNumber: getPtuNumber(), ...model });
+    } = await server.post(BRANCH_ENDPOINTS + '/time-in', { ptuNumber: getPtuNumber(), min: getTerminal()?.MIN, sn: getTerminal()?.SN, ...model });
     return data;
 }
 

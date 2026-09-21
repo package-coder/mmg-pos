@@ -22,6 +22,12 @@ function Header({ report }) {
                     {/* {combinedData?.branchAddress} */}
                     BLDG. 216 ZIGA AVENUE TAYHI (POB.) 4511 CITY OF TABACO ALBAY
                 </Typography>
+                <Typography variant="subtitle2" align="center">
+                    MIN: {report?.min || '---'} &nbsp; SN: {report?.sn || '---'}
+                </Typography>
+                <Typography variant="subtitle2" align="center">
+                    PTU No: {report?.ptuNumber || '---'}
+                </Typography>
                 {/* <Typography variant="h3" textAlign="center">
                     {report?.branch?.name}
                 </Typography>

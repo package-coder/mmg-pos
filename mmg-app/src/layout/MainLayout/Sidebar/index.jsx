@@ -16,6 +16,7 @@ import MenuCard from './MenuCard';
 import MenuList from './MenuList';
 import LogoSection from '../LogoSection';
 import Chip from 'ui-component/extended/Chip';
+import { useAuth } from 'providers/AuthProvider';
 
 import { drawerWidth } from 'store/constant';
 
@@ -24,6 +25,7 @@ import { drawerWidth } from 'store/constant';
 const Sidebar = ({ drawerOpen, drawerToggle, window, topOffset = 0 }) => {
     const theme = useTheme();
     const matchUpMd = useMediaQuery(theme.breakpoints.up('md'));
+    const { ptuNumber } = useAuth();
 
     const drawer = (
         <>
@@ -43,7 +45,8 @@ const Sidebar = ({ drawerOpen, drawerToggle, window, topOffset = 0 }) => {
                 >
                     <MenuList />
                     {/* <MenuCard /> */}
-                    <Stack direction="row" justifyContent="center" sx={{ mb: 2 }}>
+                    <Stack direction="row" justifyContent="center" flexWrap="wrap" useFlexGap spacing={1} sx={{ mb: 2 }}>
+                        {ptuNumber && <Chip label={`PTU: ${ptuNumber}`} disabled chipcolor="primary" size="small" />}
                         <Chip
                             label={import.meta.env.VITE_APP_VERSION}
                             disabled
@@ -58,7 +61,8 @@ const Sidebar = ({ drawerOpen, drawerToggle, window, topOffset = 0 }) => {
                 <Box sx={{ px: 2 }}>
                     <MenuList />
                     <MenuCard />
-                    <Stack direction="row" justifyContent="center" sx={{ mb: 2 }}>
+                    <Stack direction="row" justifyContent="center" flexWrap="wrap" useFlexGap spacing={1} sx={{ mb: 2 }}>
+                        {ptuNumber && <Chip label={`PTU: ${ptuNumber}`} disabled chipcolor="primary" size="small" />}
                         <Chip
                             label={import.meta.env.VITE_APP_VERSION}
                             disabled

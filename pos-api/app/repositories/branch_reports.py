@@ -59,6 +59,9 @@ class BranchReportRepository(BackupRepository):
                         'date': { '$first': '$date' },
                         'branchId': { '$first': '$branchId' },
                         'ptuNumber': { '$first': { "$ifNull": ["$ptuNumber", None] } },
+                        # MIN/SN of the terminal that issued these sales, for the Z-report header
+                        'min': { '$first': '$min' },
+                        'sn': { '$first': '$sn' },
                         "totalGrossSales": { "$sum": "$totalGrossSales" },
                         "totalNetSales": { "$sum": "$totalNetSales" },
                         "totalDiscount": { "$sum": "$totalDiscount" },
