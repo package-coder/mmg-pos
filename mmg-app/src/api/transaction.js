@@ -107,6 +107,14 @@ async function CancelTransaction(model) {
     return data;
 }
 
+async function CancelHoldTransaction(model) {
+    const {
+        data: { data }
+    } = await server.post('/v3/transactions/cancel-hold', model);
+
+    return data;
+}
+
 
 async function GetAllTransaction(params) {
     const { data: { data } } = await server.get(TRANSACTION_ENDPOINTS + '/v2/transactions', {
@@ -155,6 +163,7 @@ export default {
     UpdateTransaction,
     CreateTransaction,
     CancelTransaction,
+    CancelHoldTransaction,
     CreateTransactionV2,
     GetActiveTransaction,
     GetTransaction,

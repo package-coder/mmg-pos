@@ -51,7 +51,6 @@ import PackagesComponent from './PackagesComponent';
 import DiscountComponent from './DiscountComponent';
 import { useHotkeys } from 'react-hotkeys-hook';
 import LabTestComponent from './LabTestComponent';
-import ClearComponent from './ClearComponent';
 import NewTransactionDialog from './NewTransactionDialog';
 import RemoveDiscountDialog from './RemoveDiscountDialog';
 import HoldItems from './HoldComponent';
@@ -1122,9 +1121,6 @@ const PosComponent = () => {
                                         onSuccess={() => handleBackPos('success')}
                                         disabled={!customerData?.name || totalItems === 0}
                                     />
-                                </Grid>
-                                <Grid item xs={12}>
-                                    <ClearComponent buttonProps={{ color: 'error' }} />
                                 </Grid>
                             </Grid>
                             <div style={{ flex: 1 }}></div>

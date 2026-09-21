@@ -523,3 +523,61 @@ def v3_cancel_transaction(user_id):
         return jsonify({'message': 'Unable to process data', 'error': e.errors(include_input=False, include_context=False, include_url=False)}), 400
     except Exception as e:
         return jsonify({'message': 'Unable to process transaction', 'error': repr(e)}), 500
+
+
+@transaction_bp.post('/v3/transactions/cancel-hold')
+@authorized
+def v3_cancel_hold_transaction(user_id):
+    # A held transaction was never completed - no invoice/BIR serial number was ever issued for
+    # it (see requirePtuNumberWhenCompleted), so unlike v3_cancel_transaction above there's no
+    # void/mirror document to create and no CANCEL_NUMBER sequence to consume: the hold is simply
+    # marked cancelled in place, identified by its own _id rather than an invoice number it
+    # never had.
+    try:
+        request_data = request.get_json()
+        id = request_data.get('id')
+        reason = request_data.get('reason')
+
+        if not id:
+            return jsonify({'message': 'id is required'}), 400
+        if not reason:
+            return jsonify({'message': 'reason is required'}), 400
+
+        try:
+            object_id = ObjectId(id)
+        except Exception:
+            return jsonify({'message': 'data format is invalid'}), 400
+
+        existing = transactionRepository.find_one({'_id': object_id}, agreggate=False)
+        if not existing:
+            return jsonify({'message': 'Transaction not found.'}), 404
+        if existing.get('status') != TransactionStatus.HOLD:
+            return jsonify({'message': f"Transaction is {existing.get('status')}, not on hold, and cannot be cancelled this way."}), 409
+
+        is_privileged, _role_name = _get_cancel_permission(user_id, existing.get('branchId'))
+        if not is_privileged and existing.get('cashierId') != user_id:
+            return jsonify({'message': 'You do not have permission to cancel this transaction — only the cashier who held it, or a manager/admin for this branch, can do this.'}), 403
+
+        transaction = transactionRepository._db[transactionRepository._collection].find_one_and_update(
+            {"_id": object_id, "status": TransactionStatus.HOLD},
+            {"$set": {"status": TransactionStatus.CANCELLED, "reason": reason, "_sync": pending_sync()}},
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if not transaction:
+            return jsonify({'message': 'Transaction is no longer on hold — it may have just been completed or cancelled elsewhere.'}), 409
+
+        discountRepository.update_many_bare({"transactionId": str(object_id)}, {"status": TransactionStatus.CANCELLED})
+
+        try:
+            auditLogRepository.insert_one(AuditLog(
+                action=AuditCode.TRANSACTION_CANCEL,
+                userId=user_id,
+                data={'transactionId': id, 'branchId': existing.get('branchId'), 'reason': reason},
+            ))
+        except Exception:
+            pass
+
+        return jsonify({'message': 'Held transaction cancelled.'})
+    except Exception as e:
+        return jsonify({'message': 'Unable to cancel transaction', 'error': repr(e)}), 500

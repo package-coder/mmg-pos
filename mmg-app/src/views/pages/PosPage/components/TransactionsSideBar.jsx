@@ -18,19 +18,25 @@ import {
     TablePagination,
     CircularProgress,
     Tooltip,
-    Card
+    Card,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions
 } from '@mui/material';
-import { MdUndo } from 'react-icons/md';
+import { MdUndo, MdOutlineCancel, MdOutlineAssignmentReturn } from 'react-icons/md';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import moment from 'moment';
-import { useQuery } from 'react-query';
+import { useQuery, useMutation } from 'react-query';
 import { startCase, toLower, upperCase } from 'lodash';
+import { toast } from 'react-toastify';
 import transaction from 'api/transaction';
 import Currency from 'ui-component/Currency';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment';
 import { useAuth } from 'providers/AuthProvider';
+import { usePrinter } from 'providers/PrinterProvider';
 
 const DEFAULT_FILTER = 'all';
 const DateFilter = Object.freeze({
@@ -87,10 +93,55 @@ const getInitials = (name) =>
 
 const TransactionsSlideBar = ({ onRestoreTransaction }) => {
     const { branch } = useAuth();
+    const { getTerminalInfo } = usePrinter();
 
-    const { data, isLoading, isRefetching, isError, error } = useQuery(['transactions', branch?.id], () =>
+    const { data, isLoading, isRefetching, isError, error, refetch } = useQuery(['transactions', branch?.id], () =>
         transaction.GetAllTransaction({ branchId: branch?.id })
     );
+
+    const [actionTarget, setActionTarget] = useState(null); // { t, type: 'cancel-hold' | 'refund' }
+    const [actionReason, setActionReason] = useState('');
+    const [actionSubmitting, setActionSubmitting] = useState(false);
+    const { mutateAsync: cancelHoldTransaction } = useMutation(transaction.CancelHoldTransaction);
+    const { mutateAsync: refundTransaction } = useMutation(transaction.CancelTransaction);
+
+    const closeActionDialog = () => {
+        setActionTarget(null);
+        setActionReason('');
+    };
+
+    const handleConfirmAction = async () => {
+        if (!actionTarget || !actionReason.trim()) return;
+        setActionSubmitting(true);
+        try {
+            if (actionTarget.type === 'cancel-hold') {
+                await cancelHoldTransaction({ id: actionTarget.t._id, reason: actionReason });
+                toast.success('Held transaction cancelled.');
+            } else {
+                const terminalInfo = await getTerminalInfo();
+                if (!terminalInfo?.PTU_NO) {
+                    toast.error("Cannot process: unable to reach this terminal's printer helper to confirm its accreditation (PTU).");
+                    return;
+                }
+                await refundTransaction({
+                    reason: actionReason,
+                    branchId: actionTarget.t.branch?._id,
+                    invoiceNumber: actionTarget.t.invoiceNumber,
+                    status: 'refunded',
+                    ptuNumber: terminalInfo.PTU_NO,
+                    min: terminalInfo.MIN,
+                    sn: terminalInfo.SN
+                });
+                toast.success(`Transaction #${String(actionTarget.t.invoiceNumber).padStart(6, '0')} has been refunded.`);
+            }
+            refetch();
+            closeActionDialog();
+        } catch (e) {
+            toast.error(e?.response?.data?.message || 'Unable to process this request.');
+        } finally {
+            setActionSubmitting(false);
+        }
+    };
 
     const [searchFilter, setSearchFilter] = useState('');
     const [transactions, setTransactions] = useState(data);
@@ -336,7 +387,8 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                                     'Cashier',
                                     'Customer',
                                     'Gross Sale',
-                                    'Member Discount',
+                                    'Discount',
+                                    'Discount Type',
                                     'Net Sale'
                                 ].map((head) => (
                                     <TableCell
@@ -358,7 +410,7 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                         <TableBody>
                             {!isLoading && paginated.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={11}>{renderEmptyState()}</TableCell>
+                                    <TableCell colSpan={12}>{renderEmptyState()}</TableCell>
                                 </TableRow>
                             )}
                             {!isLoading &&
@@ -368,24 +420,50 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                                     return (
                                         <TableRow key={t._id} hover>
                                             <TableCell>
-                                                <Tooltip
-                                                    title={
-                                                        t?.status === 'hold'
-                                                            ? 'Restore held transaction'
-                                                            : 'Only held transactions can be restored'
-                                                    }
-                                                >
-                                                    <span>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => onRestoreTransaction(t)}
-                                                            disabled={t?.status !== 'hold'}
-                                                            aria-label="Restore held transaction"
-                                                        >
-                                                            <MdUndo />
-                                                        </IconButton>
-                                                    </span>
-                                                </Tooltip>
+                                                <Stack direction="row">
+                                                    <Tooltip
+                                                        title={
+                                                            t?.status === 'hold'
+                                                                ? 'Restore held transaction'
+                                                                : 'Only held transactions can be restored'
+                                                        }
+                                                    >
+                                                        <span>
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => onRestoreTransaction(t)}
+                                                                disabled={t?.status !== 'hold'}
+                                                                aria-label="Restore held transaction"
+                                                            >
+                                                                <MdUndo />
+                                                            </IconButton>
+                                                        </span>
+                                                    </Tooltip>
+                                                    {t?.status === 'hold' && (
+                                                        <Tooltip title="Cancel held transaction">
+                                                            <IconButton
+                                                                size="small"
+                                                                color="error"
+                                                                onClick={() => setActionTarget({ t, type: 'cancel-hold' })}
+                                                                aria-label="Cancel held transaction"
+                                                            >
+                                                                <MdOutlineCancel />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
+                                                    {t?.status === 'completed' && (
+                                                        <Tooltip title="Refund transaction">
+                                                            <IconButton
+                                                                size="small"
+                                                                color="warning"
+                                                                onClick={() => setActionTarget({ t, type: 'refund' })}
+                                                                aria-label="Refund transaction"
+                                                            >
+                                                                <MdOutlineAssignmentReturn />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
+                                                </Stack>
                                             </TableCell>
                                             <TableCell sx={{ textWrap: 'nowrap' }}>
                                                 {t.invoiceNumber != null && (t.status == 'completed' || !t.serialNumber)
@@ -444,6 +522,11 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                                                 )}
                                             </TableCell>
                                             <TableCell sx={{ textWrap: 'nowrap' }}>
+                                                {t.discounts?.[0]
+                                                    ? startCase(t.discounts[0].memberType || t.discounts[0].name)
+                                                    : '---'}
+                                            </TableCell>
+                                            <TableCell sx={{ textWrap: 'nowrap' }}>
                                                 {t.status != 'cancelled' || !t.serialNumber ? (
                                                     <Currency value={t.totalNetSales ?? 0} />
                                                 ) : (
@@ -471,6 +554,42 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                     sx={{ borderTop: '1px solid', borderColor: 'divider' }}
                 />
             </Card>
+
+            <Dialog open={!!actionTarget} onClose={!actionSubmitting ? closeActionDialog : undefined} maxWidth="xs" fullWidth>
+                <DialogTitle>
+                    <Typography variant="h4">{actionTarget?.type === 'cancel-hold' ? 'Cancel Held Transaction' : 'Refund Transaction'}</Typography>
+                </DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" color="text.secondary" mb={2}>
+                        {actionTarget?.type === 'cancel-hold'
+                            ? 'This held transaction has no invoice yet and will be discarded.'
+                            : `Invoice #${String(actionTarget?.t?.invoiceNumber).padStart(6, '0')} will be refunded.`}
+                    </Typography>
+                    <TextField
+                        autoFocus
+                        required
+                        fullWidth
+                        label="Reason"
+                        multiline
+                        rows={3}
+                        value={actionReason}
+                        onChange={(e) => setActionReason(e.target.value)}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button disabled={actionSubmitting} onClick={closeActionDialog}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        color={actionTarget?.type === 'cancel-hold' ? 'error' : 'warning'}
+                        disabled={actionSubmitting || !actionReason.trim()}
+                        onClick={handleConfirmAction}
+                    >
+                        {actionSubmitting ? 'Processing...' : 'Confirm'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Stack>
     );
 };
