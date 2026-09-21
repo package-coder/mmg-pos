@@ -14,6 +14,7 @@ import * as Yup from 'yup';
 import { useMutation, useQueryClient } from 'react-query';
 import branch from 'api/branch';
 import TextField from 'ui-component/TextField';
+import { formatTin } from 'utils/tin';
 
 const validationSchema = Yup.object().shape({
     streetAddress: Yup.string().required('Address is required'),
@@ -96,7 +97,12 @@ export default function ({ disabled = false }) {
                                     <Grid item xs={9}>
                                         <Stack spacing={2}>
                                             <TextField name="name" placeholder="Name" />
-                                            <TextField name="tin" placeholder="TIN Number" />
+                                            <TextField
+                                                name="tin"
+                                                placeholder="TIN Number"
+                                                inputProps={{ maxLength: 15 }}
+                                                onChange={(e, helper) => helper.setValue(formatTin(e.target.value))}
+                                            />
                                         </Stack>
                                     </Grid>
                                     <Grid item xs={12}>

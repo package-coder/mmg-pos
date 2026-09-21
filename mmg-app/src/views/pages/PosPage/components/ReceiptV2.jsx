@@ -41,7 +41,7 @@ export default function ({ transaction }) {
                 Medical Mission Group Multipurpose Cooperative-Albay
             </Typography>
             <Typography align="center">
-                VAT REG TIN {transaction.branch.tin}
+                VAT REG TIN {formatTin(transaction.branch.tin)}
             </Typography>
             <Typography align="center" mb={2}>
                 {transaction.branch.streetAddress}
@@ -336,7 +336,7 @@ export default function ({ transaction }) {
                 <Typography variant="h5"  >SUPPLIER</Typography>
                 <Typography variant="h6">Name: {dvoteDetails[0]?.name}</Typography>
                 <Typography variant="h6">Address: {dvoteDetails[0]?.address}</Typography>
-                <Typography variant="h6">Vat Reg Tin: {dvoteDetails[0]?.tin}</Typography>
+                <Typography variant="h6">Vat Reg Tin: {formatTin(dvoteDetails[0]?.tin)}</Typography>
                 <Typography variant="h6">Accred. No: {dvoteDetails[0]?.accredNo}</Typography>
                 <Typography variant="h6">Date Issued: {dvoteDetails[0]?.accredDateIssued}</Typography>
                 <Typography variant="h6">Valid Until: ---</Typography>

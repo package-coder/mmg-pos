@@ -36,6 +36,14 @@ for _w in CONFIG_WARNINGS:
     print(f"[CONFIG WARN] {_w}")
 
 
+def format_tin(value):
+    """000-000-000-000, matching the mmg-app formatTin() display format."""
+    if not value:
+        return value
+    digits = ''.join(ch for ch in str(value) if ch.isdigit())[:12]
+    return '-'.join(digits[i:i + 3] for i in range(0, len(digits), 3))
+
+
 def reload_config():
     """Re-read config.json in place so running code picks up edits without a new process."""
     global CONFIG_WARNINGS, TERMINAL_MIN, TERMINAL_SN, TERMINAL_PTU_NO
@@ -314,7 +322,7 @@ def print_receipt(request_data: dict = {}):
                 p.set(align='center', bold=True)
                 p.write('MEDICAL MISSION GROUP MULTIPURPOSE COOPERATIVE-ALBAY\n')
                 p.set(align='center', bold=False)
-                p.write('VAT REG TIN ' + branch['tin'] + '\n')
+                p.write('VAT REG TIN ' + format_tin(branch['tin']) + '\n')
                 p.write(upper_case(branch['streetAddress']) + '\n\n')
 
                 p.set(align='center', bold=True)
@@ -351,7 +359,7 @@ def print_receipt(request_data: dict = {}):
 
                 p.row("Name: ", start_case(to_lower(customer["name"])))
                 p.row("Address: ", start_case(to_lower(customer["address"])))
-                p.row("TIN: ", customer.get("tin_number") or "---")
+                p.row("TIN: ", format_tin(customer.get("tin_number")) or "---")
 
                 if(companyCopy):
                     p.row("Age: ", customer["age"], transform=False)
@@ -448,7 +456,7 @@ def print_receipt(request_data: dict = {}):
                 p.set(align="center", bold=True)
                 p.write(dvote['name'].upper() + '\n')
                 p.set(align="center", bold=False)
-                p.writeln('VAT REG TIN ' + dvote['tin'])
+                p.writeln('VAT REG TIN ' + format_tin(dvote['tin']))
                 p.writeln(upper_case(dvote['address']))
                 p.write('Accred No: ' + dvote['accredNo'] + '\n')
                 p.write('Date Issued: ' + dvote['accredDateIssued'] + '\n')

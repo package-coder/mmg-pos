@@ -36,7 +36,7 @@ const ReceiptContent = ({ combinedData, amountGiven, change, tenderType, showAdd
                 Medical Mission Group Multipurpose Cooperative-Albay
             </Typography>
             <Typography variant="subtitle2" align="center">
-                VAT REG TIN {combinedData?.branchTIN}
+                VAT REG TIN {formatTin(combinedData?.branchTIN)}
             </Typography>
             <Typography variant="subtitle2" align="center" mb={2}>
                 {combinedData?.branchAddress}
@@ -314,7 +314,7 @@ const ReceiptContent = ({ combinedData, amountGiven, change, tenderType, showAdd
                 <Typography variant="h5"  >SUPPLIER</Typography>
                 <Typography variant="h6">Name: {dvoteDetails[0]?.name}</Typography>
                 <Typography variant="h6">Address: {dvoteDetails[0]?.address}</Typography>
-                <Typography variant="h6">Vat Reg Tin: {dvoteDetails[0]?.tin}</Typography>
+                <Typography variant="h6">Vat Reg Tin: {formatTin(dvoteDetails[0]?.tin)}</Typography>
                 <Typography variant="h6">Accred. No: {dvoteDetails[0]?.accredNo}</Typography>
                 <Typography variant="h6">Date Issued: {dvoteDetails[0]?.accredDateIssued}</Typography>
                 <Typography variant="h6">Valid Until: ---</Typography>
