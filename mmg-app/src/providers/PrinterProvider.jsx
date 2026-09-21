@@ -10,25 +10,21 @@ const CONNECT_TIMEOUT_MS = 5000
 // The helper retries the printer connection (~5 s) before it prints, so leave generous room.
 const REPLY_TIMEOUT_MS = 30000
 
-// The PTU must be unique per branch+user in this browser, not a single shared constant.
+// The PTU must be unique per branch+user, not a single shared constant.
 // Invoice numbers are counted per ptuNumber alone (BIR rule — a real PTU belongs to one
-// physical terminal, so this is exactly right for real terminals). But one browser testing
-// several branches/users in Dev Test Mode would otherwise have them all mint invoice numbers
-// off the same fake PTU's sequence, mixing series that a real deployment would never mix — so
-// each (branchId, userId) combination this browser has logged in as gets its own persisted PTU.
+// physical terminal, so this is exactly right for real terminals). But testing several
+// branches/users in Dev Test Mode would otherwise have them all mint invoice numbers off
+// the same fake PTU's sequence, mixing series that a real deployment would never mix — so
+// each (branchId, userId) combination gets its own PTU. It's derived deterministically
+// (not randomly, not cached in localStorage) so the same branch+cashier always gets the
+// same PTU across browsers/machines, matching the DB-backed (not per-browser) deployment.
 function devPtuNo(branchId, userId) {
-    const key = `devPtuNo:${branchId || 'no-branch'}:${userId || 'no-user'}`
-    const fresh = () => `DEV-PTU-${Math.random().toString(16).slice(2, 10).toUpperCase()}`
-    try {
-        let id = localStorage.getItem(key)
-        if (!id) {
-            id = fresh()
-            localStorage.setItem(key, id)
-        }
-        return id
-    } catch {
-        return fresh()
+    const key = `${branchId || 'no-branch'}:${userId || 'no-user'}`
+    let hash = 0
+    for (let i = 0; i < key.length; i++) {
+        hash = (Math.imul(31, hash) + key.charCodeAt(i)) | 0
     }
+    return `DEV-PTU-${(hash >>> 0).toString(16).toUpperCase().padStart(8, '0')}`
 }
 function devMockTerminalInfo(branchId, userId) {
     return { MIN: 'DEV-MIN', SN: 'DEV-SN', PTU_NO: devPtuNo(branchId, userId) }
