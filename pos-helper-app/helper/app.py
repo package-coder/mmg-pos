@@ -574,15 +574,18 @@ def print_report(data: dict = {}):
                 p.row("Sales for the Day: ", sales['totalSalesWithoutMemberDiscount'])
                 
             p.line()
-            p.row("VATable Sales: ", "0")
-            p.row("VAT-Exempt Sales: ", sales['totalSalesWithoutMemberDiscount'])
-            p.row("Zero-Rated Sales: ", "0")
-            p.row("Gross Sales: ", sales['totalSalesWithoutMemberDiscount'])
-            p.row("Less Discount: ", sales["totalMemberDiscount"])
-            p.row("Less Cancelled: ", salesAdjustment.get('cancelled', 0))
-            p.row("Less Refunded: ", salesAdjustment.get('refunded', 0))
+            # Top-to-bottom breakdown computed by the API (app/utils/sales_summary.py): gross
+            # includes cancelled/refunded invoices, which are then deducted, so Net Sales foots.
+            summary = data['salesSummary']
+            p.row("VATable Sales: ", summary['vatableSales'])
+            p.row("VAT-Exempt Sales: ", summary['vatExemptSales'])
+            p.row("Zero-Rated Sales: ", summary['zeroRatedSales'])
+            p.row("Gross Sales: ", summary['grossSales'])
+            p.row("Less Discount: ", -summary['discount'] if summary['discount'] else 0)
+            p.row("Less Cancelled: ", -summary['cancelled'] if summary['cancelled'] else 0)
+            p.row("Less Refunded: ", -summary['refunded'] if summary['refunded'] else 0)
             # p.row("Less VAT Adjustment: ", 0)
-            p.row("Net Sales: ", sales["totalNetSales"])
+            p.row("Net Sales: ", summary['netSales'])
 
             if(type == 'Z_REPORT'):
                 p.line()

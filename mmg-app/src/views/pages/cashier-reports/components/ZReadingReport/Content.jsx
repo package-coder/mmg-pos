@@ -80,11 +80,14 @@ function Content({ report, reprint }) {
             {renderGridItem('Sales for the Day:', clip(report.totalNetSales))}
             {renderGridItem('Present Accumulated Sales:', clip(report.presentAccumulatedSales))}
             {renderDivider()}
-            {renderGridItem('Gross Sales: ', clip(report.totalSalesWithoutMemberDiscount))}
-            {renderGridItem('Less Discount: ', clip(report.totalMemberDiscount))}
-            {renderGridItem('Less Cancelled: ', clip(report.salesAdjustment.cancelled))}
-            {renderGridItem('Less Refunded: ', clip(report.salesAdjustment.refunded))}
-            {renderGridItem('Net Sales: ', clip(report.totalNetSales))}
+            {renderGridItem('VATable Sales: ', clip(report.salesSummary?.vatableSales))}
+            {renderGridItem('VAT-Exempt Sales: ', clip(report.salesSummary?.vatExemptSales))}
+            {renderGridItem('Zero-Rated Sales: ', clip(report.salesSummary?.zeroRatedSales))}
+            {renderGridItem('Gross Sales: ', clip(report.salesSummary?.grossSales))}
+            {renderGridItem('Less Discount: ', clip(-(report.salesSummary?.discount || 0)))}
+            {renderGridItem('Less Cancelled: ', clip(-(report.salesSummary?.cancelled || 0)))}
+            {renderGridItem('Less Refunded: ', clip(-(report.salesSummary?.refunded || 0)))}
+            {renderGridItem('Net Sales: ', clip(report.salesSummary?.netSales))}
             {renderDivider()}
             {renderTitle('DISCOUNT SUMMARY')}
             {renderGridItem('SC Discount', clip(report.discountSummary.senior_citizen))}

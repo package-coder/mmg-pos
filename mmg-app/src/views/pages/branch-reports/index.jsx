@@ -311,11 +311,11 @@ function BranchReportsPage() {
                                     {isViewingAllBranches && <TableCell>{startCase(report.branch.name)}</TableCell>}
                                     <TableCell>{clip(report.openingFund?.total || 0)}</TableCell>
                                     <TableCell>{clip(report.endingCashCount?.total || 0)}</TableCell>
-                                    <TableCell>{clip(report.totalSalesWithoutMemberDiscount)}</TableCell>
-                                    <TableCell>{clip(report.totalMemberDiscount)}</TableCell>
+                                    <TableCell>{clip(report.salesSummary?.grossSales)}</TableCell>
+                                    <TableCell>{clip(report.salesSummary?.discount)}</TableCell>
                                     <TableCell>
                                         <Typography variant="body2" fontWeight={700}>
-                                            {clip(report.totalNetSales)}
+                                            {clip(report.salesSummary?.netSales)}
                                         </Typography>
                                     </TableCell>
                                     <TableCell sx={{ textWrap: 'nowrap' }}>{moment(report.date).format('YYYY-MM-DD')}</TableCell>

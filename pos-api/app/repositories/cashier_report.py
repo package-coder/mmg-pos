@@ -7,6 +7,7 @@ from pydash import get
 from app.filters.date_filter import DateFilter, compare_date_filter
 from app.new_models.CashierReport import CashierReport
 from app.new_models.Transaction import TenderType, TransactionStatus
+from app.utils.sales_summary import summarize_sales
 from app.repositories.base import BackupRepository, Repository
 from app.repositories.report_cash_count import CashCountRepository
 from app.repositories.transaction import TransactionRepository
@@ -309,13 +310,10 @@ class CashierReportRepository(BackupRepository):
                     discountSummary[key] = total
                 item['discountSummary'] = discountSummary
 
-                salesAdjustment = {}
-                transactions = filter(lambda i: i['totalNetSales'] > 0, item['transactions'])
-                for key, value in groupby(transactions, lambda i: i['status']):
-                    total = sum(map(lambda i: i['totalNetSales'], value))
-                    total += salesAdjustment.get(key, 0)
-                    salesAdjustment[key] = total
-                item['salesAdjustment'] = salesAdjustment
+                # Top-to-bottom breakdown that foots (Gross - Discount - Cancelled - Refunded = Net), see
+                # app/utils/sales_summary.py. salesAdjustment now reports the voids processed in this window.
+                item['salesSummary'] = summarize_sales(item['transactions'])
+                item['salesAdjustment'] = {'cancelled': item['salesSummary']['cancelled'], 'refunded': item['salesSummary']['refunded']}
                 
                 # On-account sales are receivables, not money received: they are excluded from
                 # "payments" here and taken out of the expected drawer total below.

@@ -89,10 +89,10 @@ function SalesReports({ generated, ...initialParams }) {
                                     </TableCell>
                                     <TableCell>{clip(report.endingCashCount?.total)}</TableCell>
                                     <TableCell>{clip(report.openingFund?.total)}</TableCell>
-                                    <TableCell>{clip(report.totalSalesWithoutMemberDiscount)}</TableCell>
-                                    <TableCell>{clip(report.salesAdjustment?.refunded)}</TableCell>
-                                    <TableCell>{clip(report.totalMemberDiscount)}</TableCell>
-                                    <TableCell>{clip(report.totalNetSales)}</TableCell>
+                                    <TableCell>{clip(report.salesSummary?.grossSales)}</TableCell>
+                                    <TableCell>{clip((report.salesSummary?.cancelled || 0) + (report.salesSummary?.refunded || 0))}</TableCell>
+                                    <TableCell>{clip(report.salesSummary?.discount)}</TableCell>
+                                    <TableCell>{clip(report.salesSummary?.netSales)}</TableCell>
                                     <TableCell sx={{ textWrap: 'nowrap' }}>{moment(report.date).format('YYYY-MM-DD')}</TableCell>
                                 </TableRow>
                             ))}

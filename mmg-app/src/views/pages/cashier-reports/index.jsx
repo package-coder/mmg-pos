@@ -314,11 +314,11 @@ function CashierReportsPage() {
                                     {showCashierColumn && <TableCell>{report.cashier.name}</TableCell>}
                                     <TableCell>{clip(report?.openingFund?.total)}</TableCell>
                                     <TableCell>{clip(report?.endingCashCount?.total)}</TableCell>
-                                    <TableCell>{clip(report.sales?.totalSalesWithoutMemberDiscount)}</TableCell>
-                                    <TableCell>{clip(report.sales?.totalMemberDiscount)}</TableCell>
+                                    <TableCell>{clip(report.salesSummary?.grossSales)}</TableCell>
+                                    <TableCell>{clip(report.salesSummary?.discount)}</TableCell>
                                     <TableCell>
                                         <Typography variant="body2" fontWeight={700}>
-                                            {clip(report.sales?.totalNetSales)}
+                                            {clip(report.salesSummary?.netSales)}
                                         </Typography>
                                     </TableCell>
                                     <TableCell sx={{ textWrap: 'nowrap' }}>{moment(report.date).format('YYYY-MM-DD')}</TableCell>
