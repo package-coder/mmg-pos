@@ -49,6 +49,13 @@ function ensureLoaded() {
     return inFlight;
 }
 
+// Forces a fresh read of the server value and waits for it. Needed at login: the read at app
+// start is unauthenticated (401), so the cached default (false) would otherwise be used.
+export function refreshDevTestMode() {
+    loaded = false;
+    return ensureLoaded();
+}
+
 export function isDevTestModeEnabled() {
     ensureLoaded(); // fire-and-forget refresh if this browser hasn't loaded the real value yet
     return cachedEnabled;

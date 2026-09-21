@@ -1,6 +1,7 @@
 import auth from 'api/auth';
 import { toUpper } from 'lodash';
 import Role from 'utils/Role';
+import { refreshDevTestMode } from 'utils/devTestMode';
 import { clearTerminal, getTerminal, missingTerminalFields, saveTerminal } from 'utils/terminalSession';
 import { useContext, createContext, useState, useEffect } from 'react';
 
@@ -54,6 +55,8 @@ const AuthProvider = ({ children }) => {
         if (toUpper(authUser?.role?.name) === Role.CASHIER) {
             let info;
             try {
+                // Dev Test Mode uses a generated terminal instead of the helper's config.
+                await refreshDevTestMode();
                 info = await getTerminalInfo?.();
             } catch (e) {
                 info = { error: e?.message };

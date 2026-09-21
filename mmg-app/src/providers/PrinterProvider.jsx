@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { canPrint, isDevTestModeEnabled } from 'utils/devTestMode'
-import { useAuth } from 'providers/AuthProvider'
+import { getDevTerminal } from 'utils/terminalSession'
 
 export const PrinterContext = createContext()
 
@@ -10,28 +10,7 @@ const CONNECT_TIMEOUT_MS = 5000
 // The helper retries the printer connection (~5 s) before it prints, so leave generous room.
 const REPLY_TIMEOUT_MS = 30000
 
-// The PTU must be unique per branch+user, not a single shared constant.
-// Invoice numbers are counted per ptuNumber alone (BIR rule — a real PTU belongs to one
-// physical terminal, so this is exactly right for real terminals). But testing several
-// branches/users in Dev Test Mode would otherwise have them all mint invoice numbers off
-// the same fake PTU's sequence, mixing series that a real deployment would never mix — so
-// each (branchId, userId) combination gets its own PTU. It's derived deterministically
-// (not randomly, not cached in localStorage) so the same branch+cashier always gets the
-// same PTU across browsers/machines, matching the DB-backed (not per-browser) deployment.
-function devPtuNo(branchId, userId) {
-    const key = `${branchId || 'no-branch'}:${userId || 'no-user'}`
-    let hash = 0
-    for (let i = 0; i < key.length; i++) {
-        hash = (Math.imul(31, hash) + key.charCodeAt(i)) | 0
-    }
-    return `DEV-PTU-${(hash >>> 0).toString(16).toUpperCase().padStart(8, '0')}`
-}
-function devMockTerminalInfo(branchId, userId) {
-    return { MIN: 'DEV-MIN', SN: 'DEV-SN', PTU_NO: devPtuNo(branchId, userId) }
-}
-
 const PrinterProvider = ({ children }) => {
-    const { branch, user } = useAuth()
     const [socket, setSocket] = useState(null);
     const [printing, setPrinting] = useState(false)
     const [status, setStatus] = useState(statuses[3])
@@ -163,10 +142,13 @@ const PrinterProvider = ({ children }) => {
     // Resolves with { MIN, SN, PTU_NO } read from this workstation's terminal.json via the
     // helper app, or { error } if the helper app can't be reached. Used at checkout time to
     // scope invoice numbers per accredited terminal (BIR compliance) — see Checkout.jsx.
+    //
+    // In Dev Test Mode there is no helper config: this browser gets one generated terminal
+    // (stored in localStorage) that stands for a single machine — see getDevTerminal().
     function getTerminalInfo() {
         if (isDevTestModeEnabled()) {
-            console.warn('[DEV TEST MODE] Using mock terminal info instead of querying the helper app.')
-            return Promise.resolve(devMockTerminalInfo(branch?.id, user?._id))
+            console.warn('[DEV TEST MODE] Using this browser\'s generated terminal instead of querying the helper app.')
+            return Promise.resolve(getDevTerminal())
         }
         return print("terminal", "info", {})
     }
