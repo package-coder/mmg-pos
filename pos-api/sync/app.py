@@ -6,6 +6,7 @@ import sys
 
 import pymongo
 import schedule
+from bson import ObjectId
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lookup_tally  # noqa: E402
@@ -306,6 +307,11 @@ def pull_pending(remote_client: pymongo.MongoClient, remote_db_name, local_clien
               f'central does not have, so sales referencing them will not tally. '
               f'Run: python reconcile.py --verify')
 
+    try:
+      pulled += pull_cloud_dev_transactions(remote_db, local_db)
+    except Exception as e:
+      print(f'[downstream-sync] cloud dev-test transactions skipped: {repr(e)}')
+
     fields = {'last_run_at': now, 'last_success_at': now, 'pulled': pulled}
     if pulled:
       fields['last_pull_at'] = now   # only when something really came down
@@ -316,6 +322,81 @@ def pull_pending(remote_client: pymongo.MongoClient, remote_db_name, local_clien
     now = datetime.datetime.utcnow()
     _write_meta(local_client[local_db_name], 'downstream', {'last_run_at': now, 'last_error_at': now, 'last_error': repr(e)[:300]})
     print(f'[downstream-sync] {_stamp()} Error: ', repr(e))
+
+
+# TEMPORARY: Dev Test Mode transactions created on central (admin portal) are copied down to the
+# branch so they can be viewed/printed there. This is the one exception to "transactions flow
+# upward only" — scoped to isDevTest records of this branch's own branchId(s), tagged
+# `tempSyncedFromCloud` (plus their shifts, cash counts and Z records), and stamped `_sync.status = synced` so they can never be pushed back.
+# Remove this (and delete the tagged docs) once the requirements submission is done.
+TEMP_CLOUD_TRANSACTION_CHILDREN = ['transaction_items', 'transaction_discounts']
+
+
+def pull_cloud_dev_transactions(remote_db, local_db):
+  """Returns the number of documents copied/refreshed."""
+  now = datetime.datetime.utcnow()
+  branch_ids = [b['_id'] for b in local_db['branches'].find({}, {'_id': 1})]
+  branch_ids += [str(b) for b in branch_ids]
+  if not branch_ids:
+    return 0
+
+  temp_fields = {'tempSyncedFromCloud': True, 'tempSyncedAt': now}
+  copied = 0
+
+  def copy(collection_name, docs):
+    n = 0
+    for doc in docs:
+      payload = {k: v for k, v in doc.items() if k not in ('_id', '_sync')}
+      try:
+        local_db[collection_name].update_one(
+          {'_id': doc['_id']},
+          {'$set': {**payload, **temp_fields},
+           '$setOnInsert': {'_sync': {'status': 'synced', 'synced_at': now, 'attempts': 0, 'from_cloud': True}}},
+          upsert=True,
+        )
+        n += 1
+      except pymongo.errors.DuplicateKeyError as e:
+        # A local unique index (e.g. one open shift per cashier/day, one invoice number per PTU)
+        # rejects this copy; skip just this doc rather than losing the rest of the cycle.
+        print(f'[downstream-sync] cloud dev-test {collection_name}/{doc["_id"]} skipped (duplicate key): {e}')
+    return n
+
+  transactions = list(remote_db['new_transactions']
+                      .find({'isDevTest': True, 'branchId': {'$in': branch_ids}})
+                      .sort('_id', -1).limit(BATCH_SIZE))
+  copied += copy('new_transactions', transactions)
+
+  transaction_ids = [t['_id'] for t in transactions]
+  transaction_ids += [str(i) for i in transaction_ids]
+  if transaction_ids:
+    for name in TEMP_CLOUD_TRANSACTION_CHILDREN:
+      copied += copy(name, remote_db[name].find({'transactionId': {'$in': transaction_ids}}))
+
+  # Shifts (cashier_reports) and Z-reading records (branch_reports) so the branch can print a
+  # matching X/Z. Those docs carry no isDevTest flag, so they are picked by the Dev Test PTU
+  # prefix plus the shifts the pulled transactions point at (`shiftId`).
+  dev_ptu = {'$regex': '^DEV-PTU-'}
+  shift_ids = set()
+  for t in transactions:
+    try:
+      if t.get('shiftId'):
+        shift_ids.add(ObjectId(t['shiftId']))
+    except Exception:
+      pass
+  shifts = list(remote_db['cashier_reports'].find({'$or': [
+    {'branchId': {'$in': branch_ids}, 'ptuNumber': dev_ptu},
+    {'_id': {'$in': list(shift_ids)}},
+  ]}).sort('_id', -1).limit(BATCH_SIZE))
+  copied += copy('cashier_reports', shifts)
+
+  count_ids = [s[k] for s in shifts for k in ('openingFundId', 'endingCashCountId') if s.get(k)]
+  if count_ids:
+    copied += copy('report_cash_counts', remote_db['report_cash_counts'].find({'_id': {'$in': count_ids}}))
+
+  copied += copy('branch_reports', remote_db['branch_reports']
+                 .find({'branchId': {'$in': branch_ids}, 'ptuNumber': dev_ptu})
+                 .sort('_id', -1).limit(BATCH_SIZE))
+  return copied
 
 
 def downstream_sync_data():

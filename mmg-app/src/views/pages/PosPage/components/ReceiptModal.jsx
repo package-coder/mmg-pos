@@ -64,6 +64,9 @@ const ReceiptModal = ({ open, disableCloseAfterPrinting, reprint: reprintProp, o
                 ...receipt,
                 reprint,
                 devTestMode,
+                // Reprint switch off = an actual receipt for requirements submission, so drop the
+                // "DEV TEST — NOT A REAL RECEIPT" banner too.
+                actualCopy: devTestMode && !asReprint,
                 transaction,
                 dvoteDetails,
                 copies: devTestMode && !twoCopies ? 1 : 2
