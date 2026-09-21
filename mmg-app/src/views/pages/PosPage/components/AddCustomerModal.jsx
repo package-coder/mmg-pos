@@ -4,7 +4,7 @@ import CustomerForm from '../../CustomerPage/components/CustomerForm';
 
 const AddCustomerModal = ({ open, onClose }) => (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-        <CustomerForm onClose={onClose} />
+        {open && <CustomerForm onClose={onClose} />}
     </Dialog>
 );
 

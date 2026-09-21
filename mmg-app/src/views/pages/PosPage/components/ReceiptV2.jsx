@@ -1,6 +1,7 @@
 import React from 'react';
 import { Divider, Stack, Typography, Box, Grid, Table, TableBody, TableRow, TableCell } from '@mui/material';
 import { dvoteDetails } from 'utils/mockData';
+import { formatTin } from 'utils/tin';
 import moment from 'moment';
 import { startCase, toLower, upperCase } from 'lodash';
 
@@ -12,11 +13,14 @@ export default function ({ transaction }) {
         return sale * (discount.value / 100)
     }
 
+    const formatCurrency = (value) => (Number(value) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
     const address = transaction.customer.address
 
     const isCompleted = transaction.status == 'completed'
 
     const discounts = transaction.discounts.filter(item => !!item.memberType)
+    const allDiscounts = transaction.discounts || []
 
     console.log('transaction', discounts)
 
@@ -104,7 +108,7 @@ export default function ({ transaction }) {
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>TIN:</Typography>
-                    <Typography>{transaction.customer.tin_number}</Typography>
+                    <Typography>{formatTin(transaction.customer.tin_number)}</Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Age:</Typography>
@@ -112,7 +116,7 @@ export default function ({ transaction }) {
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Birthdate:</Typography>
-                    <Typography>{moment(transaction.customer.birthDate).format('YYYY-MM-DD')}</Typography>
+                    <Typography>{moment(transaction.customer.birthDate).format('MM/DD/YYYY')}</Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Requested By:</Typography>
@@ -164,13 +168,13 @@ export default function ({ transaction }) {
                                             <Grid item xs={2}>
                                                 <Typography>
                                                     {transaction.status != 'completed' && <>- </>}
-                                                    {item.price.toFixed(2)}
+                                                    {formatCurrency(item.price)}
                                                 </Typography>
                                             </Grid>
                                             <Grid item xs={2}>
                                                 <Typography align='right'>
                                                     {transaction.status != 'completed' && <>- </>}
-                                                    {item.price.toFixed(2)}
+                                                    {formatCurrency(item.price)}
                                                 </Typography>
                                             </Grid>
                                         </React.Fragment>
@@ -182,7 +186,7 @@ export default function ({ transaction }) {
                                                     <Typography ml={3} variant="h5" fontWeight='regular' >
                                                         - Less: {discount.name} Discount
                                                     </Typography>
-                                                    <Typography variant="h5" fontWeight='regular'>- {computeDiscount(discount, transaction.totalGrossSales).toFixed(2)}</Typography>
+                                                    <Typography variant="h5" fontWeight='regular'>- {formatCurrency(computeDiscount(discount, transaction.totalGrossSales))}</Typography>
                                                 </Stack>
                                             </Grid>
                                         )
@@ -206,17 +210,19 @@ export default function ({ transaction }) {
                 <Divider sx={{ mb: 2 }} />
                 <Stack direction="row" justifyContent="space-between">
                     <Typography color='black' fontWeight='bold'>Total Sales:</Typography>
-                    <Typography color='black' fontWeight='bold'>{transaction.totalSalesWithoutMemberDiscount.toFixed(2)}</Typography>
+                    <Typography color='black' fontWeight='bold'>{formatCurrency(transaction.totalSalesWithoutMemberDiscount)}</Typography>
                 </Stack>
-                {discounts.length > 0 ? (
+                {allDiscounts.length > 0 ? (
                     <>
                         <Stack direction="row" justifyContent="space-between">
                             <Typography>Less Discount: </Typography>
                         </Stack>
                         <Stack sx={{ ml: 3 }} direction="row" justifyContent="space-between">
-                            <Typography>- {discounts[0].value}% {startCase(discounts[0].memberType)}: </Typography>
+                            <Typography>
+                                - {allDiscounts[0].value}% {allDiscounts[0].memberType ? startCase(allDiscounts[0].memberType) : allDiscounts[0].name}:
+                            </Typography>
                             <Typography variant="h5">
-                                {transaction.totalMemberDiscount.toFixed(2)}
+                                {formatCurrency(transaction.totalDiscount)}
                             </Typography>
                         </Stack>
                     </>
@@ -232,37 +238,37 @@ export default function ({ transaction }) {
                 )}
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Net Sales:</Typography>
-                    <Typography variant='h5'>{transaction.totalNetSales.toFixed(2)}</Typography>
+                    <Typography variant='h5'>{formatCurrency(transaction.totalNetSales)}</Typography>
                 </Stack>
                 <Divider sx={{ my: 1 }} />
 
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Vatable Amount:</Typography>
                     <Typography variant="h5">
-                        0.00
+                        {formatCurrency(transaction.vatableAmount)}
                     </Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Vat Exempt Amount</Typography>
                     <Typography variant="h5">
-                        {transaction.totalNetSales.toFixed(2)}
+                        {formatCurrency(transaction.vatExemptAmount)}
                     </Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>12% Vat</Typography>
                     <Typography variant="h5">
-                        0.00
+                        {formatCurrency(transaction.vatAmount)}
                     </Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between" mb={1}>
                     <Typography color='black' fontWeight='bold'>TOTAL AMOUNT DUE:</Typography>
-                    <Typography variant="h5" color='black' fontWeight='bold'>{transaction.totalNetSales.toFixed(2)}</Typography>
+                    <Typography variant="h5" color='black' fontWeight='bold'>{formatCurrency(transaction.totalNetSales)}</Typography>
                 </Stack>
 
                 <Divider sx={{ my: 1 }} />
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Tender Amount:</Typography>
-                    <Typography variant="h5">{transaction.tender?.amount?.toFixed(2)}</Typography>
+                    <Typography variant="h5">{formatCurrency(transaction.tender?.amount)}</Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Tender Type:</Typography>
@@ -270,7 +276,7 @@ export default function ({ transaction }) {
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography>Change:</Typography>
-                    <Typography variant="h5">{transaction.change?.toFixed()}</Typography>
+                    <Typography variant="h5">{formatCurrency(transaction.change)}</Typography>
                 </Stack>
                 {/* <Stack direction="row" justifyContent="space-between">
                     <Typography>Number of Items:</Typography>

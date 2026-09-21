@@ -104,22 +104,55 @@ class BaseTransaction(BaseModel):
         packageSales = self._computeTotalPackageGrossSales()
         totalDiscount = self._computeTotalMemberDiscount(packageSales)
         return totalDiscount
-    
-    
+
+    # BIR RA 9994/RA 10754: purchases with a qualified senior citizen/PWD/NAAC/solo-parent
+    # discount are entirely VAT-exempt, not just discounted. Everything else is a standard
+    # VAT-registered sale (prices are VAT-inclusive), so 12% is backed out of net sales.
+    @computed_field
+    @property
+    def vatableAmount(self) -> float:
+        if self._hasMemberDiscount():
+            return 0.0
+        return self.totalNetSales / 1.12
+
+    @computed_field
+    @property
+    def vatExemptAmount(self) -> float:
+        if self._hasMemberDiscount():
+            return self.totalNetSales
+        return 0.0
+
+    @computed_field
+    @property
+    def vatAmount(self) -> float:
+        return self.totalNetSales - self.vatableAmount - self.vatExemptAmount
+
+    def _hasMemberDiscount(self) -> bool:
+        return any(d.memberType is not None for d in (self.discounts or []))
+
+
     @property
     def transactionDateObject(self) -> datetime:
         return datetime.fromisoformat(self.transactionDate)
     
     def _computeTotalMemberDiscount(self, totalSales) -> float:
         discounts = self._filterDiscounts(lambda i: i.memberType is not None)
-        totalDiscount = self._sumTotalDiscount(discounts, totalSales)
+        totalDiscount = self._sumTotalDiscount(discounts, self._discountBase(discounts, totalSales))
         return totalDiscount
-    
+
     def _computeTotalPackageNotMemberDiscount(self, totalSales) -> float:
         return self._computeTotalDiscount(lambda i: i.packageType == PackageType.PACKAGE and i.memberType is None, totalSales)
-    
+
     def _computeTotalPackageDiscount(self, totalSales) -> float:
         return self._computeTotalDiscount(lambda i: i.packageType == PackageType.PACKAGE, totalSales)
+
+    def _discountBase(self, discounts: List[TransactionDiscount], scopedSales: float) -> float:
+        # A discount with no packageId isn't tied to any specific package/promo (e.g. a
+        # member-type or ad-hoc discount picked at checkout) - it should reduce the whole
+        # sale, including promo-bundle items, not just the non-promo portion.
+        if any(d.packageId is None for d in discounts):
+            return self.totalGrossSales
+        return scopedSales
 
     def _computeTotalPackageNetSales(self) -> float:
         packageSales = self._computeTotalPackageGrossSales()
@@ -160,7 +193,7 @@ class BaseTransaction(BaseModel):
     
     def _computeTotalDiscount(self, func, totalSales) -> float:
         discounts = self._filterDiscounts(func)
-        totalDiscount = self._sumTotalDiscount(discounts, totalSales)
+        totalDiscount = self._sumTotalDiscount(discounts, self._discountBase(discounts, totalSales))
         return totalDiscount
    
     def _filterItems(self, func) -> List[TransactionItem]:

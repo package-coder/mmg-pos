@@ -36,6 +36,9 @@ import service from 'api/service';
 export default memo(function ({ packageTests, selectedLabTest, handleAddItem, disabled, hideTitle }) {
     const { data: services, isLoading, isRefetching, refetch } = useQuery('services', service.GetAllServices);
 
+    // "Others" items with no real price aren't ready to be sold yet — hide them from the POS list only.
+    const visibleServices = services?.filter((item) => !(item.category?.name === 'Others' && !item.price));
+
     const [search, setSearch] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [open, setOpen] = useState(false);
@@ -53,7 +56,7 @@ export default memo(function ({ packageTests, selectedLabTest, handleAddItem, di
     };
 
     const selectFirstItem = (search) => {
-        const firstItem = services.filter((item) => toLower(item.name).startsWith(toLower(search)))?.[0];
+        const firstItem = visibleServices.filter((item) => toLower(item.name).startsWith(toLower(search)))?.[0];
         return firstItem;
     };
 
@@ -61,7 +64,7 @@ export default memo(function ({ packageTests, selectedLabTest, handleAddItem, di
         if (e.key === 'Enter') {
             e.preventDefault();
 
-            if (services && services.length === 0) {
+            if (visibleServices && visibleServices.length === 0) {
                 onToggle();
                 return;
             }
@@ -88,7 +91,7 @@ export default memo(function ({ packageTests, selectedLabTest, handleAddItem, di
 
     if (isLoading) return null;
 
-    const filteredServices = services?.filter(
+    const filteredServices = visibleServices?.filter(
         (service) => toLower(service.name).includes(toLower(search)) && (!categoryFilter || service.category?.name === categoryFilter)
     );
 
@@ -118,7 +121,7 @@ export default memo(function ({ packageTests, selectedLabTest, handleAddItem, di
                         Search (Ctrl+L)
                     </Button>
                 </Grid>
-                {services?.slice(0, 20)?.map((service, index) => {
+                {visibleServices?.slice(0, 20)?.map((service, index) => {
                     const isLabTestInPackage = packageTests?.some(
                         (i) => i.source === 'package' && i.labTest.some((itemObj) => itemObj.name === service?.name)
                     );
@@ -192,7 +195,7 @@ export default memo(function ({ packageTests, selectedLabTest, handleAddItem, di
                                 <MenuItem value="">
                                     <em>All</em>
                                 </MenuItem>
-                                {Array.from(new Set(services?.map((service) => service.category?.name))).map((category, index) => (
+                                {Array.from(new Set(visibleServices?.map((service) => service.category?.name))).map((category, index) => (
                                     <MenuItem key={index} value={category}>
                                         {category}
                                     </MenuItem>

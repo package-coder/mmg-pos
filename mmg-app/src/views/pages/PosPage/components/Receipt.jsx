@@ -2,6 +2,7 @@ import React, { useRef, forwardRef } from 'react';
 import { Divider, Stack, Typography, Button, Box, Grid, Table, TableBody, TableRow, TableCell } from '@mui/material';
 import axios from 'axios';
 import { dvoteDetails } from 'utils/mockData';
+import { formatTin } from 'utils/tin';
 import PropTypes from 'prop-types'; // Import PropTypes
 import { useMutation } from 'react-query';
 import print from 'api/print';
@@ -88,7 +89,7 @@ const ReceiptContent = ({ combinedData, amountGiven, change, tenderType, showAdd
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography variant="subtitle2">TIN:</Typography>
-                    <Typography variant="h6">{combinedData?.customerData?.tin}</Typography>
+                    <Typography variant="h6">{formatTin(combinedData?.customerData?.tin)}</Typography>
                 </Stack>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography variant="subtitle2">Age:</Typography>

@@ -22,13 +22,14 @@ import {
     Tooltip,
     Box
 } from '@mui/material';
-import { MdPersonAdd, MdHistory, MdFrontHand, MdLogout, MdAdd, MdList } from 'react-icons/md';
+import { MdPersonAdd, MdHistory, MdFrontHand, MdLogout, MdAdd, MdList, MdClose } from 'react-icons/md';
 import { BiSolidExit } from 'react-icons/bi';
 import { TiHome } from 'react-icons/ti';
 import Checkout from './Checkout';
 import AddCustomerModal from './AddCustomerModal';
 import AddDoctorModal from './AddDoctorModal';
 import moment from 'moment';
+import { formatTin } from 'utils/tin';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import packagelab from 'api/package';
 import customer from 'api/customer';
@@ -139,6 +140,7 @@ const PosComponent = () => {
     const [drawerContent, setDrawerContent] = useState();
     const [regDiscount, setRegularDiscount] = useState(0);
     const [regDiscountType, setRegularDiscountType] = useState();
+    const [regDiscountName, setRegularDiscountName] = useState();
 
     // do be deleted
     const [isPackageOrPromoAdded, setIsPackageOrPromoAdded] = useState(false);
@@ -364,11 +366,16 @@ const PosComponent = () => {
                 totalDiscount: (totalPackagePrice.originalPrice + totalLabTestPrice) * (selectedPackagesX.packages[0].discount.value / 100)
             });
         } else if (regDiscount) {
+            const regDiscountAmount = totalLabTestPrice ? (totalLabTestPrice * regDiscount) / 100 : totalLabTestPrice;
             setAppliedDiscount({
                 type: regDiscountType,
                 value: regDiscount,
-                totalDiscount: totalLabTestPrice ? (totalLabTestPrice * regDiscount) / 100 : totalLabTestPrice
+                name: regDiscountName,
+                totalDiscount: regDiscountAmount
             });
+            // grandTotalDiscountedPrice above doesn't know about this discount (it's only applied via
+            // handleSelectDiscount, not baked into calculatePackagePrice), so subtract it here too.
+            setTotal(grandTotalDiscountedPrice - regDiscountAmount);
         } else if (selectedPackagesX.packages.length === 0 && selectedPackagesX.promos.length === 0) {
             setAppliedDiscount(null);
         }
@@ -486,6 +493,7 @@ const PosComponent = () => {
         // Check if labtests array is empty after removing the item
         if (selectedPackagesX.labtests.length === 1) {
             setRegularDiscount(0);
+            setRegularDiscountName(undefined);
         }
     };
 
@@ -542,6 +550,7 @@ const PosComponent = () => {
         setSelectedPackages([]);
         setSelectedlabTest([]);
         setRegularDiscount(0);
+        setRegularDiscountName(undefined);
         setSelectedPackagesX(() => ({
             packages: [],
             promos: [],
@@ -568,7 +577,7 @@ const PosComponent = () => {
                               ? `${customer.address.street} ${customer.address.barangay} ${customer.address.cityMunicipality} ${customer.address.province} ${customer.address.country}`
                               : '',
                           age: customer.age,
-                          tin: customer.tin_number,
+                          tin: formatTin(customer.tin_number),
                           contactNumber: customer.contact_number,
                           customerType: customer.customer_type
                       }
@@ -654,6 +663,7 @@ const PosComponent = () => {
                     ? {
                           type: firstDiscount.type,
                           value: firstDiscount.value,
+                          name: firstDiscount.name,
                           totalDiscount: selectedTransaction?.totalDiscount
                       }
                     : null
@@ -726,6 +736,18 @@ const PosComponent = () => {
         setTotal(totalAmountWDiscount);
         setRegularDiscount(discount?.value); // Consider if this is still necessary
         setRegularDiscountType(discount?.type);
+        setRegularDiscountName(discount?.name);
+    };
+
+    const handleRemoveDiscount = () => {
+        setAppliedDiscount(null);
+        setRegularDiscount(0);
+        setRegularDiscountType(undefined);
+        setRegularDiscountName(undefined);
+        // Re-triggers the totals-recalculation effect (keyed on selectedPackagesX) now that
+        // regDiscount is cleared, so `total` drops back to the undiscounted amount without
+        // touching the cart items themselves.
+        setSelectedPackagesX((prev) => ({ ...prev }));
     };
 
     const handleOpenDrawer = (id) => {
@@ -1025,11 +1047,25 @@ const PosComponent = () => {
                                     );
                                 })}
                                 <Grid item xs={12} lg={6}>
-                                    <DiscountComponent
-                                        disabled={!customerData?.name}
-                                        onSelectDiscount={handleSelectDiscount}
-                                        discountsData={discountsData}
-                                    />
+                                    <Stack direction="row" spacing={1}>
+                                        <Box flex={1}>
+                                            <DiscountComponent
+                                                disabled={!customerData?.name}
+                                                onSelectDiscount={handleSelectDiscount}
+                                                discountsData={discountsData}
+                                            />
+                                        </Box>
+                                        {appliedDiscount && (
+                                            <Tooltip title="Remove Discount">
+                                                <IconButton
+                                                    onClick={handleRemoveDiscount}
+                                                    sx={{ bgcolor: 'grey.200', '&:hover': { bgcolor: 'grey.300' } }}
+                                                >
+                                                    <MdClose />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
+                                    </Stack>
                                 </Grid>
                                 <Grid item xs={12} lg={6}>
                                     <HoldItems

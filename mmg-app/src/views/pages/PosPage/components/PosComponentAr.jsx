@@ -23,6 +23,7 @@ import { MdPersonAdd, MdHistory, MdFrontHand, MdLogout, MdAdd, MdList } from 're
 import Checkout from './Checkout';
 import AddCustomerModal from './AddCustomerModal';
 import moment from 'moment';
+import { formatTin } from 'utils/tin';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import packagelab from 'api/package';
 import corporate from 'api/corporate';
@@ -747,7 +748,7 @@ const PosComponent = () => {
                           id: value?._id,
                           name: value?.name,
                           address: `${value?.streetAddress} ${value?.city} ${value?.state}`,
-                          tin: value?.tin,
+                          tin: formatTin(value?.tinId),
                           contactNumber: value.contactNumber,
                           type: 'corporate'
                         };
@@ -808,7 +809,7 @@ const PosComponent = () => {
                           id: value?._id,
                           name: value?.name,
                           address: `${value?.streetAddress} ${value?.city} ${value?.state}`,
-                          tin: value?.tin,
+                          tin: formatTin(value?.tinId),
                           contactNumber: value.contactNumber,
                           type: 'corporate'
                         };

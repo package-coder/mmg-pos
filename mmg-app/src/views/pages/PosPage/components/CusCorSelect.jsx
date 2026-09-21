@@ -6,6 +6,7 @@ import customer from 'api/customer';
 import corporate from 'api/corporate';
 import moment from 'moment';
 import { customerType } from 'utils/mockData';
+import { formatTin } from 'utils/tin';
 
 const CusCorSelect = ({ name, control, isNewTrans, label, onSelectedDataChange, customerData }) => {
     // Fetch customer and corporate data
@@ -30,7 +31,7 @@ const CusCorSelect = ({ name, control, isNewTrans, label, onSelectedDataChange, 
                     address: `${customer.address.street} ${customer.address.barangay} ${customer.address.cityMunicipality} ${customer.address.province} ${customer.address.country}`,
                     birthDate: moment(customer?.birthDate).format('L'),
                     age: customer.age,
-                    tin: customer.tinNumber,
+                    tin: formatTin(customer.tinNumber),
                     contactNumber: customer.contactNumber,
                     customerType: customer.customerType,
                     customerTypeId: customer?.customerTypeId,
@@ -44,7 +45,7 @@ const CusCorSelect = ({ name, control, isNewTrans, label, onSelectedDataChange, 
                     id: corporate?._id,
                     name: corporate?.name,
                     address: `${corporate?.streetAddress} ${corporate?.city} ${corporate?.state}`,
-                    tin: corporate?.tinId,
+                    tin: formatTin(corporate?.tinId),
                     contactNumber: corporate?.contactNumber,
                     customerType: 'corporate',
                     type: 'corporate'

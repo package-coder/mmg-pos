@@ -450,6 +450,9 @@ def v3_cancel_transaction(user_id):
             void_doc['totalSalesWithoutMemberDiscount'] = -1 * void_doc['totalSalesWithoutMemberDiscount']
             void_doc['totalDiscount'] = -1 * void_doc['totalDiscount']
             void_doc['totalMemberDiscount'] = -1 * void_doc['totalMemberDiscount']
+            void_doc['vatableAmount'] = -1 * void_doc['vatableAmount']
+            void_doc['vatExemptAmount'] = -1 * void_doc['vatExemptAmount']
+            void_doc['vatAmount'] = -1 * void_doc['vatAmount']
             void_doc['transactionDate'] = getLocalTimeStr()
             void_doc['date'] = getLocalDateStr()
             void_doc['reason'] = model.reason

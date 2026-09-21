@@ -405,13 +405,15 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                             {' '}
                             Information
                         </Typography>
-                        <Stack mb={3} spacing={2} p={2.5} bgcolor="grey.50" borderRadius={3}>
-                            <Stack direction="row" alignItems="center" spacing={1.5}>
-                                <Avatar sx={{ bgcolor: 'primary.main', fontWeight: 'bold' }}>
+                        <Stack mb={3} p={2.5} bgcolor="grey.50" borderRadius={3}>
+                            <Stack direction="row" alignItems="center" spacing={1.5} mb={1}>
+                                <Avatar sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', fontWeight: 'bold' }}>
                                     {getInitials(combinedData?.customerData?.name)}
                                 </Avatar>
                                 <Box flex={1}>
-                                    <Typography variant="h4">{combinedData?.customerData?.name || '---'}</Typography>
+                                    <Typography variant="h4" sx={{ textTransform: 'uppercase' }}>
+                                        {combinedData?.customerData?.name || '---'}
+                                    </Typography>
                                     {combinedData?.customerData?.id && (
                                         <Typography variant="caption" color="text.secondary">
                                             Customer ID: {combinedData?.customerData?.id}

@@ -38,6 +38,7 @@ import customer from 'api/customer';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment';
 import moment from 'moment'; // Import moment for date formatting
+import { formatTin } from 'utils/tin';
 import { customerType } from 'utils/mockData';
 
 const CUSTOMER_TYPE_OPTIONS = [
@@ -83,6 +84,10 @@ const CustomerSchema = Yup.object().shape({
         is: 'solo-parent',
         then: (schema) => schema.required('Child Age is required'),
         otherwise: (schema) => schema
+    }),
+    tinNumber: Yup.string().matches(/^\d{3}-\d{3}-\d{3}-\d{3}$/, {
+        message: 'TIN Number must be exactly 12 digits',
+        excludeEmptyString: true
     })
 });
 
@@ -366,7 +371,7 @@ const CustomerForm = ({ onClose }) => {
 
     useEffect(() => {
         if (initialData) {
-            reset(initialData);
+            reset({ ...initialData, tinNumber: formatTin(initialData.tinNumber) });
         }
     }, [initialData, reset]);
 
@@ -519,7 +524,16 @@ const CustomerForm = ({ onClose }) => {
                                         exclusive
                                         value={field.value || ''}
                                         onChange={(e, newValue) => {
-                                            if (newValue !== null) field.onChange(newValue);
+                                            if (newValue === null) return;
+                                            field.onChange(newValue);
+                                            if (newValue !== 'seniorcitizenpwd' && newValue !== 'solo-parent') {
+                                                setValue('customerTypeId', '');
+                                            }
+                                            if (newValue !== 'solo-parent') {
+                                                setValue('childName', '');
+                                                setValue('childBirthDate', null);
+                                                setValue('childAge', '');
+                                            }
                                         }}
                                         sx={{ flexWrap: 'wrap', gap: 1 }}
                                     >
@@ -708,12 +722,6 @@ const CustomerForm = ({ onClose }) => {
                                 <Controller
                                     name="tinNumber"
                                     control={control}
-                                    // rules={{
-                                    //     pattern: {
-                                    //         value: /^[0-9]{15}$/,
-                                    //         message: 'TIN Number must be exactly 12 digits'
-                                    //     }
-                                    // }}
                                     render={({ field }) => (
                                         <Box>
                                             <FieldLabel optional>TIN Number</FieldLabel>
@@ -723,12 +731,11 @@ const CustomerForm = ({ onClose }) => {
                                                 variant="outlined"
                                                 fullWidth
                                                 type="text" // Use text type to ensure full control over numeric input
-                                                inputProps={{ maxLength: 15 }} // Restrict input length to 12 digits
+                                                inputProps={{ maxLength: 15 }} // Restrict input length to 12 digits + 3 dashes
                                                 error={!!errors.tinNumber}
                                                 helperText={errors.tinNumber?.message}
                                                 onChange={(e) => {
-                                                    field.onChange(e);
-                                                    // Optionally, you can manually trigger validation if needed
+                                                    field.onChange(formatTin(e.target.value));
                                                 }}
                                             />
                                             {!errors.tinNumber && <FieldHint>Taxpayer Identification Number</FieldHint>}
