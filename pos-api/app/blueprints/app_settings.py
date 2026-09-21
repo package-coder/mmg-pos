@@ -1,13 +1,11 @@
 from flask import Blueprint, jsonify, request
 
 from app.middlewares.authorized_attribute import authorized
-from app.repositories.app_settings import AppSettingsRepository
+from app.repositories.app_settings import AppSettingsRepository, DEV_TEST_MODE_KEY
 
 api = '/v2/app-settings'
 app_settings_bp = Blueprint('app-settings', __name__)
 repository = AppSettingsRepository()
-
-DEV_TEST_MODE_KEY = 'devTestMode'
 
 
 @app_settings_bp.get(api + '/dev-test-mode')

@@ -1,5 +1,7 @@
 from app.repositories.base import Repository
 
+DEV_TEST_MODE_KEY = 'devTestMode'
+
 
 # Plain Repository (not BackupRepository): this is local, per-deployment operational
 # configuration, not sales/business data — it belongs to whichever instance (a branch's own

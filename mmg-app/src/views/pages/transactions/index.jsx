@@ -81,9 +81,15 @@ function TransactionsPage() {
         let transactions = data || [];
 
         // Dev Test Mode data (mocked terminal, see utils/devTestMode.js) only shows up here
-        // while the toggle is on for this browser — otherwise it'd clutter real transaction
-        // history for everyone else viewing this same list.
-        if (!devTestMode) transactions = transactions?.filter((transaction) => !transaction.isDevTest);
+        // while the toggle is on — it's a single shared flag now (persisted in the DB, not
+        // per-browser), so every tester sees the same on/off state. Without an ownership check,
+        // turning it on would dump every tester's dev-test transactions into everyone else's
+        // list too — restrict to the current user's own, real transactions stay visible to
+        // whoever could already see them (unaffected by this filter).
+        transactions = transactions?.filter((transaction) => {
+            if (!transaction.isDevTest) return true;
+            return devTestMode && transaction.cashier?._id === user?._id;
+        });
 
         if (statusFilter && statusFilter != DEFAULT_FILTER) transactions = transactions?.filter((transaction) => transaction.status == statusFilter);
 
@@ -97,7 +103,7 @@ function TransactionsPage() {
         }
 
         setTransactions(transactions);
-    }, [data, statusFilter, searchFilter, devTestMode]);
+    }, [data, statusFilter, searchFilter, devTestMode, user?._id]);
 
     const exportToCSV = useCallback(() => {
         const headers = [

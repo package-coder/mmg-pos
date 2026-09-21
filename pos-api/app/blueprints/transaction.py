@@ -11,6 +11,7 @@ from app.middlewares.authorized_attribute import authorized
 from app.new_models.AuditLog import AuditCode, AuditLog
 from app.new_models.Transaction import ChequeTender, CreateCashTransaction, CreateChequeTransaction, CreateTransaction, TenderType
 from app.new_models.Transaction import CreateRefundTransaction, CreateTransaction, CreateCancelledTransaction, TransactionStatus
+from app.repositories.app_settings import AppSettingsRepository, DEV_TEST_MODE_KEY
 from app.repositories.audit_log import AuditLogRepository
 from app.repositories.transaction import TransactionRepository
 from app.repositories.transaction_discount import TransactionDiscountRepository
@@ -25,6 +26,7 @@ transactionRepository = TransactionRepository()
 discountRepository = TransactionDiscountRepository()
 itemRepository = TransactionItemRepository()
 auditLogRepository = AuditLogRepository()
+appSettingsRepository = AppSettingsRepository()
 
 # Dev Test Mode (mmg-app/src/utils/devTestMode.js) mocks terminal info with a PTU of this
 # form instead of querying the real helper app — see PrinterProvider.jsx devMockTerminalInfo().
@@ -114,14 +116,26 @@ def get_transactions(user_id):
 
         transaction = transactionRepository.find(query)
 
+        # Dev Test Mode is one flag shared by everyone (see app/blueprints/app_settings.py) —
+        # without this, turning it on would show every tester's dev-test transactions to every
+        # other user viewing this list. Restrict a dev-test row to the cashier who created it;
+        # real transactions are unaffected. This is server-side on purpose: the frontend also
+        # filters for display, but that alone would just be a UI convenience someone could
+        # bypass by calling this endpoint directly.
+        dev_test_mode_enabled = appSettingsRepository.get_flag(DEV_TEST_MODE_KEY, default=False)
+
         filtered_transaction = [
-            transaction for transaction in transaction 
+            transaction for transaction in transaction
             if compare_date_filter(
-                date_filter, 
+                date_filter,
                 transaction['date'],
                 custom_date,
                 start_date,
                 end_date
+            )
+            and (
+                not transaction.get('isDevTest')
+                or (dev_test_mode_enabled and get(transaction, 'cashier._id') == user_id)
             )
         ]
 
