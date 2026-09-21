@@ -287,7 +287,8 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
     const customerTypeLabels = {
         member: 'Member',
         'non-member': 'Non-Member',
-        seniorcitizenpwd: 'Senior Citizen / PWD',
+        seniorcitizenpwd: 'Senior Citizen',
+        pwd: 'PWD',
         'officer-bod': 'Officer (BOD)',
         'officer-gm': 'Officer (GM)',
         'officer-treasurer': 'Officer (Treasurer)',

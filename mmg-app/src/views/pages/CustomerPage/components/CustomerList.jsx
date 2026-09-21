@@ -41,7 +41,8 @@ const SORT_OPTIONS = [
 const CUSTOMER_TYPE_STYLES = {
     member: { bg: '#EDE9FE', color: '#6D28D9' },
     'non-member': { bg: '#F1F5F9', color: '#475569' },
-    seniorcitizenpwd: { bg: '#DCFCE7', color: '#15803D' },
+    seniorcitizenpwd: { bg: '#DCFCE7', color: '#15803D' }, // Senior Citizen (legacy stored value)
+    pwd: { bg: '#FEF3C7', color: '#B45309' },
     'officer-bod': { bg: '#DBEAFE', color: '#1D4ED8' },
     'officer-gm': { bg: '#DBEAFE', color: '#1D4ED8' },
     'officer-treasurer': { bg: '#DBEAFE', color: '#1D4ED8' },

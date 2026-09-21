@@ -143,11 +143,8 @@ const PosComponent = () => {
     // const { data: packages } = useQuery('packages', packagelab.GetAllPackages);
     const { data: doctorlist } = useQuery('doctors', doctor.GetAllDoctor);
     const { data: discountsData } = useQuery('discounts', discount.GetAllDiscounts);
-    // Senior Citizen and PWD carry the same discount percentage, so whichever record exists is
-    // used for both - no need to ask the cashier which one applies.
-    const scPwdDiscount =
-        discountsData?.find((item) => item.memberType === 'senior_citizen') ||
-        discountsData?.find((item) => item.memberType === 'pwd');
+    const seniorDiscount = discountsData?.find((item) => item.memberType === 'senior_citizen');
+    const pwdDiscount = discountsData?.find((item) => item.memberType === 'pwd');
     const soloParentDiscount = discountsData?.find((item) => item.memberType === 'solo_parent');
     const naacDiscount = discountsData?.find((item) => item.memberType === 'naac');
 
@@ -345,7 +342,7 @@ const PosComponent = () => {
         if (
             selectedPackagesX.packages.length > 0 &&
             selectedPackagesX.packages[0].discount &&
-            customerData?.customerType === 'seniorcitizenpwd'
+            ['seniorcitizenpwd', 'pwd'].includes(customerData?.customerType)
         ) {
             setAppliedDiscount({
                 type: 'percentage',
@@ -357,7 +354,7 @@ const PosComponent = () => {
         } else if (
             selectedPackagesX.packages.length > 0 &&
             selectedPackagesX.packages[0].discount &&
-            customerData?.customerType !== 'seniorcitizenpwd'
+            !['seniorcitizenpwd', 'pwd'].includes(customerData?.customerType)
         ) {
             setAppliedDiscount({
                 type: 'percentage',
@@ -750,6 +747,27 @@ const PosComponent = () => {
         setRegularDiscountMemberType(discount?.memberType);
     };
 
+    // Stored customer type -> the discount memberType it may use. NOTE: 'seniorcitizenpwd' is the
+    // legacy stored value for the Senior Citizen customer type (kept so existing data needs no
+    // migration); PWD customers are the separate 'pwd' type.
+    const CUSTOMER_TYPE_DISCOUNT = { seniorcitizenpwd: 'senior_citizen', pwd: 'pwd' };
+    const DISCOUNT_LABEL = { senior_citizen: 'Senior Citizen', pwd: 'PWD' };
+
+    // Manual picks from the discount picker must not cross Senior Citizen and PWD.
+    const handleManualSelectDiscount = (discount) => {
+        const expected = CUSTOMER_TYPE_DISCOUNT[customerData?.customerType];
+        const picked = discount?.memberType;
+        if (expected && (picked === 'senior_citizen' || picked === 'pwd') && picked !== expected) {
+            toast.error(`${DISCOUNT_LABEL[picked]} discount can't be applied to a ${DISCOUNT_LABEL[expected]} customer.`);
+            return;
+        }
+        if (!expected && customerData?.id && (picked === 'senior_citizen' || picked === 'pwd')) {
+            toast.error(`${DISCOUNT_LABEL[picked]} discount requires a ${DISCOUNT_LABEL[picked]} customer.`);
+            return;
+        }
+        handleSelectDiscount(discount);
+    };
+
     const handleRemoveDiscount = () => {
         setAppliedDiscount(null);
         setRegularDiscount(0);
@@ -768,7 +786,7 @@ const PosComponent = () => {
         setRemoveDiscountDialogOpen(false);
     };
 
-    // Senior Citizen/PWD, Solo Parent, and NAAC customers get their discount auto-applied as soon
+    // Senior Citizen, PWD, Solo Parent, and NAAC customers get their discount auto-applied as soon
     // as they're selected - the cashier no longer has to open the discount picker manually for
     // these. A discount the cashier picked themselves is never overridden or auto-cleared: only
     // discounts this same effect applied (isAutoAppliedDiscount) are swapped/removed automatically.
@@ -778,8 +796,11 @@ const PosComponent = () => {
 
         const customerType = customerData?.customerType;
 
-        if (customerType === 'seniorcitizenpwd' && scPwdDiscount) {
-            handleSelectDiscount(scPwdDiscount);
+        if (customerType === 'seniorcitizenpwd' && seniorDiscount) {
+            handleSelectDiscount(seniorDiscount);
+            setIsAutoAppliedDiscount(true);
+        } else if (customerType === 'pwd' && pwdDiscount) {
+            handleSelectDiscount(pwdDiscount);
             setIsAutoAppliedDiscount(true);
         } else if (customerType === 'solo-parent' && soloParentDiscount) {
             handleSelectDiscount(soloParentDiscount);
@@ -1109,7 +1130,7 @@ const PosComponent = () => {
                                 <Grid item xs={12} lg={6}>
                                     <DiscountComponent
                                         disabled={!customerData?.name}
-                                        onSelectDiscount={handleSelectDiscount}
+                                        onSelectDiscount={handleManualSelectDiscount}
                                         discountsData={discountsData}
                                         isDiscountApplied={!!appliedDiscount}
                                         onRemoveDiscount={() => setRemoveDiscountDialogOpen(true)}

@@ -172,7 +172,7 @@ const ReceiptContent = ({ combinedData, amountGiven, change, tenderType, showAdd
                                     </>
                                 )}
                                 {
-                                    combinedData.status === 'Completed' && service.discount && service.packageForMemberType != "seniorcitizenpwd" && (
+                                    combinedData.status === 'Completed' && service.discount && !["seniorcitizenpwd", "pwd"].includes(service.packageForMemberType) && (
                                         <Grid item xs={12} mb={1}>
                                             <Stack direction='row' justifyContent='space-between' alignItems='center'>
                                                 <Typography ml={3} variant="h5" fontWeight='regular' >

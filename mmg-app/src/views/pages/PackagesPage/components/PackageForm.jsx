@@ -513,7 +513,8 @@ const PackageForm = () => {
                                     <MenuItem value="all">All</MenuItem>
                                     <MenuItem value="non-member">Non-member</MenuItem>
                                     <MenuItem value="member">Member</MenuItem>
-                                    <MenuItem value="seniorcitizenpwd">Senior Citizen/PWD</MenuItem>
+                                    <MenuItem value="seniorcitizenpwd">Senior Citizen</MenuItem>
+                                    <MenuItem value="pwd">PWD</MenuItem>
                                     <MenuItem value="officer-bod">Officer BOD</MenuItem>
                                     <MenuItem value="officer-gm">Officer GM</MenuItem>
                                     <MenuItem value="officer-treasurer">Officer Treasurer</MenuItem>

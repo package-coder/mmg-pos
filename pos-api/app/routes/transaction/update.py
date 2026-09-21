@@ -36,7 +36,7 @@ def _update_transaction():
    
    totalMemberDiscount = 0.0
    packages = list(filter(
-      lambda i: i['source'] == 'package' and i['packageForMemberType'] == 'seniorcitizenpwd', 
+      lambda i: i['source'] == 'package' and i['packageForMemberType'] in ('seniorcitizenpwd', 'pwd'), 
       transaction.services
    ))
    memberPackage = next(packages) if len(packages) > 0 else None

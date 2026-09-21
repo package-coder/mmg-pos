@@ -44,7 +44,8 @@ import { customerType } from 'utils/mockData';
 const CUSTOMER_TYPE_OPTIONS = [
     { value: 'member', label: 'Member' },
     { value: 'non-member', label: 'Non-member' },
-    { value: 'seniorcitizenpwd', label: 'Senior Citizen/PWD' },
+    { value: 'seniorcitizenpwd', label: 'Senior Citizen' },
+    { value: 'pwd', label: 'PWD' },
     { value: 'officer-bod', label: 'Officer BOD' },
     { value: 'officer-gm', label: 'Officer GM' },
     { value: 'officer-treasurer', label: 'Officer Treasure' },
@@ -67,7 +68,7 @@ const CustomerSchema = Yup.object().shape({
     age: Yup.number().required('Customer Type is required'),
     customerType: Yup.string().required('Customer Type is required'),
     customerTypeId: Yup.string().when('customerType', {
-        is: (val) => val === 'seniorcitizenpwd' || val === 'solo-parent' || val === 'naac',
+        is: (val) => val === 'seniorcitizenpwd' || val === 'pwd' || val === 'solo-parent' || val === 'naac',
         then: (schema) => schema.required('ID Number is required'),
         otherwise: (schema) => schema
     }),
@@ -454,7 +455,8 @@ const CustomerForm = ({ onClose }) => {
     };
 
     const isSoloParent = watch('customerType') === 'solo-parent';
-    const isSeniorCitizenPwd = watch('customerType') === 'seniorcitizenpwd';
+    const isSeniorCitizen = watch('customerType') === 'seniorcitizenpwd';
+    const isPwd = watch('customerType') === 'pwd';
     const isNaac = watch('customerType') === 'naac';
 
     console.log('initialData', initialData);
@@ -528,7 +530,7 @@ const CustomerForm = ({ onClose }) => {
                                         onChange={(e, newValue) => {
                                             if (newValue === null) return;
                                             field.onChange(newValue);
-                                            if (newValue !== 'seniorcitizenpwd' && newValue !== 'solo-parent' && newValue !== 'naac') {
+                                            if (newValue !== 'seniorcitizenpwd' && newValue !== 'pwd' && newValue !== 'solo-parent' && newValue !== 'naac') {
                                                 setValue('customerTypeId', '');
                                             }
                                             if (newValue !== 'solo-parent') {
@@ -773,7 +775,7 @@ const CustomerForm = ({ onClose }) => {
                                     )}
                                 />
                             </Grid>
-                            {(isSeniorCitizenPwd || isSoloParent || isNaac) && (
+                            {(isSeniorCitizen || isPwd || isSoloParent || isNaac) && (
                                 <Grid item xs={12} sm={4}>
                                     <Controller
                                         name="customerTypeId"
@@ -781,7 +783,7 @@ const CustomerForm = ({ onClose }) => {
                                         render={({ field }) => (
                                             <Box>
                                                 <FieldLabel required>
-                                                    {isSoloParent ? 'Solo Parent ID No.' : isNaac ? 'NAAC ID No.' : 'SC/PWD ID No.'}
+                                                    {isSoloParent ? 'Solo Parent ID No.' : isNaac ? 'NAAC ID No.' : isPwd ? 'PWD ID No.' : 'Senior Citizen ID No.'}
                                                 </FieldLabel>
                                                 <TextField
                                                     {...field}

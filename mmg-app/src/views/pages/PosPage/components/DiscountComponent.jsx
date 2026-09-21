@@ -14,23 +14,8 @@ export default memo(function ({ onSelectDiscount, disabled, discountsData, butto
     const [search, setSearch] = useState('');
     const [open, setOpen] = useState(false);
 
-    // Senior Citizen and PWD are one customer type ("Senior Citizen/PWD") with the same discount
-    // percentage, so they're shown and applied as a single combined entry rather than asking which
-    // one applies - the underlying record is just whichever of the two discounts exists.
-    const seniorDiscount = discountsData?.find((item) => item.memberType === 'senior_citizen');
-    const pwdDiscount = discountsData?.find((item) => item.memberType === 'pwd');
-    const scPwdDiscount = seniorDiscount || pwdDiscount;
-    const canCombineScPwd = !!seniorDiscount && !!pwdDiscount;
-
-    const displayItems = canCombineScPwd
-        ? [
-              {
-                  ...scPwdDiscount,
-                  name: `Senior Citizen / PWD ${scPwdDiscount.value}%`
-              },
-              ...discountsData.filter((item) => item !== seniorDiscount && item !== pwdDiscount)
-          ]
-        : discountsData;
+    // Senior Citizen and PWD are separate discount types and are listed individually.
+    const displayItems = discountsData;
 
     const onToggle = () => {
         if (disabled) return;

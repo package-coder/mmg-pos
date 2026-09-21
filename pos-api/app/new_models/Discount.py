@@ -8,7 +8,8 @@ class CustomerDiscountType(str, Enum):
     # MEMBER = "MEMBER"
     # NON_MEMBER = "NON_MEMBER"
     ALL = "all"
-    GOVERNMENT_MEMBER = "seniorcitizenpwd"
+    GOVERNMENT_MEMBER = "seniorcitizenpwd"  # stored value for the Senior Citizen customer type
+    PWD = "pwd"
 
 class MemberType(str, Enum):
     SENIOR_CITIZEN = "senior_citizen"
