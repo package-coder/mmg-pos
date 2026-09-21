@@ -83,6 +83,18 @@ def _log_cancel_rejected(user_id, model, message):
         pass
 
 
+def _get_role_name(user_id):
+    """Role name (lowercased) for a user_id, per mmg-app/src/utils/Role.js. None on any lookup
+    failure (missing user/role) so callers fail closed as unprivileged, never open.
+    """
+    user = users.find_one({'_id': ObjectId(user_id)})
+    if not user or not user.get('role'):
+        return None, None
+    role = roles.find_one({'_id': ObjectId(user['role'])})
+    role_name = role['name'].lower() if role and role.get('name') else None
+    return role_name, user
+
+
 def _get_cancel_permission(user_id, branch_id):
     """Who may cancel/refund a transaction: the cashier who completed it always can; a manager
     or admin can override for any transaction in a branch they're assigned to; admin additionally
@@ -90,11 +102,9 @@ def _get_cancel_permission(user_id, branch_id):
     case-insensitively per mmg-app/src/utils/Role.js. Returns (is_privileged, role_name) — a
     lookup failure (missing user/role) fails closed as unprivileged, never open.
     """
-    user = users.find_one({'_id': ObjectId(user_id)})
-    if not user or not user.get('role'):
+    role_name, user = _get_role_name(user_id)
+    if not user:
         return False, None
-    role = roles.find_one({'_id': ObjectId(user['role'])})
-    role_name = role['name'].lower() if role and role.get('name') else None
 
     if role_name == 'admin':
         return True, role_name
@@ -114,6 +124,12 @@ def get_transactions(user_id):
 
     try:
         query = {}
+        # cashierId/branchId from the client are only ever a NARROWING request, not a grant —
+        # a non-admin caller gets their own cashierId forced regardless of what was sent, so
+        # this can't be bypassed by calling the endpoint directly with no/a different cashierId.
+        role_name, _user = _get_role_name(user_id)
+        if role_name != 'admin':
+            cashierId = user_id
         if cashierId is not None:
             query['cashierId'] = cashierId
         if branchId is not None:
@@ -127,6 +143,8 @@ def get_transactions(user_id):
         # real transactions are unaffected. This is server-side on purpose: the frontend also
         # filters for display, but that alone would just be a UI convenience someone could
         # bypass by calling this endpoint directly.
+        # Admin is exempt from this isolation - "admin sees all" (the cashierId scoping above)
+        # would otherwise be silently undermined by dev-test noise admin never created.
         dev_test_mode_enabled = appSettingsRepository.get_flag(DEV_TEST_MODE_KEY, default=False)
 
         filtered_transaction = [
@@ -140,6 +158,7 @@ def get_transactions(user_id):
             )
             and (
                 not transaction.get('isDevTest')
+                or role_name == 'admin'
                 or (dev_test_mode_enabled and get(transaction, 'cashier._id') == user_id)
             )
         ]

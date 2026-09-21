@@ -59,7 +59,11 @@ function TransactionsPage() {
             dateFilter: dateFilter,
             customDate: customDate?.date?.format('YYYY-MM-DD'),
             startDate: customDate?.startDate?.format('YYYY-MM-DD'),
-            endDate: customDate?.endDate?.format('YYYY-MM-DD')
+            endDate: customDate?.endDate?.format('YYYY-MM-DD'),
+            // Admin sees every transaction across every branch/cashier; a cashier only ever sees
+            // their own (the backend enforces this filter too - see GET /v2/transactions -
+            // this isn't just a display restriction).
+            cashierId: matchRole(Role.CASHIER) ? user?._id || user?.id : null
         },
         (value) => value != null
     );
@@ -336,7 +340,8 @@ function TransactionsPage() {
                                 ...(filterByUser ? ['Branch', 'Cashier'] : []),
                                 'Customer',
                                 'Gross Sale',
-                                'Member Discount',
+                                'Discount',
+                                'Discount Type',
                                 'Net Sale',
                                 'Date',
                                 'Action'
@@ -402,6 +407,11 @@ function TransactionsPage() {
                                         {!['cancelled'].includes(transaction.status) || !transaction.serialNumber
                                             ? transaction.totalMemberDiscount.toFixed(2)
                                             : null}
+                                    </TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>
+                                        {transaction.discounts?.[0]
+                                            ? startCase(transaction.discounts[0].memberType || transaction.discounts[0].name)
+                                            : '---'}
                                     </TableCell>
                                     <TableCell sx={{ textWrap: 'nowrap' }}>
                                         {transaction.status != 'cancelled' || !transaction.serialNumber ? transaction.totalNetSales.toFixed(2) : null}
