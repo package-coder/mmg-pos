@@ -11,6 +11,7 @@ from app.filters.date_filter import DateFilter, compare_date_filter
 from app.middlewares.authorized_attribute import authorized
 from app.new_models.Transaction import TransactionDiscountQuery
 from app.repositories.branch_reports import BranchReportRepository
+from app.repositories.transaction import TransactionRepository
 from app.repositories.transaction_discount import TransactionDiscountRepository
 from app.database.config import users
 from app.utils.reports import export_discount_reports, export_sales_reports, get_template_name, load_sheet
@@ -20,6 +21,48 @@ api = '/v2/reports'
 discount_reports_bp = Blueprint('v2-reports', __name__)
 discountRepository = TransactionDiscountRepository()
 branchReportRepository = BranchReportRepository()
+transactionRepository = TransactionRepository()
+
+
+NO_PTU = '-'
+
+
+def _terminal_filter():
+    """Optional admin filters: one branch and/or one terminal (PTU)."""
+    terminal = {
+        k: v for k, v in {
+            'branchId': request.args.get('branchId'),
+            'ptuNumber': request.args.get('ptuNumber'),
+        }.items() if v
+    }
+    # '-' = rows from before terminal scoping (no PTU), so their per-row export stays exact
+    if terminal.get('ptuNumber') == NO_PTU:
+        terminal['ptuNumber'] = { '$in': [None, ''] }
+    return terminal
+
+
+def _only_terminal(discounts, terminal):
+    # discount rows carry no PTU of their own — it lives on the sale they belong to
+    ptu = terminal.get('ptuNumber')
+    discount_id = request.args.get('discountId')  # per-row export: exactly one discount row
+    if discount_id:
+        discounts = [d for d in discounts if str(d.get('_id')) == discount_id]
+    if not ptu:
+        return discounts
+    if isinstance(ptu, dict):
+        return [d for d in discounts if not (d.get('transaction') or {}).get('ptuNumber')]
+    return [d for d in discounts if (d.get('transaction') or {}).get('ptuNumber') == ptu]
+
+
+@discount_reports_bp.get(api + '/terminals')
+@authorized
+def get_report_terminals(user_id):
+    include_dev_test = request.args.get('includeDevTest') == 'true'
+    try:
+        return jsonify({'data': transactionRepository.list_terminals(include_dev_test=include_dev_test)})
+    except Exception as e:
+        return jsonify({'message': 'Unable to get terminals', 'error': repr(e)}), 500
+
 
 
 @discount_reports_bp.get(api + '/discounts')
@@ -35,10 +78,12 @@ def get_discount_reports(user_id):
 
     try:
         query = TransactionDiscountQuery(**omit(request.args.to_dict(), 'includeDevTest'))
-        discount = discountRepository.find({
+        terminal = _terminal_filter()
+        discount = _only_terminal(discountRepository.find({
             'memberType': {"$ne": None},
-            **query.model_dump(exclude_unset=True)
-        }, include_dev_test=include_dev_test)
+            **query.model_dump(exclude_unset=True),
+            **omit(terminal, 'ptuNumber'),
+        }, include_dev_test=include_dev_test), terminal)
 
         filtered_reports = [
             transaction for transaction in discount 
@@ -68,7 +113,11 @@ def download_discount_reports(user_id):
 
     try:
         query = TransactionDiscountQuery(**omit(request.args.to_dict(), 'includeDevTest'))
-        discount = discountRepository.find(query.model_dump(exclude_unset=True), include_dev_test=include_dev_test)
+        terminal = _terminal_filter()
+        discount = _only_terminal(discountRepository.find({
+            **query.model_dump(exclude_unset=True),
+            **omit(terminal, 'ptuNumber'),
+        }, include_dev_test=include_dev_test), terminal)
 
         filtered_reports = [
             transaction for transaction in discount 
@@ -108,7 +157,7 @@ def get_sales_reports(user_id):
     include_dev_test = request.args.get('includeDevTest') == 'true'
 
     try:
-        reports = branchReportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date, include_dev_test=include_dev_test)
+        reports = branchReportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date, query=_terminal_filter(), include_dev_test=include_dev_test)
 
         return jsonify({ 'data': reports })
     except ValidationError as e:
@@ -126,7 +175,7 @@ def download_sales_reports(user_id):
     include_dev_test = request.args.get('includeDevTest') == 'true'
 
     try:
-        reports = branchReportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date, include_dev_test=include_dev_test)
+        reports = branchReportRepository.find_by_date_and(date_filter, start_date, end_date, custom_date, query=_terminal_filter(), include_dev_test=include_dev_test)
         workbook = load_sheet('annex_template.xlsx')
         output = export_sales_reports(workbook, reports, user_id)
 

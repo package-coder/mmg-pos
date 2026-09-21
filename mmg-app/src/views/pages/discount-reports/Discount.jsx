@@ -5,6 +5,8 @@ import moment from 'moment';
 import { useState } from 'react';
 import discount_report from 'api/discount_report';
 import ReportPagination from 'ui-component/ReportPagination';
+import { DateFilterEnum } from 'ui-component/filter/DateFilter';
+import ExportRowButton from './ExportRowButton';
 
 const TABLE_HEADS = [
     'Invoice Range #',
@@ -15,7 +17,12 @@ const TABLE_HEADS = [
     'Member Discount',
     'Total Discount',
     'Net Sales',
-    'Date'
+    'Date',
+    'Branch',
+    'MIN',
+    'SN',
+    'PTU No.',
+    ''
 ];
 
 const getMemberDiscount = (discounts) => {
@@ -23,7 +30,7 @@ const getMemberDiscount = (discounts) => {
     return memberDiscounts && memberDiscounts?.length > 0 ? memberDiscounts[0] : null;
 };
 
-function DiscountReports({ generated, ...initialParams }) {
+function DiscountReports({ generated, onExport, exportingKey, ...initialParams }) {
     const params = _.pickBy(
         {
             ...initialParams,
@@ -93,6 +100,30 @@ function DiscountReports({ generated, ...initialParams }) {
                                         <TableCell>{transaction.transaction.totalNetSales.toFixed(2)}</TableCell>
                                         <TableCell sx={{ textWrap: 'nowrap' }}>
                                             {moment(transaction.transaction.transactionDate).format('YYYY-MM-DD hh:mmA')}
+                                        </TableCell>
+                                        <TableCell sx={{ textWrap: 'nowrap', textTransform: 'none' }}>{transaction.branch?.name || '---'}</TableCell>
+                                        <TableCell sx={{ textWrap: 'nowrap', textTransform: 'none' }}>{transaction.transaction?.min || '---'}</TableCell>
+                                        <TableCell sx={{ textWrap: 'nowrap', textTransform: 'none' }}>{transaction.transaction?.sn || '---'}</TableCell>
+                                        <TableCell sx={{ textWrap: 'nowrap', textTransform: 'none' }}>{transaction.transaction?.ptuNumber || '---'}</TableCell>
+                                        <TableCell>
+                                            <ExportRowButton
+                                                loading={exportingKey === transaction._id}
+                                                disabled={!!exportingKey}
+                                                onClick={() =>
+                                                    onExport(
+                                                        transaction._id,
+                                                        {
+                                                            type: 'discounts',
+                                                            memberType: transaction.memberType,
+                                                            discountId: transaction._id,
+                                                            branchId: transaction.branch?._id,
+                                                            ptuNumber: transaction.transaction?.ptuNumber || '-',
+                                                            dateFilter: DateFilterEnum.ALL
+                                                        },
+                                                        `annex-${String(transaction.memberType).replace('_', '-')}-${transaction.transaction?.ptuNumber || 'no-ptu'}-${String(transaction.transaction?.invoiceNumber).padStart(6, '0')}.xlsx`
+                                                    )
+                                                }
+                                            />
                                         </TableCell>
                                     </TableRow>
                                 );

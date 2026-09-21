@@ -21,6 +21,15 @@ async function GetAllSalesReport(model) {
     return data;
 }
 
+async function GetTerminals() {
+    const {
+        data: { data }
+    } = await server.get(DISCOUNT_ENDPOINTS + '/terminals', {
+        params: { includeDevTest: isDevTestModeEnabled() }
+    });
+    return data;
+}
+
 async function DownloadReport(model) {
     const { data } = await server.get(DISCOUNT_ENDPOINTS + `/${model.type}/download`, {
         params: { ...model, includeDevTest: isDevTestModeEnabled() },
@@ -33,5 +42,6 @@ async function DownloadReport(model) {
 export default {
     GetAllDiscountReport,
     DownloadReport,
-    GetAllSalesReport
+    GetAllSalesReport,
+    GetTerminals
 };

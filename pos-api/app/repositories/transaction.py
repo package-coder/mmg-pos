@@ -152,6 +152,28 @@ class TransactionRepository(BackupRepository):
         except Exception as e:
             raise e
 
+    def list_terminals(self, include_dev_test=False):
+        """Distinct (branch, PTU) pairs that have completed/refunded sales — the choices for the
+        admin BIR-report filters. Sales with no PTU (from before terminal scoping) are left out."""
+        return list(self._db[self._collection].aggregate([
+            { '$match': {
+                'status': { '$in': ['completed', 'refunded'] },
+                'ptuNumber': { '$nin': [None, ''] },
+                **({} if include_dev_test else { 'isDevTest': { '$ne': True } }),
+            } },
+            { '$group': { '_id': { 'branchId': '$branchId', 'ptuNumber': '$ptuNumber' }, 'min': { '$first': '$min' }, 'sn': { '$first': '$sn' } } },
+            { '$addFields': { 'branchObjectId': { '$convert': { 'input': '$_id.branchId', 'to': 'objectId', 'onError': None, 'onNull': None } } } },
+            { '$lookup': { 'from': 'branches', 'localField': 'branchObjectId', 'foreignField': '_id', 'as': 'branch' } },
+            { '$project': {
+                '_id': 0,
+                'branchId': '$_id.branchId',
+                'ptuNumber': '$_id.ptuNumber',
+                'min': 1, 'sn': 1,
+                'branchName': { '$ifNull': [{ '$arrayElemAt': ['$branch.name', 0] }, '---'] },
+            } },
+            { '$sort': { 'branchName': 1, 'ptuNumber': 1 } },
+        ]))
+
     def find_one(self, query={}, agreggate=True):
         data = self.find(query, agreggate=agreggate)
 

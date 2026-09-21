@@ -1,12 +1,11 @@
 import { Stack, TextField, Typography, Card, MenuItem, Box, Button } from '@mui/material';
 import _, { startCase } from 'lodash';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from 'react-query';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment';
 import { DateFilterEnum, DateFilterOptions } from 'ui-component/filter/DateFilter';
-import generateReportFilename from 'utils/generateReportFilename';
 import discount_report from 'api/discount_report';
-import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import SalesReports from './Sales';
 import DiscountReports from './Discount';
 
@@ -22,10 +21,17 @@ function Reports() {
     const [customDate, setCustomDate] = useState({});
     const [reportType, setReportType] = useState('');
     const [memberType, setMemberType] = useState('');
+    const [branchId, setBranchId] = useState('');
+    const [ptuNumber, setPtuNumber] = useState('');
     const [generated, setGenerated] = useState(0);
-    const [downloading, setDownloading] = useState(false);
 
-    const fileName = generateReportFilename(`annex-${memberType.replace('_', '-')}-discount-reports`, { dateFilter, customDate }) + '.xlsx';
+    const { data: terminals = [] } = useQuery({
+        queryKey: ['report-terminals'],
+        queryFn: discount_report.GetTerminals,
+        refetchOnWindowFocus: false
+    });
+    const branches = useMemo(() => _.uniqBy(terminals, 'branchId'), [terminals]);
+    const branchTerminals = useMemo(() => terminals.filter((t) => !branchId || t.branchId === branchId), [terminals, branchId]);
 
     const params = _.pickBy(
         {
@@ -33,9 +39,11 @@ function Reports() {
             customDate: customDate?.date?.format('YYYY-MM-DD'),
             startDate: customDate?.startDate?.format('YYYY-MM-DD'),
             endDate: customDate?.endDate?.format('YYYY-MM-DD'),
-            memberType
+            memberType,
+            branchId,
+            ptuNumber
         },
-        (value) => value != null
+        (value) => value != null && value !== ''
     );
 
     const resetFilters = () => {
@@ -44,23 +52,27 @@ function Reports() {
         setGenerated(0);
         setReportType('');
         setMemberType('');
+        setBranchId('');
+        setPtuNumber('');
     };
 
-    const handleExport = async () => {
-        let data = null;
+    // Per-row export: `rowParams` narrows the download to that one row's branch/terminal/day.
+    const [exportingKey, setExportingKey] = useState(null);
+    const handleExportRow = async (key, rowParams, downloadName) => {
         try {
-            setDownloading(true);
-            data = await discount_report.DownloadReport({ ...params, type: reportType });
+            setExportingKey(key);
+            const data = await discount_report.DownloadReport(rowParams);
+            const url = URL.createObjectURL(data);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = downloadName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         } finally {
-            setDownloading(false);
+            setExportingKey(null);
         }
-        const url = URL.createObjectURL(data);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = reportType == 'sales' ? 'annex_sales_summary.xlsx' : fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
     };
 
     const renderHeader = () => (
@@ -71,18 +83,9 @@ function Reports() {
                         BIR Reports
                     </Typography>
                     <Typography variant="body2" color="text.secondary" mt={0.5}>
-                        Generate Annex-format sales and member discount summaries for BIR filing.
+                        Generate Annex-format sales and member discount summaries for BIR filing. Use the export button on a row to download it.
                     </Typography>
                 </Box>
-                <Button
-                    variant="outlined"
-                    color="inherit"
-                    startIcon={<DescriptionOutlinedIcon />}
-                    disabled={!generated || downloading}
-                    onClick={handleExport}
-                >
-                    {downloading ? 'Downloading...' : 'Export CSV'}
-                </Button>
             </Box>
         </Card>
     );
@@ -128,6 +131,44 @@ function Reports() {
                                 ))}
                             </TextField>
                         )}
+                        <TextField
+                            select
+                            size="small"
+                            label="Branch"
+                            value={branchId}
+                            onChange={(e) => {
+                                setGenerated(0);
+                                setBranchId(e.target.value);
+                                setPtuNumber('');
+                            }}
+                            sx={{ minWidth: 180 }}
+                        >
+                            <MenuItem value="">All branches</MenuItem>
+                            {branches.map((b) => (
+                                <MenuItem key={b.branchId} value={b.branchId}>
+                                    {b.branchName}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                        <TextField
+                            select
+                            size="small"
+                            label="PTU No."
+                            value={ptuNumber}
+                            onChange={(e) => {
+                                setGenerated(0);
+                                setPtuNumber(e.target.value);
+                            }}
+                            sx={{ minWidth: 200 }}
+                        >
+                            <MenuItem value="">All terminals</MenuItem>
+                            {branchTerminals.map((t) => (
+                                <MenuItem key={`${t.branchId}-${t.ptuNumber}`} value={t.ptuNumber}>
+                                    {t.ptuNumber}
+                                    {!branchId && ` (${t.branchName})`}
+                                </MenuItem>
+                            ))}
+                        </TextField>
                         <TextField
                             select
                             size="small"
@@ -215,8 +256,8 @@ function Reports() {
         <Stack spacing={2.5}>
             {renderHeader()}
             {renderFilters()}
-            {generated > 0 && reportType == 'sales' && <SalesReports {...params} generated={generated} />}
-            {generated > 0 && reportType == 'discounts' && <DiscountReports {...params} generated={generated} />}
+            {generated > 0 && reportType == 'sales' && <SalesReports {...params} generated={generated} onExport={handleExportRow} exportingKey={exportingKey} />}
+            {generated > 0 && reportType == 'discounts' && <DiscountReports {...params} generated={generated} onExport={handleExportRow} exportingKey={exportingKey} />}
             {generated === 0 && renderEmptyState()}
         </Stack>
     );

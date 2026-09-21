@@ -4,7 +4,9 @@ import _ from 'lodash';
 import moment from 'moment';
 import { useState } from 'react';
 import discount_report from 'api/discount_report';
+import { DateFilterEnum } from 'ui-component/filter/DateFilter';
 import ReportPagination from 'ui-component/ReportPagination';
+import ExportRowButton from './ExportRowButton';
 
 export const ReportTypeEnum = Object.freeze({
     SALES: 0,
@@ -19,10 +21,17 @@ const TABLE_HEADS = [
     'Total Deductions',
     'Total Member Discount',
     'Total Net Sales',
-    'Date'
+    'Date',
+    'Branch',
+    'MIN',
+    'SN',
+    'PTU No.',
+    ''
 ];
 
-function SalesReports({ generated, ...initialParams }) {
+const rowKey = (report) => `${report.branch?._id}|${report.ptuNumber}|${report.date}`;
+
+function SalesReports({ generated, onExport, exportingKey, ...initialParams }) {
     const clip = (value) => (value ? value : 0).toFixed(2);
 
     const params = _.pickBy(
@@ -94,6 +103,30 @@ function SalesReports({ generated, ...initialParams }) {
                                     <TableCell>{clip(report.salesSummary?.discount)}</TableCell>
                                     <TableCell>{clip(report.salesSummary?.netSales)}</TableCell>
                                     <TableCell sx={{ textWrap: 'nowrap' }}>{moment(report.date).format('YYYY-MM-DD')}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{report.branch?.name || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{report.min || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{report.sn || '---'}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>{report.ptuNumber || '---'}</TableCell>
+                                    <TableCell>
+                                        <ExportRowButton
+                                            loading={exportingKey === rowKey(report)}
+                                            disabled={!!exportingKey}
+                                            onClick={() =>
+                                                onExport(
+                                                    rowKey(report),
+                                                    {
+                                                        type: 'sales',
+                                                        branchId: report.branch?._id,
+                                                        ptuNumber: report.ptuNumber || '-',
+                                                        dateFilter: DateFilterEnum.CUSTOM_FILTER,
+                                                        startDate: report.date,
+                                                        endDate: report.date
+                                                    },
+                                                    `annex_sales_summary-${report.ptuNumber || 'no-ptu'}-${report.date}.xlsx`
+                                                )
+                                            }
+                                        />
+                                    </TableCell>
                                 </TableRow>
                             ))}
                     </TableBody>
