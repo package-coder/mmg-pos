@@ -81,6 +81,9 @@ const stringToAvatarColor = (str) => {
     return { bg: `hsl(${hue}, 70%, 92%)`, color: `hsl(${hue}, 55%, 38%)` };
 };
 
+// Charge = on-account payment (same test the Payment Method column uses to show "Charge").
+const isCharge = (t) => t?.tender?.kind === 'on-account' || t?.tender?.type === 'on-account';
+
 const getInitials = (name) =>
     (name || '')
         .split(' ')
@@ -448,7 +451,7 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                                                             </Button>
                                                         </>
                                                     )}
-                                                    {t?.status === 'completed' && t?.tender?.type === 'on-account' && (
+                                                    {t?.status === 'completed' && isCharge(t) && (
                                                         <Button
                                                             size="small"
                                                             variant="outlined"
@@ -460,7 +463,7 @@ const TransactionsSlideBar = ({ onRestoreTransaction }) => {
                                                             Cancel
                                                         </Button>
                                                     )}
-                                                    {t?.status === 'completed' && t?.tender?.type === 'cash' && (
+                                                    {t?.status === 'completed' && !isCharge(t) && (
                                                         <Button
                                                             size="small"
                                                             variant="outlined"
