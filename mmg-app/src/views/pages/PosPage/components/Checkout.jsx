@@ -232,7 +232,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                         paymentDue: combinedData?.paymentDue,
                         change: 0,
                         tenderAmount: combinedData?.paymentDue,
-                        referenceNumber: (control._formValues.referenceNumber || '').trim(),
+                        referenceNumber: (control._formValues.referenceNumber || '').trim() || undefined,
                         tenderType: code
                     }
                 };
@@ -726,20 +726,26 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                 <Grid item xs={12}>
                                     <Stack p={2.5} spacing={1.5} bgcolor="grey.50" borderRadius={3}>
                                         <Typography variant="body1" color="text.secondary">
-                                            Paid in full by {selectedMethod?.name}. Enter the reference / approval number from the payment.
+                                            Paid in full by {selectedMethod?.name}.{' '}
+                                            {selectedMethod?.requireReference === false
+                                                ? 'You may enter the reference / approval number from the payment.'
+                                                : 'Enter the reference / approval number from the payment.'}
                                         </Typography>
                                         <Controller
                                             name="referenceNumber"
                                             control={control}
                                             defaultValue=""
                                             rules={{
-                                                validate: (value) => (value || '').trim().length > 0 || 'Reference number is required'
+                                                validate: (value) =>
+                                                    selectedMethod?.requireReference === false ||
+                                                    (value || '').trim().length > 0 ||
+                                                    'Reference number is required'
                                             }}
                                             render={({ field }) => (
                                                 <TextField
                                                     {...field}
                                                     autoFocus
-                                                    label="Reference Number"
+                                                    label={selectedMethod?.requireReference === false ? 'Reference Number (optional)' : 'Reference Number'}
                                                     fullWidth
                                                     onBlur={() => trigger('referenceNumber')}
                                                     error={!!errors.referenceNumber}

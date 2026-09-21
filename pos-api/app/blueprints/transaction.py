@@ -256,6 +256,8 @@ def v3_create_transaction(user_id):
             if method is None:
                 return jsonify({'message': 'This payment method is not available. Please choose another.'}), 400
             request_data['tender'] = { **request_data['tender'], 'kind': method['kind'], 'name': method['name'] }
+            if method['kind'] == PaymentKind.REFERENCE.value:
+                request_data['tender']['requireReference'] = method['requireReference'] is not False
             modelClass = {
                 PaymentKind.ON_ACCOUNT.value: CreateOnAccountTransaction,
                 PaymentKind.REFERENCE.value: CreateReferenceTransaction,

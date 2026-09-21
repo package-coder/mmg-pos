@@ -32,6 +32,8 @@ class PaymentMethod(BaseModel):
     kind: PaymentKind
     system: bool = False
     active: bool = True
+    # Reference-number methods only: must the cashier enter a reference / approval number?
+    requireReference: Optional[bool] = None
 
 
 def _clean_name(value: Optional[str]) -> Optional[str]:
@@ -46,6 +48,7 @@ def _clean_name(value: Optional[str]) -> Optional[str]:
 class CreatePaymentMethodRequest(BaseModel):
     # Admin-created methods are always the "reference number" kind (card, GCash, bank transfer...).
     name: str = Field(max_length=40)
+    requireReference: bool = True
 
     @field_validator("name")
     @classmethod
@@ -56,6 +59,7 @@ class CreatePaymentMethodRequest(BaseModel):
 class UpdatePaymentMethodRequest(BaseModel):
     name: Optional[str] = Field(default=None, max_length=40)
     active: Optional[bool] = None
+    requireReference: Optional[bool] = None
 
     @field_validator("name")
     @classmethod

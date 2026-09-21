@@ -3,12 +3,14 @@ import {
     Alert,
     Box,
     Button,
+    Checkbox,
     Chip,
     CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
+    FormControlLabel,
     IconButton,
     Stack,
     Switch,
@@ -38,8 +40,9 @@ const KIND_LABELS = {
 const errorMessage = (e) => e?.response?.data?.message || 'Something went wrong. Please try again.';
 
 // Name dialog shared by "New payment method" and rename.
-const NameDialog = ({ open, title, initialName, submitLabel, onClose, onSubmit }) => {
+const NameDialog = ({ open, title, initialName, submitLabel, onClose, onSubmit, showRequireReference = false }) => {
     const [name, setName] = useState(initialName || '');
+    const [requireReference, setRequireReference] = useState(true);
     const [error, setError] = useState(null);
     const [saving, setSaving] = useState(false);
 
@@ -51,7 +54,7 @@ const NameDialog = ({ open, title, initialName, submitLabel, onClose, onSubmit }
         setSaving(true);
         setError(null);
         try {
-            await onSubmit(name.trim());
+            await onSubmit(name.trim(), requireReference);
             onClose();
         } catch (e) {
             setError(errorMessage(e));
@@ -77,6 +80,13 @@ const NameDialog = ({ open, title, initialName, submitLabel, onClose, onSubmit }
                     error={!!error}
                     helperText={error}
                 />
+                {showRequireReference && (
+                    <FormControlLabel
+                        sx={{ mt: 1 }}
+                        control={<Checkbox checked={requireReference} onChange={(e) => setRequireReference(e.target.checked)} />}
+                        label="Require a reference number at checkout"
+                    />
+                )}
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 2 }}>
                 <Button onClick={onClose} disabled={saving}>
@@ -117,6 +127,15 @@ const PaymentMethodSettings = () => {
         }
     };
 
+    const toggleRequireReference = async (method, requireReference) => {
+        setToggleError(null);
+        try {
+            await updateMethod({ code: method.code, requireReference });
+        } catch (e) {
+            setToggleError(errorMessage(e));
+        }
+    };
+
     return (
         <MainCard
             title="Payment Methods"
@@ -130,7 +149,7 @@ const PaymentMethodSettings = () => {
                 <Alert severity="info">
                     These are the payment methods cashiers can choose at checkout. Changes made here reach every branch on its next sync
                     (about 3 minutes). Cash and On Account are built in: you can rename On Account or switch it off, but not
-                    delete either. Methods you add take a reference / approval number at checkout and are paid in full. Switching a method off hides it
+                    delete either. Methods you add are paid in full and can require a reference / approval number at checkout (on by default; you can change it per method). Switching a method off hides it
                     from checkout only; past sales keep it.
                 </Alert>
 
@@ -155,7 +174,7 @@ const PaymentMethodSettings = () => {
                         <Table>
                             <TableHead>
                                 <TableRow sx={{ bgcolor: 'grey.50' }}>
-                                    {['Name', 'Type', 'Available at checkout', ''].map((head) => (
+                                    {['Name', 'Type', 'Requires reference no.', 'Available at checkout', ''].map((head) => (
                                         <TableCell key={head} sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
                                             {head.toUpperCase()}
                                         </TableCell>
@@ -174,6 +193,19 @@ const PaymentMethodSettings = () => {
                                             </Stack>
                                         </TableCell>
                                         <TableCell>{KIND_LABELS[method.kind] || method.kind}</TableCell>
+                                        <TableCell>
+                                            {method.kind === 'reference' ? (
+                                                <Switch
+                                                    checked={method.requireReference !== false}
+                                                    disabled={!canManage || updating}
+                                                    onChange={(e) => toggleRequireReference(method, e.target.checked)}
+                                                />
+                                            ) : (
+                                                <Typography variant="body2" color="text.secondary">
+                                                    -
+                                                </Typography>
+                                            )}
+                                        </TableCell>
                                         <TableCell>
                                             <Tooltip title={method.code === 'cash' ? 'Cash cannot be switched off' : ''}>
                                                 <span>
@@ -205,8 +237,9 @@ const PaymentMethodSettings = () => {
                     open
                     title="New payment method"
                     submitLabel="Add"
+                    showRequireReference
                     onClose={() => setCreating(false)}
-                    onSubmit={(name) => createMethod({ name })}
+                    onSubmit={(name, requireReference) => createMethod({ name, requireReference })}
                 />
             )}
             {renaming && (

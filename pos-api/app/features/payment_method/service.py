@@ -40,6 +40,7 @@ def list_methods(repo, include_inactive: bool = False) -> List[dict]:
             'kind': base['kind'],
             'system': True,
             'active': True if base['code'] in ALWAYS_ACTIVE else override.get('active', True),
+            'requireReference': None,
         })
 
     custom = sorted(
@@ -53,6 +54,8 @@ def list_methods(repo, include_inactive: bool = False) -> List[dict]:
             'kind': d.get('kind') or PaymentKind.REFERENCE.value,
             'system': False,
             'active': d.get('active', True),
+            # Older rows were created before this setting existed and always asked for one.
+            'requireReference': d.get('requireReference', True),
         })
 
     return methods if include_inactive else [m for m in methods if m['active']]
@@ -84,6 +87,7 @@ def create_method(repo, request: CreatePaymentMethodRequest) -> dict:
         'name': request.name,
         'kind': PaymentKind.REFERENCE.value,
         'active': True,
+        'requireReference': request.requireReference,
         'created_at': datetime.utcnow(),
     })
     return next(m for m in list_methods(repo, include_inactive=True) if m['code'] == code)
@@ -104,6 +108,11 @@ def update_method(repo, code: str, request: UpdatePaymentMethodRequest) -> dict:
         if code in ALWAYS_ACTIVE and not request.active:
             raise PaymentMethodError(f"{method['name']} cannot be switched off.", 400)
         fields['active'] = request.active
+
+    if request.requireReference is not None and request.requireReference != method['requireReference']:
+        if method['kind'] != PaymentKind.REFERENCE.value:
+            raise PaymentMethodError('Only reference-number payment methods have this setting.', 400)
+        fields['requireReference'] = request.requireReference
 
     if fields:
         repo.upsert_by_code(code, fields)

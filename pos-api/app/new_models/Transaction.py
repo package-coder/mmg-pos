@@ -70,7 +70,10 @@ class OnAccountTender(Tender):
 class ReferenceTender(Tender):
     # Card, e-wallet, bank transfer... paid in full, identified by a reference/approval number.
     kind: str = "reference"
-    referenceNumber: str = Field(min_length=1)
+    # Stamped from the payment method at sale time (admin setting), so a later change to the
+    # method doesn't alter how a past sale was validated or reads.
+    requireReference: bool = True
+    referenceNumber: Optional[str] = None
     amount: float
 
 class TransactionItem(Labtest):
@@ -366,6 +369,10 @@ class CreateReferenceTransaction(CreateTransaction):
         if self.status == TransactionStatus.COMPLETED:
             if self.tender is None:
                 raise ValueError('tender is required for this payment method')
+            if self.tender.requireReference and not (self.tender.referenceNumber or '').strip():
+                raise ValueError('referenceNumber is required for this payment method')
+            if self.tender.referenceNumber is not None:
+                self.tender.referenceNumber = self.tender.referenceNumber.strip() or None
             # Paid in full by card/e-wallet/transfer - never trust a client-sent amount.
             self.tender.amount = self.totalNetSales
         return self
