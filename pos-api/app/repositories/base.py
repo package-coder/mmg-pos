@@ -83,12 +83,25 @@ class Repository(abc.ABC):
             raise
     
     def _get_next_sequence(self, data):
-        counter = self._db['counters'].find_one_and_update(
-            data,
-            {"$inc": {"seq": 1}},
-            upsert=True,
-            return_document=True
-        )
+        # upsert=True races on a counter's very first use: two requests can both find no
+        # document for `data` and both try to create it, so the unique index on `counters`
+        # (unique_counter_key) lets one insert win and throws DuplicateKeyError at the other
+        # instead of silently retrying. Retry once — by then the winner's document exists, so
+        # this becomes a plain atomic $inc with no upsert race left.
+        try:
+            counter = self._db['counters'].find_one_and_update(
+                data,
+                {"$inc": {"seq": 1}},
+                upsert=True,
+                return_document=True
+            )
+        except pymongo.errors.DuplicateKeyError:
+            counter = self._db['counters'].find_one_and_update(
+                data,
+                {"$inc": {"seq": 1}},
+                upsert=True,
+                return_document=True
+            )
         return counter['seq']
 
 class BackupRepository(Repository):
