@@ -188,7 +188,8 @@ begin
     'Protects the Settings and Logs window',
     'Choose a password that only you (the provider) know. It is asked every time Settings and Logs is opened, ' +
     'so branch staff cannot change the BIR numbers, printer or read the logs. Minimum 8 characters. ' +
-    'It is stored only as a one-way hash and cannot be recovered: to reset it later, run this installer with /ADMINPW="new password".');
+    'It is stored only as a one-way hash and cannot be recovered. ' +
+    'If a password is already set on this PC, leave both fields blank to keep it, or type a new one to replace it.');
   PwPage.Add('Provider password:', True);
   PwPage.Add('Confirm password:', True);
 end;
@@ -199,11 +200,12 @@ begin
   { Upgrade: keep the existing config.json untouched. }
   if PageID = CfgPage.ID then
     Result := FileExists(ConfigPath);
-  { Skip when the password is given on the command line, one is already set (upgrade), or this is a
-    silent install: silent setup still validates skipped-over pages, so an empty password would abort
-    it instead of installing unlocked with a logged warning. }
+  { Skip when the password is given on the command line, or this is a silent install: silent setup
+    still validates skipped-over pages, so an empty password would abort it instead of installing
+    unlocked with a logged warning. On an upgrade the page is still shown, but blank there means
+    "keep the current password" (see NextButtonClick and ApplyProviderPassword). }
   if PageID = PwPage.ID then
-    Result := WizardSilent or (PwParam <> '') or FileExists(AdminPath);
+    Result := WizardSilent or (PwParam <> '');
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -214,6 +216,9 @@ begin
 
   if CurPageID = PwPage.ID then
   begin
+    { Upgrade with both fields left blank: keep the password that is already set. }
+    if (PwPage.Values[0] = '') and (PwPage.Values[1] = '') and FileExists(AdminPath) then
+      Exit;
     if Length(PwPage.Values[0]) < 8 then
     begin
       MsgBox('The password must be at least 8 characters.', mbError, MB_OK);
@@ -356,8 +361,8 @@ begin
 
   if PwParam <> '' then
     Pw := PwParam
-  else if not FileExists(AdminPath) then
-    Pw := PwPage.Values[0];   { '' when the page was not shown (silent install) }
+  else
+    Pw := PwPage.Values[0];   { '' when skipped (silent install) or left blank on an upgrade }
 
   if Pw = '' then
   begin
