@@ -69,12 +69,16 @@ def time_in_report(user_id):
 
     # Fast path only — avoids creating an orphaned opening-fund CashCount record for the common
     # case (a reload, or a session that's already timed in hitting this again). It is NOT what
-    # makes this safe under a race: unique_cashier_report_per_day (app/database/indexes.py) is
-    # the actual guarantee, enforced by the insert below.
+    # makes this safe under a race: unique_active_cashier_report_per_day (app/database/indexes.py)
+    # is the actual guarantee, enforced by the insert below. Scoped to timeOut: None — a cashier
+    # can have earlier, already-closed shifts for this branch/date (time out, then time back in
+    # later the same day); only an OPEN shift should short-circuit into "you're already timed in,"
+    # otherwise this would hand back a stale closed shift instead of ever creating the new one.
     existing = reportRepository.find_one({
         'cashierId': user_id,
         'date': date_today,
-        'branchId': branch_id
+        'branchId': branch_id,
+        'timeOut': None
     })
     if(existing is not None):
         return jsonify({ 'data': existing, 'message': 'Report today returned' })
@@ -121,7 +125,8 @@ def time_in_report(user_id):
         existing = reportRepository.find_one({
             'cashierId': user_id,
             'date': date_today,
-            'branchId': branch_id
+            'branchId': branch_id,
+            'timeOut': None
         })
         return jsonify({ 'data': existing, 'message': 'Report today returned' })
 

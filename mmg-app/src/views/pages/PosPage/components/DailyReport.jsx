@@ -7,45 +7,77 @@ import {
     TableHead,
     TableRow,
     Paper,
+    Card,
     Button,
     Typography,
     TablePagination,
     CircularProgress,
-    Stack
+    Stack,
+    TextField,
+    InputAdornment,
+    IconButton,
+    Avatar,
+    Chip
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
-// import pdfMake from 'pdfmake/build/pdfmake';
-// import pdfFonts from 'pdfmake/build/vfs_fonts';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
 import { useQuery } from 'react-query';
 import { CSVLink } from 'react-csv';
 
 // api
 import transaction from 'api/transaction';
 
-const beginningBalance = 1000;
-const endingBalance = 2000;
+const HEAD_CELLS = [
+    'Customer Name',
+    'Lab Exam Done',
+    'OR #',
+    'Amount',
+    'Packages',
+    'Lab Services',
+    'ECG Services',
+    'XRAY Services',
+    'UTZ Services',
+    'Drug Test',
+    'Send Out',
+    'LAB Comm',
+    'PF',
+    'Discount',
+    'Others',
+    'Referee'
+];
 
-const selectedBranchData = localStorage.getItem('selectedBranch');
+// Deterministic per-customer color so the same name always gets the same avatar color
+// across page reloads/pagination, without needing to store a color on the record itself.
+const AVATAR_COLORS = ['#5C6AC4', '#00848E', '#B98900', '#BF0711', '#00875A', '#6B4FBB', '#0B5FFF', '#B75A00'];
+const colorForName = (name) => {
+    let hash = 0;
+    for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+};
 
-// Parse the JSON string into an object
-const branch = JSON.parse(selectedBranchData);
+const getInitials = (name) =>
+    (name || '')
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((word) => word[0])
+        .join('')
+        .toUpperCase() || '?';
 
-// Access the name property
-const bhName = branch?.name;
+const getCustomerName = (row) =>
+    row.customerData?.fullName || `${row.customerData?.firstName || ''} ${row.customerData?.lastName || ''}`.trim() || '---';
 
-const companyName = 'MEDICAL MISSION GROUP HOSPITAL HEALTH SERVICES COOP.- ALBAY';
-const address = '4th Flr. MMGHHSC Medical Arts Bldg. 216 Ziga Ave. cor Ruivivar St., Tabaco City';
-const teleFaxInfo = '(052) 830-01-38';
-const telNoInfo = '(052) 487-58-77';
-const reportTitle = 'Daily Sales Report';
-const branchName = bhName;
-const reportDate = new Date().toLocaleDateString();
+const getCategoryPrice = (row, name) => row.categories?.find((c) => c.name === name)?.price;
+const getOthersPrice = (row) => row.categories?.find((c) => c.name?.startsWith('Others'))?.price;
 
-// pdfMake.vfs = pdfFonts.pdfMake.vfs;
+const formatCurrency = (value) =>
+    `₱${new Intl.NumberFormat('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`;
 
 const DailyReport = ({ cashierId, branchId }) => {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [search, setSearch] = useState('');
 
     const { data, isLoading, isError, error } = useQuery(
         ['transaction', cashierId, branchId],
@@ -55,110 +87,23 @@ const DailyReport = ({ cashierId, branchId }) => {
         }
     );
 
-    console.log('dr:', data, cashierId, branchId);
-
-    // const generatePDF = () => {
-    //   const tableColumn = [
-    //     'Customer Name',
-    //     'Lab Exam Done',
-    //     'OR',
-    //     'Amount',
-    //     'Packages',
-    //     'Lab Services',
-    //     'ECG Services',
-    //     'XRAY Services',
-    //     'UTZ Services',
-    //     'Drug Test',
-    //     'Send Out',
-    //     'LAB Comm',
-    //     'PF',
-    //     'Discount',
-    //     'Others',
-    //     'Referee'
-    //   ];
-    //   const tableRows = [];
-
-    //   data?.cols?.forEach((row) => {
-    //     const rowData = [
-    //       row.customerData?.name || '---',
-    //       row.labExams,
-    //       row.orNo,
-    //       row.amount,
-    //       row.categories.find((c) => c.name === 'Package')?.price || '---',
-    //       row.categories.find((c) => c.name === 'Laboratory Services')?.price || '---',
-    //       row.categories.find((c) => c.name === 'ECG Services')?.price || '---',
-    //       row.categories.find((c) => c.name === 'X-RAY Services')?.price || '---',
-    //       row.categories.find((c) => c.name === 'UTZ')?.price || '---',
-    //       row.categories.find((c) => c.name === 'Drug Test')?.price || '---',
-    //       row.categories.find((c) => c.name === 'Send Out')?.price || '---',
-    //       row.categories.find((c) => c.name === 'LAB Comm')?.price || '---',
-    //       row.categories.find((c) => c.name === 'PF')?.price || '---',
-    //       row.discount || '---',
-    //       row.categories.find((c) => c.name.startsWith('Others'))?.price || '---',
-    //       row.referrer || '---'
-    //     ];
-    //     tableRows.push(rowData);
-    //   });
-
-    //   const documentDefinition = {
-    //     pageOrientation: 'landscape', // Set the orientation to landscape
-    //     content: [
-    //       { text: companyName, style: 'header', alignment: 'center' },
-    //       { text: reportTitle, style: 'subheader', alignment: 'center' },
-    //       { text: `${branchName}`, style: 'details', alignment: 'center' },
-    //       { text: `${reportDate}`, style: 'details', alignment: 'center' },
-    //       {
-    //         table: {
-    //           headerRows: 1,
-    //           widths: [
-    //             '5%', '5%', '5%', '5%', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'
-    //           ],
-    //           body: [
-    //             tableColumn,
-    //             ...tableRows
-    //           ]
-    //         }
-    //       }
-    //     ],
-    //     styles: {
-    //       header: {
-    //         fontSize: 20,
-    //         bold: true,
-    //         margin: [0, 8, 0, 0]
-    //       },
-    //       subheader: {
-    //         fontSize: 16,
-    //         bold: true,
-    //         margin: [0, 8, 0, 0]
-    //       },
-    //       details: {
-    //         fontSize: 12,
-    //         margin: [0, 8, 0, 0]
-    //       }
-    //     }
-    //   };
-
-    //   pdfMake.createPdf(documentDefinition).download('daily_sales_report.pdf');
-    // };
-
     const generateCSVData = () => {
-        console.log('data?.cols', data?.cols);
         const csvData = data?.cols?.map((row) => ({
-            customerName: row.customerData?.name || '---',
+            customerName: getCustomerName(row),
             labExams: row.labExams,
-            orNo: row.orNo,
+            orNo: row.invoiceNumber,
             amount: row.amount,
-            package: row.categories.find((c) => c.name === 'Package')?.price || '---',
-            labServices: row.categories.find((c) => c.name === 'Laboratory Services')?.price || '---',
-            ecgServices: row.categories.find((c) => c.name === 'ECG Services')?.price || '---',
-            xrayServices: row.categories.find((c) => c.name === 'X-RAY Services')?.price || '---',
-            utzServices: row.categories.find((c) => c.name === 'UTZ')?.price || '---',
-            drugTest: row.categories.find((c) => c.name === 'Drug Test')?.price || '---',
-            sendOut: row.categories.find((c) => c.name === 'Send Out')?.price || '---',
-            labComm: row.categories.find((c) => c.name === 'LAB Comm')?.price || '---',
-            pf: row.categories.find((c) => c.name === 'PF')?.price || '---',
+            package: getCategoryPrice(row, 'Package') || '---',
+            labServices: getCategoryPrice(row, 'Laboratory Services') || '---',
+            ecgServices: getCategoryPrice(row, 'ECG Services') || '---',
+            xrayServices: getCategoryPrice(row, 'X-RAY Services') || '---',
+            utzServices: getCategoryPrice(row, 'UTZ') || '---',
+            drugTest: getCategoryPrice(row, 'Drug Test') || '---',
+            sendOut: getCategoryPrice(row, 'Send Out') || '---',
+            labComm: getCategoryPrice(row, 'LAB Comm') || '---',
+            pf: getCategoryPrice(row, 'PF') || '---',
             discount: row.discount || '---',
-            others: row.categories.find((c) => c.name.startsWith('Others'))?.price || '---',
+            others: getOthersPrice(row) || '---',
             referrer: row.referrer || '---'
         }));
 
@@ -173,6 +118,25 @@ const DailyReport = ({ cashierId, branchId }) => {
         setRowsPerPage(parseInt(event.target.value, 10));
         setPage(0);
     };
+
+    const handleSearchChange = (event) => {
+        setSearch(event.target.value);
+        setPage(0);
+    };
+
+    const filteredRows = (data?.cols || []).filter((row) => {
+        if (!search) return true;
+        const query = search.toLowerCase();
+        return (
+            getCustomerName(row).toLowerCase().includes(query) ||
+            String(row.invoiceNumber || '').includes(query) ||
+            (row.labExams || '').toLowerCase().includes(query)
+        );
+    });
+
+    const pagedRows = filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+    const sumOf = (getValue) => pagedRows.reduce((sum, row) => sum + (parseFloat(getValue(row)) || 0), 0);
 
     if (isLoading) {
         return (
@@ -193,9 +157,6 @@ const DailyReport = ({ cashierId, branchId }) => {
                     Daily Sales Report
                 </Typography>
                 <Stack direction="row" alignItems="center" spacing={2}>
-                    {/* <Button variant="contained" color="primary" startIcon={<PrintIcon />} sx={{ marginRight: 2 }}>
-            Download PDF
-          </Button> */}
                     <CSVLink
                         data={generateCSVData()}
                         headers={[
@@ -225,60 +186,158 @@ const DailyReport = ({ cashierId, branchId }) => {
                     </CSVLink>
                 </Stack>
             </Stack>
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>Customer Name</TableCell>
-                            <TableCell>Lab Exam Done</TableCell>
-                            <TableCell>OR</TableCell>
-                            <TableCell>Amount</TableCell>
-                            <TableCell>Packages</TableCell>
-                            <TableCell>Lab Services</TableCell>
-                            <TableCell>ECG Services</TableCell>
-                            <TableCell>XRAY Services</TableCell>
-                            <TableCell>UTZ Services</TableCell>
-                            <TableCell>Drug Test</TableCell>
-                            <TableCell>Send Out</TableCell>
-                            <TableCell>LAB Comm</TableCell>
-                            <TableCell>PF</TableCell>
-                            <TableCell>Discount</TableCell>
-                            <TableCell>Others</TableCell>
-                            <TableCell>Referee</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {data?.cols?.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((row, index) => (
-                            <TableRow key={index}>
-                                <TableCell>{row.customerData?.name || '---'}</TableCell>
-                                <TableCell>{row.labExams}</TableCell>
-                                <TableCell>{row.orNo}</TableCell>
-                                <TableCell>{row.amount}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name === 'Package')?.price || '---'}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name === 'Laboratory Services')?.price || '---'}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name === 'ECG Services')?.price || '---'}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name === 'X-RAY Services')?.price || '---'}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name === 'UTZ')?.price || '---'}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name === 'Drug Test')?.price || '---'}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name === 'Send Out')?.price || '---'}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name === 'LAB Comm')?.price || '---'}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name === 'PF')?.price || '---'}</TableCell>
-                                <TableCell>{row.discount || '---'}</TableCell>
-                                <TableCell>{row.categories.find((c) => c.name.startsWith('Others'))?.price || '---'}</TableCell>
-                                <TableCell>{row.referrer || '---'}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-            <TablePagination
-                component="div"
-                count={data?.cols?.length || 0}
-                page={page}
-                onPageChange={handleChangePage}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleChangeRowsPerPage}
+
+            <TextField
+                value={search}
+                onChange={handleSearchChange}
+                size="small"
+                fullWidth
+                placeholder="Search Customer Name, Lab Exam, or OR #..."
+                sx={{ mb: 2 }}
+                InputProps={{
+                    startAdornment: (
+                        <InputAdornment position="start">
+                            <SearchIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                    ),
+                    endAdornment: search ? (
+                        <InputAdornment position="end">
+                            <IconButton size="small" onClick={() => setSearch('')}>
+                                <ClearIcon fontSize="small" />
+                            </IconButton>
+                        </InputAdornment>
+                    ) : null
+                }}
             />
+
+            <Card sx={{ overflow: 'hidden' }}>
+                <TableContainer>
+                    <Table>
+                        <TableHead>
+                            <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                {HEAD_CELLS.map((head) => (
+                                    <TableCell
+                                        key={head}
+                                        sx={{
+                                            fontSize: '0.75rem',
+                                            fontWeight: 700,
+                                            color: 'text.secondary',
+                                            letterSpacing: 0.5,
+                                            textWrap: 'nowrap'
+                                        }}
+                                    >
+                                        {head.toUpperCase()}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {pagedRows.map((row, index) => (
+                                <TableRow key={row.invoiceNumber || index} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                                    <TableCell>
+                                        <Stack direction="row" alignItems="center" spacing={1.25}>
+                                            <Avatar
+                                                sx={{
+                                                    width: 32,
+                                                    height: 32,
+                                                    fontSize: '0.75rem',
+                                                    bgcolor: colorForName(getCustomerName(row))
+                                                }}
+                                            >
+                                                {getInitials(getCustomerName(row))}
+                                            </Avatar>
+                                            <Typography variant="body2" fontWeight={600} sx={{ textWrap: 'nowrap' }}>
+                                                {getCustomerName(row)}
+                                            </Typography>
+                                        </Stack>
+                                    </TableCell>
+                                    <TableCell sx={{ maxWidth: 220 }}>{row.labExams}</TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>
+                                        {row.invoiceNumber ? (
+                                            <Chip
+                                                size="small"
+                                                label={`#${String(row.invoiceNumber).padStart(6, '0')}`}
+                                                sx={{ bgcolor: 'grey.100', fontWeight: 600, fontSize: '0.7rem' }}
+                                            />
+                                        ) : (
+                                            '---'
+                                        )}
+                                    </TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>
+                                        <Typography variant="body2" fontWeight={700}>
+                                            {formatCurrency(row.amount)}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell>{getCategoryPrice(row, 'Package') || '---'}</TableCell>
+                                    <TableCell>{getCategoryPrice(row, 'Laboratory Services') || '---'}</TableCell>
+                                    <TableCell>{getCategoryPrice(row, 'ECG Services') || '---'}</TableCell>
+                                    <TableCell>{getCategoryPrice(row, 'X-RAY Services') || '---'}</TableCell>
+                                    <TableCell>{getCategoryPrice(row, 'UTZ') || '---'}</TableCell>
+                                    <TableCell>{getCategoryPrice(row, 'Drug Test') || '---'}</TableCell>
+                                    <TableCell>{getCategoryPrice(row, 'Send Out') || '---'}</TableCell>
+                                    <TableCell>{getCategoryPrice(row, 'LAB Comm') || '---'}</TableCell>
+                                    <TableCell>{getCategoryPrice(row, 'PF') || '---'}</TableCell>
+                                    <TableCell>{row.discount || '---'}</TableCell>
+                                    <TableCell>{getOthersPrice(row) || '---'}</TableCell>
+                                    <TableCell>{row.referrer || '---'}</TableCell>
+                                </TableRow>
+                            ))}
+                            {pagedRows.length > 0 && (
+                                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                    <TableCell>
+                                        <Typography variant="body2" fontWeight={700}>
+                                            PAGE TOTAL ({pagedRows.length} ITEM{pagedRows.length === 1 ? '' : 'S'})
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Subtotal for current page
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {pagedRows.length} Receipt{pagedRows.length === 1 ? '' : 's'}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell sx={{ textWrap: 'nowrap' }}>
+                                        <Typography variant="body2" fontWeight={700} color="primary.dark">
+                                            {formatCurrency(sumOf((row) => row.amount))}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getCategoryPrice(row, 'Package')))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getCategoryPrice(row, 'Laboratory Services')))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getCategoryPrice(row, 'ECG Services')))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getCategoryPrice(row, 'X-RAY Services')))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getCategoryPrice(row, 'UTZ')))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getCategoryPrice(row, 'Drug Test')))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getCategoryPrice(row, 'Send Out')))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getCategoryPrice(row, 'LAB Comm')))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getCategoryPrice(row, 'PF')))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => row.discount))}</TableCell>
+                                    <TableCell>{formatCurrency(sumOf((row) => getOthersPrice(row)))}</TableCell>
+                                    <TableCell />
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                    {!pagedRows.length && (
+                        <Stack alignItems="center" py={6}>
+                            <Typography color="text.secondary" variant="h5">
+                                {search ? 'No transactions match your search' : 'No data available for this table'}
+                            </Typography>
+                        </Stack>
+                    )}
+                </TableContainer>
+                <TablePagination
+                    component="div"
+                    count={filteredRows.length}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={handleChangeRowsPerPage}
+                    sx={{ borderTop: '1px solid', borderColor: 'divider' }}
+                />
+            </Card>
         </Paper>
     );
 };

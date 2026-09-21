@@ -52,7 +52,7 @@ export default function () {
                             </Typography>
                         </Grid>
                         {user?.branches.map((item) => (
-                            <Grid item xs={12} key={item._id}>
+                            <Grid item xs={12} key={item.id}>
                                 <Button
                                     sx={{
                                         py: 1,

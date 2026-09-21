@@ -26,7 +26,12 @@ function XReportPage() {
         }),
         enabled: !!branch
     })
-    const report = data?.reports?.[0]
+    // Branch-scoped for the same reason as PosPage/index.jsx: GET /v2/cashier-reports isn't
+    // actually branch-scoped server-side (branchId is accepted but silently dropped), so
+    // `reports` can hold rows from other branches too — and now that a cashier can have several
+    // closed shifts at the same branch in one day, picking reports[0] unconditionally isn't
+    // guaranteed to be THIS branch's most recent shift.
+    const report = data?.reports?.find((r) => r.branch?._id === branch?.id)
 
     const { print, printing } = usePrinter()
 

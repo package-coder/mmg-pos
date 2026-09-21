@@ -45,7 +45,7 @@ const pages = {
             url: '/dashboard/branch-reports',
             icon: FaFileInvoice,
             breadcrumbs: false,
-            roles: [Role.ADMIN]
+            roles: [Role.CASHIER, Role.ADMIN]
         },
         {
             id: 'bir-reports',

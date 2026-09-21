@@ -4,8 +4,8 @@ import { useMutation, useQueryClient } from 'react-query';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'react-toastify';
-import { Card, Typography, Grid, Button, Stack, Divider, Modal, TextField, InputAdornment, Chip, CircularProgress, Box } from '@mui/material';
-import { MdChevronLeft } from 'react-icons/md';
+import { Card, Typography, Grid, Button, Stack, Divider, Modal, TextField, InputAdornment, IconButton, Chip, CircularProgress, Box, Avatar } from '@mui/material';
+import { MdChevronLeft, MdClose, MdCalendarToday, MdPhone, MdLocationOn } from 'react-icons/md';
 import Receipt from './Receipt';
 import { useTheme } from '@emotion/react';
 import { FaPesoSign } from 'react-icons/fa6';
@@ -136,6 +136,14 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                 handleAmountClick(undefined, Number(key));
             } else if (key === 'Backspace') {
                 handleClearClick();
+            } else if (key === 'Enter') {
+                event.preventDefault();
+                if (!(amountGiven < combinedData?.paymentDue || loading)) {
+                    handleSubmit(handlePayClick)();
+                }
+            } else if (key === 'Escape') {
+                event.preventDefault();
+                handleBack('back');
             }
         };
 
@@ -144,7 +152,7 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
         return () => {
             window.removeEventListener('keydown', handleKeyPress);
         };
-    }, []);
+    }, [amountGiven, loading]);
 
 
     const handleAmountClick = ({ add, exact, reset } = { add: false, exact: false, reset: false }, value = 0) => {
@@ -272,6 +280,30 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
         }
     };
 
+    const customerTypeLabels = {
+        member: 'Member',
+        'non-member': 'Non-Member',
+        seniorcitizenpwd: 'Senior Citizen / PWD',
+        'officer-bod': 'Officer (BOD)',
+        'officer-gm': 'Officer (GM)',
+        'officer-treasurer': 'Officer (Treasurer)',
+        'officer-committer-officers': 'Officer',
+        'associate-member': 'Associate Member',
+        'solo-parent': 'Solo Parent'
+    };
+
+    const getInitials = (name) => {
+        if (!name) return '--';
+        const parts = name.trim().split(/\s+/).filter(Boolean);
+        return parts.slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || '--';
+    };
+
+    const discountApplied = combinedData?.discountApplied;
+    const discountLabel = discountApplied
+        ? discountApplied.name ||
+          (discountApplied.type === 'percentage' ? `${discountApplied.value}% Discount` : 'Discount')
+        : null;
+
     const renderGridItem = (label, value, highlight = false, sx) => (
         <>
             <Grid item xs={5}>
@@ -319,10 +351,17 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                             Checkout
                         </Typography>
                         {/* <Typography variant="h3" mb={2}> Discounts</Typography>                    */}
-                        <Typography variant="h3" mb={2}>
-                            {' '}
-                            Payment Method
-                        </Typography>
+                        <Stack direction="row" justifyContent="space-between" alignItems="baseline" mb={2}>
+                            <Typography variant="h3">
+                                Payment Method{' '}
+                                <Typography component="span" variant="caption" color="text.secondary">
+                                    (Choose primary tender)
+                                </Typography>
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                Currency: PHP (₱)
+                            </Typography>
+                        </Stack>
                         <Grid container spacing={1} mb={4}>
                             {paymentTypes.map((item, index) => (
                                 <Grid key={item} item xs={4} sm={3} md={4} xl={4}>
@@ -366,20 +405,118 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                             {' '}
                             Information
                         </Typography>
-                        <Stack mb={4} direction="row" alignItems="center" spacing={1} px={3} py={2} bgcolor="grey.50" borderRadius={3}>
-                            <Grid container width="100%" spacing={2}>
-                                <Grid item xs={12}>
-                                    <Typography variant="h4"> {combinedData?.customerData?.name}</Typography>
-                                </Grid>
-                                <Grid item xs={12}>
-                                    <Typography variant="h5"> {combinedData?.customerData?.address}</Typography>
-                                </Grid>
-                                {combinedData?.customerData?.age && (
+                        <Stack mb={3} spacing={2} p={2.5} bgcolor="grey.50" borderRadius={3}>
+                            <Stack direction="row" alignItems="center" spacing={1.5}>
+                                <Avatar sx={{ bgcolor: 'primary.main', fontWeight: 'bold' }}>
+                                    {getInitials(combinedData?.customerData?.name)}
+                                </Avatar>
+                                <Box flex={1}>
+                                    <Typography variant="h4">{combinedData?.customerData?.name || '---'}</Typography>
+                                    {combinedData?.customerData?.id && (
+                                        <Typography variant="caption" color="text.secondary">
+                                            Customer ID: {combinedData?.customerData?.id}
+                                        </Typography>
+                                    )}
+                                </Box>
+                                <Stack direction="row" spacing={1}>
+                                    {customerTypeLabels[combinedData?.customerData?.customerType] && (
+                                        <Chip
+                                            size="small"
+                                            label={customerTypeLabels[combinedData?.customerData?.customerType]}
+                                            color="info"
+                                            variant="outlined"
+                                        />
+                                    )}
+                                    {discountLabel && (
+                                        <Chip size="small" label={`${discountLabel} Applied`} color="warning" variant="outlined" />
+                                    )}
+                                </Stack>
+                            </Stack>
+                            <Grid container spacing={2}>
+                                {(combinedData?.customerData?.age || combinedData?.customerData?.birthDate) && (
+                                    <Grid item xs={6}>
+                                        <Stack direction="row" spacing={1} alignItems="flex-start">
+                                            <MdCalendarToday style={{ marginTop: 3, color: theme.palette.grey[500] }} />
+                                            <Box>
+                                                <Typography variant="caption" color="text.secondary" display="block">
+                                                    Age &amp; Birth Date
+                                                </Typography>
+                                                <Typography variant="h5">
+                                                    {combinedData?.customerData?.age ? `${combinedData.customerData.age} yrs old` : '---'}
+                                                    {combinedData?.customerData?.birthDate &&
+                                                        combinedData?.customerData?.type === 'customer' &&
+                                                        ` (DOB: ${combinedData.customerData.birthDate})`}
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Grid>
+                                )}
+                                {combinedData?.customerData?.contactNumber && (
+                                    <Grid item xs={6}>
+                                        <Stack direction="row" spacing={1} alignItems="flex-start">
+                                            <MdPhone style={{ marginTop: 3, color: theme.palette.grey[500] }} />
+                                            <Box>
+                                                <Typography variant="caption" color="text.secondary" display="block">
+                                                    Mobile No.
+                                                </Typography>
+                                                <Typography variant="h5">{combinedData?.customerData?.contactNumber}</Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Grid>
+                                )}
+                                {combinedData?.customerData?.address && (
                                     <Grid item xs={12}>
-                                        <Typography variant="h5"> {combinedData?.customerData?.age}</Typography>
+                                        <Stack direction="row" spacing={1} alignItems="flex-start">
+                                            <MdLocationOn style={{ marginTop: 3, color: theme.palette.grey[500] }} />
+                                            <Box>
+                                                <Typography variant="caption" color="text.secondary" display="block">
+                                                    Address
+                                                </Typography>
+                                                <Typography variant="h5">{combinedData?.customerData?.address}</Typography>
+                                            </Box>
+                                        </Stack>
                                     </Grid>
                                 )}
                             </Grid>
+                        </Stack>
+                        <Typography variant="h3" mb={2}>
+                            Order Summary
+                        </Typography>
+                        <Stack mb={4} spacing={1} p={2.5} bgcolor="grey.50" borderRadius={3}>
+                            <Stack spacing={1} sx={{ maxHeight: 180, overflowY: 'auto' }}>
+                                {combinedData?.items?.map((item, index) => (
+                                    <Stack key={item._id || index} direction="row" justifyContent="space-between">
+                                        <Typography variant="body1">
+                                            {item.name} {item.qty > 1 && `x${item.qty}`}
+                                        </Typography>
+                                        <Typography variant="body1">
+                                            ₱{new Intl.NumberFormat().format(item.amount)}
+                                        </Typography>
+                                    </Stack>
+                                ))}
+                            </Stack>
+                            <Divider />
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography variant="body1">Subtotal</Typography>
+                                <Typography variant="body1">₱{new Intl.NumberFormat().format(combinedData?.subTotal)}</Typography>
+                            </Stack>
+                            {discountApplied?.totalDiscount > 0 && (
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="body1" color="success.dark">
+                                        {discountLabel}
+                                    </Typography>
+                                    <Typography variant="body1" color="success.dark">
+                                        - ₱{new Intl.NumberFormat().format(discountApplied.totalDiscount)}
+                                    </Typography>
+                                </Stack>
+                            )}
+                            <Divider />
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography variant="h4">Net Payable</Typography>
+                                <Typography variant="h4" color="primary.main">
+                                    ₱{new Intl.NumberFormat().format(combinedData?.paymentDue)}
+                                </Typography>
+                            </Stack>
                         </Stack>
                     </Card>
                 </Grid>
@@ -432,7 +569,14 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                                                     </Typography>
                                                 </Stack>
                                             </InputAdornment>
-                                        )
+                                        ),
+                                        endAdornment: amountGiven ? (
+                                            <InputAdornment position="end">
+                                                <IconButton size="small" onClick={handleClearClick}>
+                                                    <MdClose />
+                                                </IconButton>
+                                            </InputAdornment>
+                                        ) : null
                                     }}
                                     inputProps={{
                                         sx: {
@@ -642,8 +786,16 @@ const Checkout = ({ combinedData, handleBack, handleSuccessTrans, ar }) => {
                             onClick={handleSubmit(handlePayClick)}
                             disabled={amountGiven < combinedData?.paymentDue || loading}
                         >
-                            {loading ? 'LOADING' : 'PAY'}
+                            {loading ? 'LOADING' : `PAY ₱${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(combinedData?.paymentDue || 0)}`}
                         </Button>
+                        <Stack direction="row" justifyContent="space-between" mt={1}>
+                            <Typography variant="caption" color="text.secondary">
+                                Hotkeys: Enter to Pay
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                Esc to Cancel
+                            </Typography>
+                        </Stack>
                     </Card>
                     
                 </Grid>

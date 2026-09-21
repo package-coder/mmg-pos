@@ -68,7 +68,9 @@ const columns = [
     {
         key: 'permissions',
         header: 'Permissions',
-        render: (role) => <Chip label={`${role?.authorizations?.length || 0} Resources`} size="small" variant="outlined" />
+        render: (role) => (
+            <Chip label={`${Array.isArray(role?.authorizations) ? role.authorizations.length : 0} Resources`} size="small" variant="outlined" />
+        )
     },
     { key: 'spacer2', header: '' },
     {
@@ -177,7 +179,7 @@ function RolesPage() {
                 renderExpanded={(role) => (
                     <Table sx={{ minWidth: 650 }}>
                         <TableBody>
-                            {role?.authorizations?.map((auth) => (
+                            {(Array.isArray(role?.authorizations) ? role.authorizations : []).map((auth) => (
                                 <TableRow key={auth.resource}>
                                     <TableCell>{startCase(auth.resource)}</TableCell>
                                     <TableCell colSpan={4}>

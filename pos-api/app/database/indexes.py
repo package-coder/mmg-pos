@@ -36,20 +36,32 @@ def ensure_indexes(db):
     # cashier_reports — queried by branchId+date in generate_branch_report aggregation
     db.cashier_reports.create_index([("branchId", ASCENDING), ("date", ASCENDING)])
 
-    # cashier_reports — a cashier can only have one shift (time-in) per branch per day. Without
-    # this, time_in_report's "does a report already exist for today?" check is a plain find-then-
-    # insert with a race window: a reload/double-click, two browser tabs, or a retried request
-    # can both pass the check before either write lands, producing two live documents for one
-    # shift. Each duplicate independently $lookups the same day's transactions in
-    # CashierReportRepository.find, and branch-level Z-report generation sums `withdraw` across
-    # every cashier_reports doc for a branch+date with no per-cashier grouping — so a duplicate
-    # silently double-counts that cashier's withdraw in the Z-report. This index is what makes
-    # the insert in time_in_report atomic: the second attempt gets a DuplicateKeyError instead of
-    # a second document, which the route catches and logs as a traceable duplicate attempt.
-    db.cashier_reports.create_index(
+    # cashier_reports — a cashier can have multiple shifts per branch per day (e.g. time out at
+    # lunch, then time back in later), but at most one ACTIVE one (timeOut still null) per branch
+    # per day at a time — this partial unique index enforces exactly that. Without it,
+    # time_in_report's "is there already an open shift?" check is a plain find-then-insert with a
+    # race window: a reload/double-click, two browser tabs, or a retried request can both pass the
+    # check before either write lands, producing two simultaneously-open shifts. Each independently
+    # $lookups the same day's transactions in CashierReportRepository.find, and branch-level
+    # Z-report generation sums `withdraw` across every cashier_reports doc for a branch+date with
+    # no per-cashier grouping — so a duplicate *open* shift would silently double-count that
+    # cashier's withdraw in the Z-report. Partial (only `timeOut: null` rows), so any number of
+    # already-closed shifts for the same cashier+branch+day can coexist without colliding — the
+    # insert in time_in_report only needs to be atomic against a second concurrently-open shift,
+    # not against shift history. Previously a plain (non-partial) unique index named
+    # unique_cashier_report_per_day capped a cashier at one shift EVER per branch per day; explicitly
+    # drop that by name first since a partialFilterExpression can't be added to an existing index in
+    # place (create_index alone would raise IndexOptionsConflict — see _create_or_replace_index above).
+    try:
+        db.cashier_reports.drop_index("unique_cashier_report_per_day")
+    except OperationFailure:
+        pass
+    _create_or_replace_index(
+        db.cashier_reports,
         [("cashierId", ASCENDING), ("branchId", ASCENDING), ("date", ASCENDING)],
         unique=True,
-        name="unique_cashier_report_per_day",
+        partialFilterExpression={"timeOut": None},
+        name="unique_active_cashier_report_per_day",
     )
 
     # transactions — queried by status+cashierId+date for active transaction lookup

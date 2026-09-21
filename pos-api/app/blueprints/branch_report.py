@@ -61,28 +61,17 @@ def generate_reports(user_id):
     try:
         model = GenerateBranchReport(**request_data, cashierId=user_id)
 
-        # Defense in depth on top of unique_cashier_report_per_day (app/database/indexes.py),
-        # which should make this structurally impossible via the API: Z-report generation sums
-        # fields like `withdraw` across every cashier_reports document for a branch+date with no
-        # per-cashier grouping (BranchReportRepository._create_cashier_report_query), so if a
-        # duplicate ever exists regardless — pre-migration data, a manual DB edit, a future bug —
-        # generating anyway would silently double-count that cashier into the Z-report instead of
-        # failing loudly. Block generation and name the affected cashier(s) rather than that.
-        duplicate_cashiers = list(cashierReportRepository._db[cashierReportRepository._collection].aggregate([
-            { '$match': { 'branchId': model.branchId, 'date': model.date } },
-            { '$group': { '_id': '$cashierId', 'count': { '$sum': 1 } } },
-            { '$match': { 'count': { '$gt': 1 } } },
-        ]))
-        if(len(duplicate_cashiers) > 0):
-            cashier_ids = [d['_id'] for d in duplicate_cashiers]
-            message = f"Cannot generate Z-Report: duplicate time-in records found for cashier(s) {cashier_ids} on {model.date} — resolve before closing the day."
-            logger.insert_one(AuditLog(action=AuditCode.Z_REPORT_GENERATE_ERR, userId=user_id, message=message))
-            return jsonify({ 'message': message }), 409
-
         # A cashier still clocked in has no ending cash count / final X-Reading yet, so their
         # shift's totals aren't final — closing the day now would either miss their sales entirely
         # or (once they eventually time out) leave a Z whose figures no longer match what was
-        # actually printed. Block and name them so the operator knows who to chase.
+        # actually printed. Block and name them so the operator knows who to chase. This is also
+        # the only defense-in-depth this route needs against a duplicate/corrupt cashier_reports
+        # row for a branch+date (Z-report totals sum `withdraw` across every row for the day with
+        # no per-cashier grouping, so a duplicate OPEN row would double-count it): a cashier can
+        # legitimately have several already-closed shifts here (time out, then time back in later
+        # the same day), but unique_active_cashier_report_per_day (app/database/indexes.py)
+        # guarantees at most one open (`timeOut: None`) row per cashier+branch+day, so this same
+        # $match already catches the one shape of duplicate that would actually corrupt the totals.
         open_cashiers = list(cashierReportRepository._db[cashierReportRepository._collection].aggregate([
             { '$match': { 'branchId': model.branchId, 'date': model.date, 'timeOut': None } },
             {

@@ -135,7 +135,16 @@ const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
 
         setSubmitting(true);
         timeOut({ endingCashCount: { count: entries }, withdraw, branchId: branch.id, id: report._id })
-            .then(() => navigate('x-report'))
+            .then(() => {
+                // Only the PERSISTED branch is cleared here, not the in-memory one — the
+                // X-Reading/Z-Reading screens this navigates to still need `branch` from
+                // AuthProvider for the rest of this session. Clearing localStorage is what
+                // makes branch selection reappear on the cashier's NEXT login (a fresh mount
+                // re-reads it — see AuthProvider.jsx), rather than silently reusing a branch
+                // whose shift has already ended.
+                localStorage.removeItem('selectedBranch');
+                navigate('x-report');
+            })
             .finally(() => setSubmitting(false));
     };
 
@@ -238,11 +247,14 @@ const CashRegister = ({ initialValues, isEndingBalanceFlag, handleBack }) => {
                 {/* Title */}
                 <Stack direction="row" flexWrap="wrap" gap={2} justifyContent="space-between" alignItems="flex-start" mb={3}>
                     <Box>
-                        {isEndingBalance && (
-                            <Button size="small" startIcon={<MdChevronLeft />} sx={{ mb: 1 }} onClick={handleBack}>
-                                Back
-                            </Button>
-                        )}
+                        <Button
+                            size="small"
+                            startIcon={<MdChevronLeft />}
+                            sx={{ mb: 1 }}
+                            onClick={isEndingBalance ? handleBack : () => navigate('/dashboard/home')}
+                        >
+                            Back
+                        </Button>
                         <Stack direction="row" spacing={1.5} alignItems="center">
                             <Typography variant="h2" fontWeight={600}>
                                 {!isEndingBalance ? 'Opening Fund' : 'Ending Balance Entry'}
